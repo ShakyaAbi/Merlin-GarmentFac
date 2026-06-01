@@ -11,3 +11,8 @@ export const acknowledge = async (req: Request, res: Response) => {
   await prisma.lowStockAlert.update({ where: { id }, data: { acknowledged: true, acknowledgedAt: new Date(), acknowledgedBy: (req as any).user?.id } })
   res.status(204).end()
 }
+
+export const summary = async (req: Request, res: Response) => {
+  const totalUnread = await prisma.lowStockAlert.count({ where: { acknowledged: false } })
+  res.json({ totalUnread })
+}

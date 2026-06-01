@@ -84,7 +84,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       .then(([{ notifications, totalUnread }, overdue, alerts]) => {
         setNotifications(notifications);
         setOverdueNotifications(overdue || []);
-        const alertCount = (alerts || []).filter((a:any)=>!a.acknowledged).length || 0
+        // alert summary helper returns { totalUnread }
+        const alertCount = (alerts && (alerts.totalUnread !== undefined)) ? alerts.totalUnread : ((alerts || []).filter ? (alerts || []).filter((a:any)=>!a.acknowledged).length : 0)
         setUnreadCount(totalUnread + (overdue?.length || 0) + alertCount);
       })
       .catch(() => {});

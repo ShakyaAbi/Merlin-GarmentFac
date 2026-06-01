@@ -20,6 +20,7 @@ export const api = {
   ...exportApi,
   ...notificationApi,
   getInventoryAlerts: async () => request('/inventory/alerts'),
+  getInventoryAlertsSummary: async () => request('/inventory/alerts/summary'),
   
   // Generic methods
   get: async <T = any>(path: string): Promise<T> => request<T>(path),

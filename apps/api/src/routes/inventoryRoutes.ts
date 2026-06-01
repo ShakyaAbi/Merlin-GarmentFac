@@ -23,5 +23,6 @@ router.post('/purchases', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), 
 router.get('/purchases/:id', authenticate, purchases.get)
 router.get('/alerts', authenticate, alerts.list)
 router.post('/alerts/:id/ack', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), alerts.acknowledge)
+router.get('/alerts/summary', authenticate, alerts.summary)
 
 export default router
