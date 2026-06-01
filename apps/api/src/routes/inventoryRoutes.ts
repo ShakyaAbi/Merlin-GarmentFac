@@ -1,0 +1,24 @@
+import { Router } from 'express'
+import * as suppliers from '../controllers/inventory/suppliersController'
+import * as materials from '../controllers/inventory/materialsController'
+import * as purchases from '../controllers/inventory/purchasesController'
+import { authenticate } from '../middleware/auth'
+import { requireRoles } from '../middleware/rbac'
+import { Role } from '@prisma/client'
+
+const router = Router()
+
+router.post('/suppliers', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), suppliers.create)
+router.get('/suppliers', authenticate, suppliers.list)
+router.get('/suppliers/:id', authenticate, suppliers.get)
+router.put('/suppliers/:id', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), suppliers.update)
+
+router.post('/materials', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), materials.create)
+router.get('/materials', authenticate, materials.list)
+router.get('/materials/:id', authenticate, materials.get)
+router.patch('/materials/:id/adjust-stock', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), materials.adjustStock)
+
+router.post('/purchases', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), purchases.create)
+router.get('/purchases/:id', authenticate, purchases.get)
+
+export default router

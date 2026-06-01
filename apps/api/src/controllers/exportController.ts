@@ -5,9 +5,7 @@ import { asyncHandler } from "../utils/asyncHandler";
 
 const exportService = new ExportService(prisma);
 
-/**
- * Export indicator data as CSV
- */
+// Exports indicator data as CSV
 export const exportCSV = asyncHandler(async (req: Request, res: Response) => {
   const { indicatorId } = req.params;
   const { filters } = req.body;
@@ -38,9 +36,7 @@ export const exportCSV = asyncHandler(async (req: Request, res: Response) => {
   res.send(csv);
 });
 
-/**
- * Preview export (first 10 rows)
- */
+// Previews export with first 10 rows
 export const previewExport = asyncHandler(
   async (req: Request, res: Response) => {
     const { indicatorId } = req.params;

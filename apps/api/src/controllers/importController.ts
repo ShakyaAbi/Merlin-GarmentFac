@@ -11,9 +11,7 @@ const templateService = new TemplateService(prisma);
 const importTemplateRepo = new ImportTemplateRepository(prisma);
 const importJobRepo = new ImportJobRepository(prisma);
 
-/**
- * Upload CSV file and create import job
- */
+// Uploads CSV and creates an import job
 export const uploadCSV = asyncHandler(async (req: Request, res: Response) => {
   const { indicatorId } = req.params;
   const { templateId, validateOnly } = req.body;
@@ -95,9 +93,7 @@ export const uploadCSV = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-/**
- * Get import job status
- */
+// Gets import job status and statistics
 export const getImportJobStatus = asyncHandler(
   async (req: Request, res: Response) => {
     const { jobId } = req.params;
@@ -112,9 +108,7 @@ export const getImportJobStatus = asyncHandler(
   },
 );
 
-/**
- * Execute import (commit to database)
- */
+// Executes import by committing staged data
 export const executeImport = asyncHandler(
   async (req: Request, res: Response) => {
     const { jobId } = req.params;
@@ -142,9 +136,7 @@ export const executeImport = asyncHandler(
   },
 );
 
-/**
- * Cancel/rollback import
- */
+// Cancels and rolls back an import job
 export const cancelImport = asyncHandler(
   async (req: Request, res: Response) => {
     const { jobId } = req.params;
@@ -158,9 +150,7 @@ export const cancelImport = asyncHandler(
   },
 );
 
-/**
- * Get import jobs for an indicator
- */
+// Gets all import jobs for an indicator
 export const getImportJobs = asyncHandler(
   async (req: Request, res: Response) => {
     const { indicatorId } = req.params;
@@ -171,9 +161,7 @@ export const getImportJobs = asyncHandler(
   },
 );
 
-/**
- * Download error CSV
- */
+// Downloads CSV with import error details
 export const downloadErrorCSV = asyncHandler(
   async (req: Request, res: Response) => {
     const { jobId } = req.params;

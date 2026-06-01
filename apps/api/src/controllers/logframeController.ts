@@ -3,6 +3,7 @@ import * as logframeService from '../services/logframeService';
 import { deleteNodeCascade } from '../services/logframeService';
 import { asyncHandler } from '../utils/asyncHandler';
 
+// Creates a new logframe tree node
 export const createLogframeNode = asyncHandler(async (req: Request, res: Response) => {
   const projectId = Number(req.params.projectId);
   const organizationId = req.user!.organizationId;
@@ -10,6 +11,7 @@ export const createLogframeNode = asyncHandler(async (req: Request, res: Respons
   res.status(201).json(node);
 });
 
+// Gets the full logframe tree for a project
 export const getLogframeTree = asyncHandler(async (req: Request, res: Response) => {
   const projectId = Number(req.params.projectId);
   const organizationId = req.user!.organizationId;
@@ -17,11 +19,13 @@ export const getLogframeTree = asyncHandler(async (req: Request, res: Response) 
   res.json(tree);
 });
 
+// Updates a logframe tree node
 export const updateLogframeNode = asyncHandler(async (req: Request, res: Response) => {
   const node = await logframeService.updateNode(Number(req.params.id), req.body);
   res.json(node);
 });
 
+// Deletes a logframe tree node
 export const deleteLogframeNode = asyncHandler(async (req: Request, res: Response) => {
   const cascade = req.query.cascade === 'true';
   if (cascade) {

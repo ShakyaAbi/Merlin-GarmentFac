@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import * as indicatorService from "../services/indicatorService";
 import { asyncHandler } from "../utils/asyncHandler";
 
+// Creates a new indicator for a project
 export const createIndicator = asyncHandler(
   async (req: Request, res: Response) => {
     const projectId = Number(req.params.projectId);
@@ -17,6 +18,7 @@ export const createIndicator = asyncHandler(
 );
 
 
+// Lists all indicators for a project
 export const getIndicatorsByProject = asyncHandler(
   async (req: Request, res: Response) => {
     const projectId = Number(req.params.projectId);
@@ -27,6 +29,7 @@ export const getIndicatorsByProject = asyncHandler(
 );
 
 
+// Gets a single indicator by ID
 export const getIndicator = asyncHandler(
   async (req: Request, res: Response) => {
     const includeSubmissions = req.query.includeSubmissions === "true";
@@ -41,6 +44,7 @@ export const getIndicator = asyncHandler(
   },
 );
 
+// Updates an existing indicator
 export const updateIndicator = asyncHandler(
   async (req: Request, res: Response) => {
     const indicator = await indicatorService.updateIndicator(
@@ -52,6 +56,7 @@ export const updateIndicator = asyncHandler(
   },
 );
 
+// Recalculates anomaly detection for an indicator
 export const recalculateIndicatorAnomalies = asyncHandler(
   async (req: Request, res: Response) => {
     await indicatorService.recalculateIndicatorAnomalies(
@@ -62,6 +67,7 @@ export const recalculateIndicatorAnomalies = asyncHandler(
   },
 );
 
+// Gets indicator with statistical data
 export const getIndicatorStats = asyncHandler(
   async (req: Request, res: Response) => {
     const includeDeleted = req.query.includeDeleted === "true";
@@ -74,6 +80,7 @@ export const getIndicatorStats = asyncHandler(
   },
 );
 
+// Detects reporting gaps for an indicator
 export const getReportingGaps = asyncHandler(
   async (req: Request, res: Response) => {
     const indicator = await indicatorService.getIndicatorById(
@@ -96,6 +103,7 @@ export const getReportingGaps = asyncHandler(
   },
 );
 
+// Gets category distribution for categorical indicators
 export const getCategoryDistribution = asyncHandler(
   async (req: Request, res: Response) => {
     const includeDeleted = req.query.includeDeleted === "true";
@@ -127,6 +135,7 @@ export const getCategoryDistribution = asyncHandler(
   },
 );
 
+// Soft-deletes an indicator
 export const deleteIndicator = asyncHandler(
   async (req: Request, res: Response) => {
     await indicatorService.deleteIndicator(Number(req.params.id), req.user!.organizationId);
@@ -134,6 +143,7 @@ export const deleteIndicator = asyncHandler(
   },
 );
 
+// Gets import templates for an indicator
 export const getIndicatorTemplates = asyncHandler(
   async (req: Request, res: Response) => {
     const templates = await indicatorService.getIndicatorTemplates(
@@ -144,6 +154,7 @@ export const getIndicatorTemplates = asyncHandler(
   },
 );
 
+// Gets disaggregated category statistics
 export const getDisaggregatedCategoryStats = asyncHandler(
   async (req: Request, res: Response) => {
     const includeDeleted = req.query.includeDeleted === "true";
@@ -155,6 +166,7 @@ export const getDisaggregatedCategoryStats = asyncHandler(
     res.json(stats);
   },
 );
+// Gets reporting compliance for a date range
 export const getReportingCompliance = asyncHandler(
   async (req: Request, res: Response) => {
     const { startDate, endDate, reportingFrequency } = req.query;
@@ -193,6 +205,7 @@ export const getReportingCompliance = asyncHandler(
   }
 );
 
+// Gets category time series data
 export const getCategoryTimeSeries = asyncHandler(
   async (req: Request, res: Response) => {
     const { startDate, endDate, groupBy, disaggregationKey } = req.query;
@@ -231,6 +244,7 @@ export const getCategoryTimeSeries = asyncHandler(
   }
 );
 
+// Lists available ML algorithms
 export const getMLAlgorithms = asyncHandler(
   async (_req: Request, res: Response) => {
     const algorithms = await indicatorService.getMLAlgorithms();
@@ -238,6 +252,7 @@ export const getMLAlgorithms = asyncHandler(
   },
 );
 
+// Evaluates ML models for a given indicator
 export const evaluateML = asyncHandler(
   async (req: Request, res: Response) => {
     try {

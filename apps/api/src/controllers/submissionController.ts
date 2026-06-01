@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import * as submissionService from "../services/submissionService";
 import { asyncHandler } from "../utils/asyncHandler";
 
+// Creates a new submission for an indicator
 export const createSubmission = asyncHandler(
   async (req: Request, res: Response) => {
     const indicatorId = Number(req.params.indicatorId);
@@ -22,6 +23,7 @@ export const createSubmission = asyncHandler(
   }
 );
 
+// Lists submissions for an indicator
 export const listSubmissions = asyncHandler(
   async (req: Request, res: Response) => {
     const indicatorId = Number(req.params.indicatorId);
@@ -34,6 +36,7 @@ export const listSubmissions = asyncHandler(
   }
 );
 
+// Updates an existing submission
 export const updateSubmission = asyncHandler(
   async (req: Request, res: Response) => {
     const submissionId = Number(req.params.id);
@@ -48,6 +51,7 @@ export const updateSubmission = asyncHandler(
   },
 );
 
+// Soft-deletes a submission
 export const deleteSubmission = asyncHandler(
   async (req: Request, res: Response) => {
     const submissionId = Number(req.params.id);
@@ -61,6 +65,7 @@ export const deleteSubmission = asyncHandler(
   },
 );
 
+// Restores a soft-deleted submission
 export const restoreSubmission = asyncHandler(
   async (req: Request, res: Response) => {
     const submissionId = Number(req.params.id);
@@ -73,6 +78,7 @@ export const restoreSubmission = asyncHandler(
   },
 );
 
+// Acknowledges an anomaly on a submission
 export const acknowledgeAnomaly = asyncHandler(
   async (req: Request, res: Response) => {
     const submissionId = Number(req.params.id);
@@ -86,6 +92,7 @@ export const acknowledgeAnomaly = asyncHandler(
   }
 );
 
+// Resolves an anomaly on a submission
 export const resolveAnomaly = asyncHandler(
   async (req: Request, res: Response) => {
     const submissionId = Number(req.params.id);
@@ -99,6 +106,7 @@ export const resolveAnomaly = asyncHandler(
   }
 );
 
+// Marks an anomaly as false positive
 export const markAnomalyFalsePositive = asyncHandler(
   async (req: Request, res: Response) => {
     const submissionId = Number(req.params.id);
@@ -112,6 +120,7 @@ export const markAnomalyFalsePositive = asyncHandler(
   }
 );
 
+// Updates anomaly status on a submission
 export const updateAnomalyStatus = asyncHandler(
   async (req: Request, res: Response) => {
     const submissionId = Number(req.params.id);

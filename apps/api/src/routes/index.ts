@@ -10,6 +10,7 @@ import templateRoutes from "./templateRoutes";
 import healthRoutes from "./healthRoutes";
 import notificationRoutes from "./notificationRoutes";
 import usersRoutes from "./usersRoutes";
+import suppliersRoutes from "./inventoryRoutes";
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use("/", templateRoutes);
 router.use("/", healthRoutes);
 router.use("/", notificationRoutes);
 router.use("/users", usersRoutes);
+router.use("/inventory", suppliersRoutes);
 
 export default router;

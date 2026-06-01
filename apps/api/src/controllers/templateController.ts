@@ -8,9 +8,7 @@ import { asyncHandler } from "../utils/asyncHandler";
 const importTemplateRepo = new ImportTemplateRepository(prisma);
 const templateService = new TemplateService(prisma);
 
-/**
- * Create import template
- */
+// Creates a new import template
 export const createImportTemplate = asyncHandler(
   async (req: Request, res: Response) => {
     const { indicatorId } = req.params;
@@ -35,9 +33,7 @@ export const createImportTemplate = asyncHandler(
   },
 );
 
-/**
- * Get import templates for indicator
- */
+// Gets import templates for an indicator
 export const getImportTemplates = asyncHandler(
   async (req: Request, res: Response) => {
     const { indicatorId } = req.params;
@@ -59,9 +55,7 @@ export const getImportTemplates = asyncHandler(
   },
 );
 
-/**
- * Get single import template
- */
+// Gets a single import template by ID
 export const getImportTemplate = asyncHandler(
   async (req: Request, res: Response) => {
     const { templateId } = req.params;
@@ -76,9 +70,7 @@ export const getImportTemplate = asyncHandler(
   },
 );
 
-/**
- * Update import template
- */
+// Updates an import template
 export const updateImportTemplate = asyncHandler(
   async (req: Request, res: Response) => {
     const { templateId } = req.params;
@@ -102,9 +94,7 @@ export const updateImportTemplate = asyncHandler(
   },
 );
 
-/**
- * Delete import template
- */
+// Deletes an import template
 export const deleteImportTemplate = asyncHandler(
   async (req: Request, res: Response) => {
     const { templateId } = req.params;
@@ -115,9 +105,7 @@ export const deleteImportTemplate = asyncHandler(
   },
 );
 
-/**
- * Clone import template
- */
+// Clones an existing import template
 export const cloneImportTemplate = asyncHandler(
   async (req: Request, res: Response) => {
     const { templateId } = req.params;
@@ -133,9 +121,7 @@ export const cloneImportTemplate = asyncHandler(
   },
 );
 
-/**
- * Download import template as CSV sample
- */
+// Downloads import template as sample CSV
 export const downloadImportTemplateSample = asyncHandler(
   async (req: Request, res: Response) => {
     const { indicatorId } = req.params;
