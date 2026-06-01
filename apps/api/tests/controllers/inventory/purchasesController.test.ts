@@ -30,4 +30,11 @@ describe('purchasesController', () => {
     const txs = await prisma.stockTransaction.findMany({ where: { referenceId: res.body.id } })
     expect(txs.length).toBeGreaterThanOrEqual(1)
   })
+
+  test('POST /api/inventory/purchases validates input', async () => {
+    const { token } = await createAdminAndToken()
+    const res = await request(app).post('/api/v1/inventory/purchases').set('Authorization', `Bearer ${token}`).send({})
+    expect(res.status).toBe(400)
+    expect(res.body).toHaveProperty('error')
+  })
 })
