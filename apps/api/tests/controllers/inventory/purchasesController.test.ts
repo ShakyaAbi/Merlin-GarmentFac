@@ -37,4 +37,20 @@ describe('purchasesController', () => {
     expect(res.status).toBe(400)
     expect(res.body).toHaveProperty('error')
   })
+
+  test('POST /api/inventory/purchases rejects negative quantity', async () => {
+    const { token } = await createAdminAndToken()
+
+    const supplierRes = await request(app).post('/api/v1/inventory/suppliers').set('Authorization', `Bearer ${token}`).send({ name: 'Neg Supplier' })
+    expect(supplierRes.status).toBe(201)
+    const materialRes = await request(app).post('/api/v1/inventory/materials').set('Authorization', `Bearer ${token}`).send({ name: 'Neg Cloth', defaultUnit: 'meter' })
+    expect(materialRes.status).toBe(201)
+
+    const res = await request(app).post('/api/v1/inventory/purchases').set('Authorization', `Bearer ${token}`).send({
+      supplierId: supplierRes.body.id,
+      items: [{ rawMaterialId: materialRes.body.id, quantity: -10, unit: 'meter', unitPrice: '10.00' }]
+    })
+
+    expect(res.status).toBe(400)
+  })
 })
