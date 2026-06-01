@@ -19,6 +19,7 @@ export const api = {
   ...importApi,
   ...exportApi,
   ...notificationApi,
+  getInventoryAlerts: async () => request('/inventory/alerts'),
   
   // Generic methods
   get: async <T = any>(path: string): Promise<T> => request<T>(path),
@@ -31,4 +32,3 @@ export const api = {
 };
 
 export const authStorage = { getToken, setToken };
-

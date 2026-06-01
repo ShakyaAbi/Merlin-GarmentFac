@@ -78,11 +78,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     Promise.all([
       api.getAnomalyNotifications(),
       api.getOverdueNotifications(),
+      // Inventory alerts count
+      api.getInventoryAlerts && api.getInventoryAlerts(),
     ])
-      .then(([{ notifications, totalUnread }, overdue]) => {
+      .then(([{ notifications, totalUnread }, overdue, alerts]) => {
         setNotifications(notifications);
         setOverdueNotifications(overdue || []);
-        setUnreadCount(totalUnread + (overdue?.length || 0));
+        const alertCount = (alerts || []).filter((a:any)=>!a.acknowledged).length || 0
+        setUnreadCount(totalUnread + (overdue?.length || 0) + alertCount);
       })
       .catch(() => {});
   };
@@ -300,6 +303,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                         {!isCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
                       </div>
                       {!isCollapsed && isActive && <ChevronRight className="w-4 h-4 text-white/70" />}
+                      {!isCollapsed && item.path === '/inventory/alerts' && (
+                        <div className="ml-2 flex items-center">
+                          {unreadCount > 0 && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded">{unreadCount}</span>}
+                        </div>
+                      )}
                     </Link>
                   )
                 })}
