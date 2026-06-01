@@ -12,6 +12,9 @@ import { AdminUsers } from './pages/AdminUsers';
 import { AdminInvitations } from './pages/AdminInvitations';
 import { GoogleCallback } from './pages/GoogleCallback';
 import { Layout } from './components/Layout';
+import SuppliersPage from './pages/inventory/SuppliersPage'
+import MaterialsPage from './pages/inventory/MaterialsPage'
+import PurchasesPage from './pages/inventory/PurchasesPage'
 
 import { PrivateRoute } from './components/PrivateRoute';
 
@@ -27,6 +30,9 @@ const App: React.FC = () => {
             <Route path="/projects" element={<ProjectList />} />
             <Route path="/projects/:id" element={<ProjectDetail />} />
             <Route path="/indicators/:id" element={<IndicatorDetail />} />
+            <Route path="/inventory/suppliers" element={<SuppliersPage />} />
+            <Route path="/inventory/materials" element={<MaterialsPage />} />
+            <Route path="/inventory/purchases" element={<PurchasesPage />} />
             <Route path="/data-entry" element={<DataEntry />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/admin/users" element={<AdminUsers />} />
