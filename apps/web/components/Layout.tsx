@@ -109,6 +109,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     { icon: Settings, label: "Settings", path: "/settings" },
   ];
 
+  // Inventory section links
+  const inventoryItems = [
+    { icon: Command, label: 'Suppliers', path: '/inventory/suppliers' },
+    { icon: FolderKanban, label: 'Materials', path: '/inventory/materials' },
+    { icon: ClipboardCheck, label: 'Purchases', path: '/inventory/purchases' },
+    { icon: AlertCircle, label: 'Alerts', path: '/inventory/alerts' },
+  ];
+
   const handleMarkAllRead = async () => {
     if (markingRead) return;
     setMarkingRead(true);
@@ -209,7 +217,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-6 overflow-x-hidden">
-          <div>
+            <div>
             {!isCollapsed && (
               <h2 className="px-3 text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 animate-in fade-in whitespace-nowrap">
                 Main Menu
@@ -259,6 +267,43 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </Link>
                 );
               })}
+            </div>
+          
+            {/* Inventory Section */}
+            <div className="mt-6">
+              {!isCollapsed && (
+                <h2 className="px-3 text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 animate-in fade-in whitespace-nowrap">
+                  Inventory
+                </h2>
+              )}
+              <div className="space-y-1">
+                {inventoryItems.map((item) => {
+                  const isActive = location.pathname.startsWith(item.path);
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setSidebarOpen(false)}
+                      title={isCollapsed ? item.label : ""}
+                      className={
+                        `group flex items-center ${
+                          isCollapsed ? "justify-center px-0" : "justify-between px-3"
+                        } py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                          isActive
+                            ? "bg-blue-600 text-white shadow-lg shadow-blue-900/30"
+                            : "text-slate-300 hover:bg-white/10 hover:text-white"
+                        }`
+                      }
+                    >
+                      <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}>
+                        <item.icon className={`w-5 h-5 transition-colors ${isActive ? "text-white" : "text-slate-400 group-hover:text-white"}`} />
+                        {!isCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
+                      </div>
+                      {!isCollapsed && isActive && <ChevronRight className="w-4 h-4 text-white/70" />}
+                    </Link>
+                  )
+                })}
+              </div>
             </div>
           </div>
         </nav>
