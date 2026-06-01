@@ -17,11 +17,10 @@ export async function createAdminAndToken(
   }
 
   // Ensure an organization exists for the admin
-  const organization = await prisma.organization.upsert({
-    where: { name: 'Test Admin Org' },
-    update: {},
-    create: { name: 'Test Admin Org' },
-  });
+  let organization = await prisma.organization.findFirst({ where: { name: 'Test Admin Org' } })
+  if (!organization) {
+    organization = await prisma.organization.create({ data: { name: 'Test Admin Org' } })
+  }
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (!existing) {
