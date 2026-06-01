@@ -15,6 +15,7 @@ function getPeriodStart(date: Date, frequency: string): Date {
   return d;
 }
 
+// Sends data entry reminders for indicators due
 export async function runReminderJob() {
   const today = new Date();
   const indicators = await prisma.indicator.findMany({

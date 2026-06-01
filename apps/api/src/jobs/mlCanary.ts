@@ -81,4 +81,5 @@ if (require.main === module) {
   });
 }
 
+// Runs a health check on the ML anomaly service
 export { runCanary };
