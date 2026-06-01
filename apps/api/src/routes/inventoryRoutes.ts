@@ -2,6 +2,7 @@ import { Router } from 'express'
 import * as suppliers from '../controllers/inventory/suppliersController'
 import * as materials from '../controllers/inventory/materialsController'
 import * as purchases from '../controllers/inventory/purchasesController'
+import * as alerts from '../controllers/inventory/alertsController'
 import { authenticate } from '../middleware/auth'
 import { requireRoles } from '../middleware/rbac'
 import { Role } from '@prisma/client'
@@ -20,5 +21,7 @@ router.patch('/materials/:id/adjust-stock', authenticate, requireRoles(Role.ADMI
 
 router.post('/purchases', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), purchases.create)
 router.get('/purchases/:id', authenticate, purchases.get)
+router.get('/alerts', authenticate, alerts.list)
+router.post('/alerts/:id/ack', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), alerts.acknowledge)
 
 export default router
