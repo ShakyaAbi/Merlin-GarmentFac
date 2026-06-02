@@ -14,6 +14,7 @@ import { GoogleCallback } from './pages/GoogleCallback';
 import { Layout } from './components/Layout';
 import SuppliersPage from './pages/inventory/SuppliersPage'
 import MaterialsPage from './pages/inventory/MaterialsPage'
+import CreateMaterialPage from './pages/inventory/CreateMaterialPage'
 import PurchasesPage from './pages/inventory/PurchasesPage'
 import PurchaseCreate from './pages/inventory/PurchaseCreate'
 import AlertsPage from './pages/inventory/AlertsPage'
@@ -36,6 +37,7 @@ const App: React.FC = () => {
             <Route path="/indicators/:id" element={<IndicatorDetail />} />
             <Route path="/inventory/suppliers" element={<SuppliersPage />} />
             <Route path="/inventory/materials" element={<MaterialsPage />} />
+            <Route path="/inventory/materials/create" element={<CreateMaterialPage />} />
             <Route path="/inventory/purchases" element={<PurchasesPage />} />
             <Route path="/inventory/purchases/create" element={<PurchaseCreate />} />
             <Route path="/inventory/alerts" element={<AlertsPage />} />
