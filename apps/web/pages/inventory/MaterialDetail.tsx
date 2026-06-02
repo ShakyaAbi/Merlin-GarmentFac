@@ -9,6 +9,7 @@ export default function MaterialDetail(){
   const [transactions, setTransactions] = useState<any[]>([])
   const [purchases, setPurchases] = useState<any[]>([])
   const [prices, setPrices] = useState<any[]>([])
+  const [boms, setBoms] = useState<any[]>([])
   const [showEdit, setShowEdit] = useState(false)
   const [showAdjust, setShowAdjust] = useState(false)
 
@@ -18,6 +19,7 @@ export default function MaterialDetail(){
     api.get(`/inventory/materials/${id}/transactions`).then(setTransactions).catch(()=>{})
     api.get(`/inventory/materials/${id}/purchases`).then(setPurchases).catch(()=>{})
     api.get(`/inventory/materials/${id}/prices`).then(setPrices).catch(()=>{})
+    api.get(`/inventory/materials/${id}/boms`).then(setBoms).catch(()=>{})
   },[id])
 
   if(!material) return <div>Loading...</div>
@@ -90,6 +92,20 @@ export default function MaterialDetail(){
             </ul>
           </div>
         </div>
+      </div>
+
+      <div className="p-4 bg-white rounded shadow mt-4">
+        <h3 className="font-semibold">Bill of Materials (BOMs using this material)</h3>
+        {boms.length === 0 ? (
+          <div className="mt-2 text-sm text-slate-600">No BOMs reference this material.</div>
+        ) : (
+          <table className="w-full text-left mt-3">
+            <thead><tr><th>Garment</th><th>Consumption</th><th>Unit</th><th>Yield</th></tr></thead>
+            <tbody>
+              {boms.map((b:any)=> <tr key={b.id}><td>{b.garmentStyle}</td><td>{b.consumption}</td><td>{b.unit}</td><td>{b.yield ?? '—'}</td></tr>)}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <Modal isOpen={showEdit} onClose={()=>setShowEdit(false)} title={`Edit ${material.name}`} size="md">

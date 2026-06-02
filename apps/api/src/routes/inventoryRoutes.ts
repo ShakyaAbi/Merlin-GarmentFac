@@ -20,6 +20,7 @@ router.get('/materials/:id', authenticate, materials.get)
 router.patch('/materials/:id/adjust-stock', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), materials.adjustStock)
 router.get('/materials/:id/transactions', authenticate, materials.transactions)
 router.get('/materials/:id/prices', authenticate, materials.prices)
+router.get('/materials/:id/boms', authenticate, materials.boms || ((req, res) => res.json([])))
 router.get('/materials/:id/purchases', authenticate, materials.purchases)
 router.put('/materials/:id', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), materials.update)
 
