@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { api } from '../../services/api'
+import { Modal } from '../../components/ui/Modal'
 
 export default function MaterialDetail(){
   const { id } = useParams<{ id: string }>()
@@ -8,6 +9,8 @@ export default function MaterialDetail(){
   const [transactions, setTransactions] = useState<any[]>([])
   const [purchases, setPurchases] = useState<any[]>([])
   const [prices, setPrices] = useState<any[]>([])
+  const [showEdit, setShowEdit] = useState(false)
+  const [showAdjust, setShowAdjust] = useState(false)
 
   useEffect(()=>{
     if(!id) return
@@ -19,6 +22,25 @@ export default function MaterialDetail(){
 
   if(!material) return <div>Loading...</div>
 
+  const handleSaveEdit = async (payload:any) => {
+    try{
+      const updated = await api.put(`/inventory/materials/${material.id}`, payload)
+      setMaterial(updated)
+      setShowEdit(false)
+    }catch(err:any){ alert('Update failed: '+err.message) }
+  }
+
+  const handleAdjust = async (payload:any) => {
+    try{
+      const tx = await api.post(`/inventory/materials/${material.id}/adjust-stock`, payload)
+      setTransactions([tx, ...transactions])
+      // refresh stock
+      const refreshed = await api.get(`/inventory/materials/${material.id}`)
+      setMaterial(refreshed)
+      setShowAdjust(false)
+    }catch(err:any){ alert('Adjust failed: '+err.message) }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -29,7 +51,8 @@ export default function MaterialDetail(){
         </div>
         <div className="space-x-2">
           <Link to={`/inventory/purchases/create?material=${material.id}`} className="px-3 py-2 bg-blue-600 text-white rounded">Create Purchase</Link>
-          <button className="px-3 py-2 border rounded">Adjust Stock</button>
+          <button onClick={()=>setShowAdjust(true)} className="px-3 py-2 border rounded">Adjust Stock</button>
+          <button onClick={()=>setShowEdit(true)} className="px-3 py-2 border rounded">Edit Material</button>
         </div>
       </div>
 
@@ -67,6 +90,74 @@ export default function MaterialDetail(){
             </ul>
           </div>
         </div>
+      </div>
+
+      <Modal isOpen={showEdit} onClose={()=>setShowEdit(false)} title={`Edit ${material.name}`} size="md">
+        <EditMaterialForm material={material} onCancel={()=>setShowEdit(false)} onSave={handleSaveEdit} />
+      </Modal>
+
+      <Modal isOpen={showAdjust} onClose={()=>setShowAdjust(false)} title={`Adjust stock — ${material.name}`} size="md">
+        <AdjustStockForm material={material} onCancel={()=>setShowAdjust(false)} onSave={handleAdjust} />
+      </Modal>
+    </div>
+  )
+}
+
+function EditMaterialForm({ material, onCancel, onSave }: any){
+  const [form, setForm] = useState({ name: material.name, sku: material.sku || '', defaultUnit: material.defaultUnit || '', reorderLevel: material.reorderLevel || 0, costPrice: material.costPrice || '' })
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm">Name</label>
+        <input className="w-full p-2 border rounded" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
+      </div>
+      <div>
+        <label className="block text-sm">SKU</label>
+        <input className="w-full p-2 border rounded" value={form.sku} onChange={e=>setForm({...form, sku:e.target.value})} />
+      </div>
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <label className="block text-sm">Default Unit</label>
+          <input className="w-full p-2 border rounded" value={form.defaultUnit} onChange={e=>setForm({...form, defaultUnit:e.target.value})} />
+        </div>
+        <div className="w-32">
+          <label className="block text-sm">Reorder</label>
+          <input type="number" className="w-full p-2 border rounded" value={form.reorderLevel} onChange={e=>setForm({...form, reorderLevel: Number(e.target.value)})} />
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm">Cost Price</label>
+        <input className="w-full p-2 border rounded" value={form.costPrice} onChange={e=>setForm({...form, costPrice:e.target.value})} />
+      </div>
+      <div className="flex justify-end gap-2">
+        <button onClick={onCancel} className="px-3 py-2 border rounded">Cancel</button>
+        <button onClick={()=>onSave(form)} className="px-4 py-2 bg-blue-600 text-white rounded">Save</button>
+      </div>
+    </div>
+  )
+}
+
+function AdjustStockForm({ material, onCancel, onSave }: any){
+  const [change, setChange] = useState(0)
+  const [unit, setUnit] = useState(material.defaultUnit || '')
+  const [reason, setReason] = useState('adjustment')
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm">Change (use negative to reduce)</label>
+        <input type="number" className="w-full p-2 border rounded" value={change} onChange={e=>setChange(Number(e.target.value))} />
+      </div>
+      <div>
+        <label className="block text-sm">Unit</label>
+        <input className="w-full p-2 border rounded" value={unit} onChange={e=>setUnit(e.target.value)} />
+      </div>
+      <div>
+        <label className="block text-sm">Reason</label>
+        <input className="w-full p-2 border rounded" value={reason} onChange={e=>setReason(e.target.value)} />
+      </div>
+      <div className="flex justify-end gap-2">
+        <button onClick={onCancel} className="px-3 py-2 border rounded">Cancel</button>
+        <button onClick={()=>onSave({ change, unit, reason })} className="px-4 py-2 bg-blue-600 text-white rounded">Apply</button>
       </div>
     </div>
   )
