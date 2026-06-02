@@ -5,6 +5,7 @@ const dateString = z
   .string()
   .refine((val) => !Number.isNaN(Date.parse(val)), { message: 'Invalid date format' });
 
+// Validates project creation request body
 export const createProjectSchema = {
   body: z.object({
     name: z.string().min(1),
@@ -21,6 +22,7 @@ export const createProjectSchema = {
   })
 };
 
+// Validates project ID URL parameter
 export const projectIdParamSchema = {
   params: z.object({
     id: z
@@ -30,6 +32,7 @@ export const projectIdParamSchema = {
   })
 };
 
+// Validates project update request body and params
 export const updateProjectSchema = {
   ...projectIdParamSchema,
   body: z.object({

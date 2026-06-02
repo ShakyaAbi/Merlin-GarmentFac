@@ -24,6 +24,7 @@ export interface CategoryConfig {
   expectedReportingEntities?: number;
 }
 
+// Validates category definitions
 /**
  * Validates category definitions
  */
@@ -86,6 +87,7 @@ export const validateCategories = (categories: any): CategoryDefinition[] => {
   return validated;
 };
 
+// Validates disaggregation dimensions
 /**
  * Validates disaggregation dimensions
  */
@@ -171,6 +173,7 @@ export const validateDisaggregationDimensions = (
   });
 };
 
+// Validates category configuration
 /**
  * Validates category configuration
  */
@@ -263,6 +266,7 @@ export const validateCategoryConfig = (config: any): CategoryConfig => {
   return validated;
 };
 
+// Validates a categorical submission value
 /**
  * Validates a categorical submission value
  */
@@ -323,6 +327,7 @@ export const validateCategoricalValue = (
   return selectedIds;
 };
 
+// Formats categorical value for storage
 /**
  * Format categorical value for storage (comma-separated string)
  */
@@ -330,6 +335,7 @@ export const formatCategoricalValue = (selectedIds: string[]): string => {
   return selectedIds.join(",");
 };
 
+// Parses categorical value from storage
 /**
  * Parse categorical value from storage
  */
@@ -351,6 +357,7 @@ export interface CategoryStats {
   percentage: number;
 }
 
+// Calculates distribution stats for categorical data
 export const getCategoryDistribution = (
   submissions: Array<{ value?: string | null; categoryValue?: string | null }>,
   categories: CategoryDefinition[],
@@ -388,6 +395,7 @@ export const getCategoryDistribution = (
   return stats.sort((a, b) => b.count - a.count);
 };
 
+// Gets the most frequently selected category
 /**
  * Get the most frequently selected category
  */
@@ -405,6 +413,7 @@ export const getMostFrequentCategory = (
   };
 };
 
+// Calculates trend for categorical data over time
 /**
  * Calculate trend for categorical data (most common category over time)
  */
@@ -444,6 +453,7 @@ export const getCategoryTrend = (
   };
 };
 
+// Validates disaggregation key against defined dimensions
 /**
  * Validate disaggregation key against defined dimensions
  */
@@ -544,6 +554,7 @@ export interface DisaggregatedCategoryStats {
   lastReportedAt: Date | null;
 }
 
+// Gets disaggregated category distribution stats
 export const getDisaggregatedCategoryDistribution = (
   submissions: Array<{
     value?: string | null;
@@ -606,6 +617,7 @@ export interface ReportingComplianceStats {
   };
 }
 
+// Calculates reporting compliance statistics
 export const calculateReportingCompliance = (
   submissions: Array<{
     value?: string | null;
@@ -735,6 +747,7 @@ export interface CategoryTimeSeriesStats {
   totalSubmissions: number;
 }
 
+// Gets time-series category statistics
 export const getCategoryTimeSeries = (
   submissions: Array<{
     value?: string | null;

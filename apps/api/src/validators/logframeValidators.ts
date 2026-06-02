@@ -7,12 +7,14 @@ const numericId = z.union([
 ]);
 
 
+// Validates project ID param for logframe routes
 export const projectLogframeParamsSchema = {
   params: z.object({
     projectId: numericId
   })
 };
 
+// Validates logframe node creation request body
 export const createLogframeNodeSchema = {
   body: z.object({
     type: z.nativeEnum(NodeType),
@@ -25,12 +27,14 @@ export const createLogframeNodeSchema = {
   })
 };
 
+// Validates logframe node ID URL parameter
 export const logframeNodeIdParamsSchema = {
   params: z.object({
     id: numericId
   })
 };
 
+// Validates logframe node update request body and params
 export const updateLogframeNodeSchema = {
   ...logframeNodeIdParamsSchema,
   body: z.object({

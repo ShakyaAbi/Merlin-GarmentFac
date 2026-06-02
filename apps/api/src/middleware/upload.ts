@@ -47,6 +47,7 @@ const storageDisk = multer.diskStorage({
   },
 });
 
+// Multer instance for memory-based file uploads
 export const upload = multer({
   storage,
   fileFilter,
@@ -55,6 +56,7 @@ export const upload = multer({
   },
 });
 
+// Multer instance for disk-based file uploads
 export const uploadToDisk = multer({
   storage: storageDisk,
   fileFilter,
@@ -64,5 +66,7 @@ export const uploadToDisk = multer({
 });
 
 // Export middleware for single file upload
+// Middleware for single CSV file upload
 export const uploadCSV = upload.single("file");
+// Middleware for single file upload to disk
 export const uploadVerification = uploadToDisk.single("file");

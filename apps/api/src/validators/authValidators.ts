@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Role } from '@prisma/client';
 
+// Validates user registration request body
 export const registerSchema = {
   body: z.object({
     email: z.string().email(),
@@ -15,6 +16,7 @@ export const registerSchema = {
   })
 };
 
+// Validates invitation creation request body
 export const createInvitationSchema = {
   body: z.object({
     email: z.string().email(),
@@ -22,6 +24,7 @@ export const createInvitationSchema = {
   })
 };
 
+// Validates login request body
 export const loginSchema = {
   body: z.object({
     email: z.string().email(),
@@ -29,6 +32,7 @@ export const loginSchema = {
   })
 };
 
+// Validates profile update request body
 export const updateMeSchema = {
   body: z.object({
     name: z.string().min(1).optional().nullable(),
@@ -48,6 +52,7 @@ export const updateMeSchema = {
   })
 };
 
+// Validates password change request body
 export const changePasswordSchema = {
   body: z.object({
     currentPassword: z.string().min(1),

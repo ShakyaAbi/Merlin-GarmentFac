@@ -30,6 +30,7 @@ export type AnomalyConfig = {
   };
 };
 
+// Default anomaly detection configuration
 export const defaultAnomalyConfig: Required<Pick<AnomalyConfig, "enabled">> &
    AnomalyConfig = {
    enabled: true,
@@ -54,6 +55,7 @@ export const defaultAnomalyConfig: Required<Pick<AnomalyConfig, "enabled">> &
    },
  };
 
+// Normalizes and merges partial config with defaults
 export const normalizeAnomalyConfig = (
   config?: AnomalyConfig | null,
 ): AnomalyConfig => ({

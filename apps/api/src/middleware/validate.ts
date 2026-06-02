@@ -8,6 +8,7 @@ type Schemas = {
   query?: ZodSchema<any>;
 };
 
+// Validates request body, params and query against schemas
 export const validate =
   (schemas: Schemas) => (req: Request, _res: Response, next: NextFunction) => {
     try {

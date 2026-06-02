@@ -10,12 +10,14 @@ const dateString = z.string().refine((val) => !Number.isNaN(Date.parse(val)), {
   message: "Invalid date format",
 });
 
+// Validates indicator ID param for submissions
 export const indicatorSubmissionsParamsSchema = {
   params: z.object({
     indicatorId: numericId,
   }),
 };
 
+// Validates submission creation request body
 export const createSubmissionSchema = {
   body: z.object({
     reportedAt: dateString,
@@ -26,6 +28,7 @@ export const createSubmissionSchema = {
   }),
 };
 
+// Validates submission update request body and params
 export const updateSubmissionSchema = {
   params: z.object({
     id: numericId,
@@ -39,6 +42,7 @@ export const updateSubmissionSchema = {
   }),
 };
 
+// Validates query params for listing submissions
 export const listSubmissionsQuerySchema = {
   query: z.object({
     from: dateString.optional(),
@@ -49,12 +53,14 @@ export const listSubmissionsQuerySchema = {
   }),
 };
 
+// Validates submission ID URL parameter
 export const submissionIdParamsSchema = {
   params: z.object({
     id: numericId,
   }),
 };
 
+// Validates anomaly acknowledgment request body
 export const acknowledgeAnomalySchema = {
   ...submissionIdParamsSchema,
   body: z.object({
@@ -62,6 +68,7 @@ export const acknowledgeAnomalySchema = {
   }),
 };
 
+// Validates anomaly status update request body
 export const updateAnomalyStatusSchema = {
   ...submissionIdParamsSchema,
   body: z.object({
@@ -70,6 +77,7 @@ export const updateAnomalyStatusSchema = {
   }),
 };
 
+// Validates submission restore request params
 export const restoreSubmissionSchema = {
   ...submissionIdParamsSchema,
 };

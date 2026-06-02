@@ -3,12 +3,14 @@ import { PrismaClient, ImportTemplate, Prisma } from "@prisma/client";
 export class ImportTemplateRepository {
   constructor(private prisma: PrismaClient) {}
 
+  // Creates a new import template
   async create(
     data: Prisma.ImportTemplateCreateInput,
   ): Promise<ImportTemplate> {
     return this.prisma.importTemplate.create({ data });
   }
 
+  // Finds an import template by ID
   async findById(id: number): Promise<ImportTemplate | null> {
     return this.prisma.importTemplate.findUnique({
       where: { id },
@@ -19,6 +21,7 @@ export class ImportTemplateRepository {
     });
   }
 
+  // Finds all templates for an indicator
   async findByIndicatorId(indicatorId: number): Promise<ImportTemplate[]> {
     return this.prisma.importTemplate.findMany({
       where: { indicatorId },
@@ -29,6 +32,7 @@ export class ImportTemplateRepository {
     });
   }
 
+  // Gets the default template for an indicator
   async getDefaultTemplate(
     indicatorId: number,
   ): Promise<ImportTemplate | null> {
@@ -37,6 +41,7 @@ export class ImportTemplateRepository {
     });
   }
 
+  // Updates an import template by ID
   async update(
     id: number,
     data: Prisma.ImportTemplateUpdateInput,
@@ -47,10 +52,12 @@ export class ImportTemplateRepository {
     });
   }
 
+  // Deletes an import template by ID
   async delete(id: number): Promise<void> {
     await this.prisma.importTemplate.delete({ where: { id } });
   }
 
+  // Clones an existing template with new name
   async cloneTemplate(
     templateId: number,
     newName: string,

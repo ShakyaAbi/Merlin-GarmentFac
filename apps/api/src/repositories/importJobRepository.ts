@@ -3,10 +3,12 @@ import { PrismaClient, ImportJob, ImportStatus, Prisma } from "@prisma/client";
 export class ImportJobRepository {
   constructor(private prisma: PrismaClient) {}
 
+  // Creates a new import job record
   async create(data: Prisma.ImportJobCreateInput): Promise<ImportJob> {
     return this.prisma.importJob.create({ data });
   }
 
+  // Finds an import job by its ID
   async findById(jobId: number): Promise<ImportJob | null> {
     return this.prisma.importJob.findUnique({
       where: { id: jobId },
@@ -21,6 +23,7 @@ export class ImportJobRepository {
     });
   }
 
+  // Finds all import jobs for an indicator
   async findByIndicatorId(indicatorId: number): Promise<ImportJob[]> {
     return this.prisma.importJob.findMany({
       where: { indicatorId },
@@ -31,6 +34,7 @@ export class ImportJobRepository {
     });
   }
 
+  // Finds all import jobs created by a user
   async findByUserId(userId: number): Promise<ImportJob[]> {
     return this.prisma.importJob.findMany({
       where: { userId },
@@ -41,6 +45,7 @@ export class ImportJobRepository {
     });
   }
 
+  // Updates the status of an import job
   async updateStatus(jobId: number, status: ImportStatus): Promise<ImportJob> {
     return this.prisma.importJob.update({
       where: { id: jobId },
@@ -48,6 +53,7 @@ export class ImportJobRepository {
     });
   }
 
+  // Updates the processing progress counters
   async updateProgress(
     jobId: number,
     processed: number,
@@ -66,6 +72,7 @@ export class ImportJobRepository {
     });
   }
 
+  // Marks the import job as completed
   async markComplete(jobId: number): Promise<ImportJob> {
     return this.prisma.importJob.update({
       where: { id: jobId },
@@ -76,6 +83,7 @@ export class ImportJobRepository {
     });
   }
 
+  // Marks the import job as failed
   async markFailed(jobId: number): Promise<ImportJob> {
     return this.prisma.importJob.update({
       where: { id: jobId },
@@ -86,10 +94,12 @@ export class ImportJobRepository {
     });
   }
 
+  // Deletes an import job by ID
   async delete(jobId: number): Promise<void> {
     await this.prisma.importJob.delete({ where: { id: jobId } });
   }
 
+  // Gets statistics for an import job
   async getJobStatistics(jobId: number) {
     const job = await this.findById(jobId);
     if (!job) return null;

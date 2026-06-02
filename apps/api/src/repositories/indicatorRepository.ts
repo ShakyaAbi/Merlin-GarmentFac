@@ -1,6 +1,7 @@
 import { IndicatorDataType } from "@prisma/client";
 import { prisma } from "../prisma";
 
+// Creates a new indicator with all fields
 export const createIndicator = (data: {
   projectId: number;
   logframeNodeId: number;
@@ -39,6 +40,7 @@ export const createIndicator = (data: {
   });
 
 
+// Gets all indicators for a project
 export const getIndicatorsByProject = (projectId: number, organizationId: number, includeDeleted = false) =>
   prisma.indicator.findMany({
     where: { 
@@ -55,10 +57,12 @@ export const getIndicatorsByProject = (projectId: number, organizationId: number
     orderBy: { createdAt: "desc" },
   });
 
+// Gets an indicator by ID within an organization
 export const getById = (id: number, organizationId: number) =>
   prisma.indicator.findFirst({ where: { id, project: { organizationId } } });
 
 
+// Gets an indicator with its submissions
 export const getByIdWithSubmissions = (id: number, organizationId: number, includeDeleted = false) =>
   prisma.indicator.findFirst({
     where: { id, project: { organizationId } },
@@ -70,6 +74,7 @@ export const getByIdWithSubmissions = (id: number, organizationId: number, inclu
     },
   });
 
+// Updates an indicator's fields
 export const updateIndicator = (
   id: number,
   organizationId: number,
@@ -121,5 +126,6 @@ export const updateIndicator = (
     },
   });
 
+// Deletes an indicator by ID
 export const deleteIndicator = (id: number, organizationId: number) =>
   prisma.indicator.delete({ where: { id, project: { organizationId } } });

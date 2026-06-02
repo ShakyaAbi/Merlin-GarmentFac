@@ -5,6 +5,7 @@ import { config, adminSeed } from "../config/env";
 import * as userRepo from "../repositories/userRepository";
 import { hashPassword } from "../utils/password";
 
+// Authenticates user via JWT or bypasses when disabled
 export const authenticate = async (
   req: Request,
   _res: Response,

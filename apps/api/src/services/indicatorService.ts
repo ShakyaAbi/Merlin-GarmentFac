@@ -40,6 +40,7 @@ const ensureNodeInProject = async (
   return node;
 };
 
+// Creates a new indicator for a project
 export const createIndicator = async (
   projectId: number,
   organizationId: number,

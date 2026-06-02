@@ -2,6 +2,7 @@ const MS_PER_MINUTE = 1000 * 60;
 const MS_PER_HOUR = MS_PER_MINUTE * 60;
 const MS_PER_DAY = MS_PER_HOUR * 24;
 
+// Formats a date as a human-readable relative time string
 export const formatRelativeTime = (date: Date, now: Date = new Date()) => {
   const diffMs = now.getTime() - date.getTime();
   if (diffMs < MS_PER_MINUTE) return 'Just now';
@@ -20,6 +21,7 @@ export const formatRelativeTime = (date: Date, now: Date = new Date()) => {
   return date.toLocaleDateString();
 };
 
+// Extracts up to two initials from a name or email
 export const initialsFromName = (nameOrEmail: string) => {
   if (!nameOrEmail) return 'NA';
   const parts = nameOrEmail.split(/[\s@._-]+/).filter(Boolean);

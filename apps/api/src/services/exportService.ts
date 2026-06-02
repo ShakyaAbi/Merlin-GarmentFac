@@ -15,12 +15,11 @@ interface ExportFilters {
   excludeAnomalies?: boolean;
 }
 
+// Service for exporting submission data to CSV
 export class ExportService {
   constructor(private prisma: PrismaClient) {}
 
-  /**
-   * Generate CSV from submissions with security sanitization
-   */
+  // Generates CSV from submissions with sanitization
   async generateCSV(
     indicatorId: number,
     template: ExportTemplate | null,
@@ -187,9 +186,7 @@ export class ExportService {
     ];
   }
 
-  /**
-   * Generate preview (first 10 rows)
-   */
+  // Generates preview of first 10 rows
   async generatePreview(
     indicatorId: number,
     template: ExportTemplate | null,

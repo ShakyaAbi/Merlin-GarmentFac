@@ -37,6 +37,7 @@ const getGoogleAuthClient = () => {
   return googleOAuthClient;
 };
 
+// Generates Google OAuth URL for user login
 export const getGoogleAuthUrl = () => {
   const oauthClient = getGoogleAuthClient();
   return oauthClient.generateAuthUrl({
@@ -96,6 +97,7 @@ const loginOrCreateGoogleUser = async (payload: {
   return { token, user: sanitizeUser(user) };
 };
 
+// Handles Google OAuth callback and logs in user
 export const handleGoogleCallback = async (code: string) => {
   const oauthClient = getGoogleAuthClient();
   const { tokens } = await oauthClient.getToken(code);
@@ -120,6 +122,7 @@ export const handleGoogleCallback = async (code: string) => {
   });
 };
 
+// Registers a new user account
 export const register = async (input: { 
   email: string; 
   password: string;
@@ -186,6 +189,7 @@ export const register = async (input: {
   return sanitizeUser(user);
 };
 
+// Authenticates user with email and password
 export const login = async (input: { email: string; password: string }) => {
   const user = await userRepo.findByEmail(input.email);
   if (!user) {
@@ -199,6 +203,7 @@ export const login = async (input: { email: string; password: string }) => {
   return { token, user: sanitizeUser(user) };
 };
 
+// Fetches the currently authenticated user
 export const getCurrentUser = async (id: number) => {
   const numericId = typeof id === 'string' ? Number(id) : id;
   const user = await userRepo.findById(numericId as number);
@@ -208,6 +213,7 @@ export const getCurrentUser = async (id: number) => {
   return sanitizeUser(user);
 };
 
+// Updates the current user's profile
 export const updateCurrentUser = async (
   id: number,
   data: Partial<{
@@ -223,6 +229,7 @@ export const updateCurrentUser = async (
   return sanitizeUser(user);
 };
 
+// Changes the user's password after verifying current
 export const changePassword = async (id: number, currentPassword: string, newPassword: string) => {
   const user = await userRepo.findById(id as number);
   if (!user) {
@@ -237,6 +244,7 @@ export const changePassword = async (id: number, currentPassword: string, newPas
   return true;
 };
 
+// Creates and sends an invitation to join organization
 export const createInvitation = async (input: {
   email: string;
   organizationId: number;
@@ -295,10 +303,12 @@ export const createInvitation = async (input: {
   return invitation;
 };
 
+// Lists all invitations for an organization
 export const getOrganizationInvitations = async (organizationId: number) => {
   return invitationRepo.findByOrganization(organizationId);
 };
 
+// Revokes a pending invitation
 export const revokeInvitation = async (invitationId: number, organizationId: number) => {
   const invitation = await invitationRepo.findById(invitationId);
   if (!invitation) {
@@ -313,6 +323,7 @@ export const revokeInvitation = async (invitationId: number, organizationId: num
   return invitationRepo.deleteById(invitationId);
 };
 
+// Validates an invitation token
 export const validateInvitation = async (token: string, organizationId: number) => {
   const invitation = await invitationRepo.findByToken(token);
   if (!invitation) {
@@ -335,6 +346,7 @@ export const validateInvitation = async (token: string, organizationId: number) 
   };
 };
 
+// Lists all users in an organization
 export const listOrganizationUsers = async (organizationId: number) => {
   const users = await orgRepo.getUsers(organizationId);
   return users.map((user: any) => ({
@@ -347,6 +359,7 @@ export const listOrganizationUsers = async (organizationId: number) => {
   }));
 };
 
+// Updates a user's role within the organization
 export const updateUserRole = async (
   userId: number,
   organizationId: number,
@@ -362,6 +375,7 @@ export const updateUserRole = async (
   return userRepo.updateRole(userId, role);
 };
 
+// Removes a user from the organization
 export const removeUser = async (userId: number, organizationId: number) => {
   const user = await userRepo.findById(userId);
   if (!user) {

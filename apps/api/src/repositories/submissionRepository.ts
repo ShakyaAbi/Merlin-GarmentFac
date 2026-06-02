@@ -1,6 +1,7 @@
 import { prisma } from "../prisma";
 import { AnomalyStatus } from "@prisma/client";
 
+// Creates a new submission for an indicator
 export const createSubmission = (data: {
   indicatorId: number;
   reportedAt: Date;
@@ -18,6 +19,7 @@ export const createSubmission = (data: {
   anomalyMeta?: Record<string, any> | null;
 }) => prisma.submission.create({ data: data as any });
 
+// Lists submissions for an indicator with filters
 export const listSubmissions = (
   indicatorId: number,
   organizationId: number,
@@ -36,12 +38,14 @@ export const listSubmissions = (
     orderBy: { reportedAt: "desc" },
   });
 
+// Gets a submission by ID within an organization
 export const getById = (id: number, organizationId: number) =>
   prisma.submission.findFirst({
     where: { id, indicator: { project: { organizationId } } },
     include: { indicator: true },
   });
 
+// Gets the most recent submissions for an indicator
 export const getRecentSubmissions = (indicatorId: number, organizationId: number, limit: number) =>
   prisma.submission.findMany({
     where: { 
@@ -53,6 +57,7 @@ export const getRecentSubmissions = (indicatorId: number, organizationId: number
     take: limit,
   });
 
+// Updates anomaly fields for all submissions of an indicator
 export const updateAnomalyFieldsByIndicator = (
   indicatorId: number,
   organizationId: number,
@@ -74,6 +79,7 @@ export const updateAnomalyFieldsByIndicator = (
     data: data as any,
   });
 
+// Updates anomaly review fields for a submission
 export const updateSubmission = (
   id: number,
   organizationId: number,
@@ -89,6 +95,7 @@ export const updateSubmission = (
   }>,
 ) => prisma.submission.update({ where: { id, indicator: { project: { organizationId } } }, data: data as any });
 
+// Updates full submission data including value and evidence
 export const updateSubmissionData = (
   id: number,
   organizationId: number,
@@ -109,6 +116,7 @@ export const updateSubmissionData = (
   },
 ) => prisma.submission.update({ where: { id, indicator: { project: { organizationId } } }, data: data as any });
 
+// Soft deletes a submission by setting deletedAt
 export const softDeleteSubmission = (id: number, organizationId: number, userId: number) =>
   prisma.submission.update({
     where: { id, indicator: { project: { organizationId } } },
@@ -119,6 +127,7 @@ export const softDeleteSubmission = (id: number, organizationId: number, userId:
     } as any,
   });
 
+// Restores a soft-deleted submission
 export const restoreSubmission = (id: number, organizationId: number, userId: number) =>
   prisma.submission.update({
     where: { id, indicator: { project: { organizationId } } },
@@ -129,6 +138,7 @@ export const restoreSubmission = (id: number, organizationId: number, userId: nu
     } as any,
   });
 
+// Finds a unique submission by indicator, date and key
 export const findUniqueSubmission = (
   indicatorId: number,
   organizationId: number,

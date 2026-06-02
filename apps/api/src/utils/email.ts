@@ -13,6 +13,7 @@ const transporter = nodemailer.createTransport({
     : undefined,
 });
 
+// Sends a reminder email via SMTP or logs in dry-run mode
 export async function sendReminderEmail({ to, subject, text, html }: { to: string; subject: string; text: string; html?: string }): Promise<boolean> {
   // Dry-run or missing SMTP config: log only and return success
   if (!config.smtp.host || config.emailDryRun) {

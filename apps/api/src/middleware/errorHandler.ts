@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/errors';
 
+// Global error handler middleware
 export function errorHandler(err: any, req: Request, res: Response, _next: NextFunction) {
   const status = err instanceof AppError ? err.statusCode : 500;
   const code = err instanceof AppError ? err.code : 'INTERNAL_SERVER_ERROR';

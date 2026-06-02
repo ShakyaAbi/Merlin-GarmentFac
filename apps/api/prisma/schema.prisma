@@ -335,3 +335,78 @@ model ExportTemplate {
   @@index([indicatorId])
   @@index([createdByUserId])
 }
+
+// Inventory models added by feature: Supplier + Raw Material Management
+
+model Supplier {
+  id          String   @id @default(cuid())
+  name        String
+  contactName String?
+  phone       String?
+  email       String?
+  address     String?
+  externalRef String?
+  balance     Decimal  @default(0)
+  createdBy   Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt()
+  @@index([name])
+}
+
+model RawMaterial {
+  id              String   @id @default(cuid())
+  sku             String?  @unique
+  name            String
+  description     String?
+  defaultUnit     String
+  unitConversions Json?
+  active          Boolean  @default(true)
+  costPrice       Decimal?
+  reorderLevel    Float?
+  createdBy       Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt()
+  @@index([sku, name])
+}
+
+model Purchase {
+  id            String   @id @default(cuid())
+  supplierId    String
+  invoiceNumber String?
+  invoiceDate   DateTime
+  currency      String   @default("NPR")
+  totalAmount   Decimal  @default(0)
+  createdBy     Int?
+  createdAt     DateTime @default(now())
+  status        String   @default("received")
+  notes         String?
+}
+
+model PurchaseItem {
+  id            String   @id @default(cuid())
+  purchaseId    String
+  rawMaterialId String
+  quantity      Float
+  unit          String
+  unitPrice     Decimal
+  lineTotal     Decimal
+}
+
+model StockTransaction {
+  id            String   @id @default(cuid())
+  rawMaterialId String
+  change        Float
+  unit          String
+  reason        String
+  referenceId   String?
+  createdBy     Int?
+  createdAt     DateTime @default(now())
+}
+
+model LowStockAlert {
+  id             String   @id @default(cuid())
+  rawMaterialId  String
+  triggeredAt    DateTime @default(now())
+  acknowledged   Boolean  @default(false)
+  acknowledgedBy Int?
+}

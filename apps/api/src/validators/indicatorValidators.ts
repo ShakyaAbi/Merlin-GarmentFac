@@ -86,18 +86,21 @@ const reportingFrequencySchema = z
   .enum(["DAILY", "WEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"])
   .optional();
 
+// Validates project ID param for indicator routes
 export const projectIndicatorParamsSchema = {
   params: z.object({
     projectId: numericId,
   }),
 };
 
+// Validates indicator ID URL parameter
 export const indicatorIdParamsSchema = {
   params: z.object({
     id: numericId,
   }),
 };
 
+// Validates indicator creation request body
 export const createIndicatorSchema = {
   body: z.object({
     logframeNodeId: z.number().int(),
@@ -122,6 +125,7 @@ export const createIndicatorSchema = {
   }),
 };
 
+// Validates indicator update request body and params
 export const updateIndicatorSchema = {
   ...indicatorIdParamsSchema,
   body: z.object({

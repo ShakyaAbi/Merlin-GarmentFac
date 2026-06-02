@@ -32,6 +32,7 @@ interface ValidationError {
   suggestion?: string;
 }
 
+// Service for importing CSV data as submissions
 export class ImportService {
   private jobRepo: ImportJobRepository;
 
@@ -39,9 +40,7 @@ export class ImportService {
     this.jobRepo = new ImportJobRepository(prisma);
   }
 
-  /**
-   * Phase 1: Parse CSV and create staging rows
-   */
+  // Parses CSV and creates staging rows
   async parseAndStage(
     jobId: number,
     fileBuffer: Buffer,
@@ -108,9 +107,7 @@ export class ImportService {
     });
   }
 
-  /**
-   * Phase 2: Validate staging rows against indicator's canonical rules
-   */
+  // Validates staging rows against indicator rules
   async validateStagingRows(
     jobId: number,
     indicator: Indicator,
@@ -207,9 +204,7 @@ export class ImportService {
     return { valid: validCount, warnings: warningCount, errors: errorCount };
   }
 
-  /**
-   * Phase 3: Commit validated rows to database
-   */
+  // Commits validated rows to the database
 
   async commitToDatabase(jobId: number, selectedRowNumbers?: number[]): Promise<void> {
     const job: any = await this.jobRepo.findById(jobId);
@@ -321,9 +316,7 @@ export class ImportService {
     await this.jobRepo.markComplete(jobId);
   }
 
-  /**
-   * Rollback: Delete all submissions created by this import
-   */
+  // Rolls back import by deleting created submissions
   async rollbackImport(jobId: number): Promise<number> {
     const result = await this.prisma.submission.deleteMany({
       where: { sourceImportJobId: jobId },
