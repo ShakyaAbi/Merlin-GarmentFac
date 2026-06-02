@@ -338,19 +338,34 @@ model ExportTemplate {
 
 // Inventory models added by feature: Supplier + Raw Material Management
 
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
+}
+
 model Supplier {
-  id          String   @id @default(cuid())
-  name        String
-  contactName String?
-  phone       String?
-  email       String?
-  address     String?
-  externalRef String?
-  balance     Decimal  @default(0)
-  createdBy   Int?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt()
+  id            String          @id @default(cuid())
+  name          String
+  contactName   String?
+  phone         String?
+  email         String?
+  address       String?
+  panVatNumber  String?
+  status        SupplierStatus  @default(ACTIVE)
+  notes         String?
+  externalRef   String?
+  balance       Decimal         @default(0)
+  createdBy     Int?
+  updatedBy     Int?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt()
+  deletedAt     DateTime?
+  purchases     Purchase[]
+
   @@index([name])
+  @@index([phone])
+  @@index([email])
+  @@index([panVatNumber])
 }
 
 model RawMaterial {
@@ -366,12 +381,17 @@ model RawMaterial {
   createdBy       Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt()
+  purchaseItems   PurchaseItem[]
+  stockTransactions StockTransaction[]
+  lowStockAlerts  LowStockAlert[]
+  bomItems        BOMItem[]
   @@index([sku, name])
 }
 
 model Purchase {
   id            String   @id @default(cuid())
   supplierId    String
+  supplier      Supplier @relation(fields: [supplierId], references: [id])
   invoiceNumber String?
   invoiceDate   DateTime
   currency      String   @default("NPR")
@@ -380,12 +400,15 @@ model Purchase {
   createdAt     DateTime @default(now())
   status        String   @default("received")
   notes         String?
+  items         PurchaseItem[]
 }
 
 model PurchaseItem {
   id            String   @id @default(cuid())
   purchaseId    String
+  purchase      Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   rawMaterialId String
+  rawMaterial   RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
   quantity      Float
   unit          String
   unitPrice     Decimal
@@ -395,6 +418,7 @@ model PurchaseItem {
 model StockTransaction {
   id            String   @id @default(cuid())
   rawMaterialId String
+  rawMaterial   RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
   change        Float
   unit          String
   reason        String
@@ -406,6 +430,7 @@ model StockTransaction {
 model LowStockAlert {
   id             String   @id @default(cuid())
   rawMaterialId  String
+  rawMaterial    RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
   triggeredAt    DateTime @default(now())
   acknowledged   Boolean  @default(false)
   acknowledgedBy Int?
