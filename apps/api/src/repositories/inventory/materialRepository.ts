@@ -17,3 +17,11 @@ export const computeCurrentStock = async (rawMaterialId: string) => {
   })
   return res._sum.change || 0
 }
+
+export const listStockTransactions = async (rawMaterialId: string, opts: any = {}) => {
+  const skip = ((opts.page || 1) - 1) * (opts.pageSize || 20)
+  const take = opts.pageSize || 50
+  return prisma.stockTransaction.findMany({ where: { rawMaterialId }, orderBy: { createdAt: 'desc' }, skip, take })
+}
+
+// For compatibility we can forward to purchaseRepository for prices/purchases

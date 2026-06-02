@@ -20,3 +20,35 @@ export const createPurchaseTransactional = async (purchaseData: any, items: any[
     return { purchaseId: purchase.id, total }
   })
 }
+
+export const listPurchasesForMaterial = async (rawMaterialId: string, opts: any = {}) => {
+  const skip = ((opts.page || 1) - 1) * (opts.pageSize || 20)
+  const take = opts.pageSize || 20
+  return prisma.purchase.findMany({
+    where: { items: { some: { rawMaterialId } } } as any,
+    orderBy: { createdAt: 'desc' },
+    skip,
+    take,
+    include: { items: true, supplier: true }
+  })
+}
+
+export const listPriceHistory = async (rawMaterialId: string) => {
+  // Return recent purchases for this material as price history
+  const purchases = await prisma.purchase.findMany({
+    where: { items: { some: { rawMaterialId } } } as any,
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+    include: { items: true, supplier: true }
+  })
+  // flatten per-item with purchase meta
+  const history: any[] = []
+  for (const p of purchases) {
+    for (const it of p.items) {
+      if (it.rawMaterialId === rawMaterialId) {
+        history.push({ purchaseId: p.id, supplier: p.supplier, unitPrice: it.unitPrice, quantity: it.quantity, date: p.createdAt })
+      }
+    }
+  }
+  return history
+}

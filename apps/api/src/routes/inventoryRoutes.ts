@@ -18,6 +18,10 @@ router.post('/materials', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), 
 router.get('/materials', authenticate, materials.list)
 router.get('/materials/:id', authenticate, materials.get)
 router.patch('/materials/:id/adjust-stock', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), materials.adjustStock)
+router.get('/materials/:id/transactions', authenticate, materials.transactions)
+router.get('/materials/:id/prices', authenticate, materials.prices)
+router.get('/materials/:id/purchases', authenticate, materials.purchases)
+router.put('/materials/:id', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), materials.update)
 
 router.post('/purchases', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), purchases.create)
 router.get('/purchases/:id', authenticate, purchases.get)

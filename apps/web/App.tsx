@@ -17,6 +17,7 @@ import MaterialsPage from './pages/inventory/MaterialsPage'
 import PurchasesPage from './pages/inventory/PurchasesPage'
 import PurchaseCreate from './pages/inventory/PurchaseCreate'
 import AlertsPage from './pages/inventory/AlertsPage'
+import MaterialDetail from './pages/inventory/MaterialDetail'
 
 import { PrivateRoute } from './components/PrivateRoute';
 
@@ -37,6 +38,7 @@ const App: React.FC = () => {
             <Route path="/inventory/purchases" element={<PurchasesPage />} />
             <Route path="/inventory/purchases/create" element={<PurchaseCreate />} />
             <Route path="/inventory/alerts" element={<AlertsPage />} />
+            <Route path="/inventory/materials/:id" element={<MaterialDetail />} />
             <Route path="/data-entry" element={<DataEntry />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/admin/users" element={<AdminUsers />} />

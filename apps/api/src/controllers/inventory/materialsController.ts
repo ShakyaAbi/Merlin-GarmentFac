@@ -22,6 +22,32 @@ export const get = async (req: Request, res: Response) => {
   res.json({ ...data, currentStock: stock })
 }
 
+export const transactions = async (req: Request, res: Response) => {
+  const page = Number(req.query.page) || 1
+  const pageSize = Number(req.query.pageSize) || 20
+  const data = await svc.listTransactions(req.params.id, { page, pageSize })
+  res.json(data)
+}
+
+export const prices = async (req: Request, res: Response) => {
+  const data = await svc.listPrices(req.params.id)
+  res.json(data)
+}
+
+export const purchases = async (req: Request, res: Response) => {
+  const page = Number(req.query.page) || 1
+  const pageSize = Number(req.query.pageSize) || 20
+  const data = await svc.listPurchasesForMaterial(req.params.id, { page, pageSize })
+  res.json(data)
+}
+
+export const update = async (req: Request, res: Response) => {
+  const user = (req as any).user?.id
+  const updated = await svc.updateMaterialWithUser(req.params.id, req.body, user)
+  try { await recordAudit({ action: 'material.update', userId: user, after: updated }) } catch (e) {}
+  res.json(updated)
+}
+
 export const adjustStock = async (req: Request, res: Response) => {
   const user = (req as any).user?.id
   // Expect body: { change, reason, unit, referenceId }
