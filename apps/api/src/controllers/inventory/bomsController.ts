@@ -1,9 +1,16 @@
 import { Request, Response } from 'express'
+import * as repo from '../../repositories/inventory/bomRepository'
 
-// Minimal controller to return BOMs referencing a material.
-// For now return an empty array or sample structure. Will be expanded later.
 export async function listBomsForMaterial(req: Request, res: Response){
   const { id } = req.params
-  // sample response shape: [{ id, name, consumption: 0.5, unit: 'm', garmentStyle: 'T-Shirt' }]
-  res.json([])
+  const items = await repo.listBomsForMaterial(id)
+  // map to friendly shape
+  const mapped = items.map(i => ({ id: i.id, bomId: i.bomId, garmentStyle: i.bom?.garmentStyle, consumption: i.consumption, unit: i.unit, yield: i.yield }))
+  res.json(mapped)
+}
+
+export async function createBom(req: Request, res: Response){
+  const payload = req.body
+  const created = await repo.createBom(payload)
+  res.status(201).json(created)
 }

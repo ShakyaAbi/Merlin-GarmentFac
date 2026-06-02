@@ -410,3 +410,24 @@ model LowStockAlert {
   acknowledged   Boolean  @default(false)
   acknowledgedBy Int?
 }
+
+// Bill of Materials: groups of BOMItems linking garments/styles to raw materials
+model BillOfMaterials {
+  id          String   @id @default(cuid())
+  name        String
+  garmentStyle String
+  createdBy   Int?
+  createdAt   DateTime @default(now())
+  items       BOMItem[]
+}
+
+model BOMItem {
+  id               String  @id @default(cuid())
+  bomId            String
+  bom              BillOfMaterials @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  rawMaterialId    String
+  rawMaterial      RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+  consumption      Float
+  unit             String
+  yield            Float?
+}
