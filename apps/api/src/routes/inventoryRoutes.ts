@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import * as suppliers from '../controllers/inventory/suppliersController'
+import * as categories from '../controllers/inventory/categoryController'
 import * as materials from '../controllers/inventory/materialsController'
 import * as purchases from '../controllers/inventory/purchasesController'
 import * as alerts from '../controllers/inventory/alertsController'
@@ -13,6 +14,9 @@ router.post('/suppliers', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), 
 router.get('/suppliers', authenticate, suppliers.list)
 router.get('/suppliers/:id', authenticate, suppliers.get)
 router.put('/suppliers/:id', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), suppliers.update)
+
+router.post('/material-categories', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), categories.create)
+router.get('/material-categories', authenticate, categories.list)
 
 router.post('/materials', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), materials.create)
 router.get('/materials', authenticate, materials.list)
