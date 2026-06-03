@@ -82,11 +82,17 @@ export const remove = async (req: Request, res: Response) => {
 // Adjusts stock for a material
 export const adjustStock = async (req: Request, res: Response) => {
   const user = (req as any).user?.id
-  // Expect body: { change, reason, unit, referenceId }
   const { change, reason, unit, referenceId } = req.body
-  // create stock transaction via repository directly for now
-  const { createStockTransaction } = await import('../../repositories/inventory/stockRepository')
-  const tx = await createStockTransaction({ rawMaterialId: req.params.id, change, unit, reason, referenceId, createdBy: user })
+  const { recordStockChange } = await import('../../services/inventory/stockTransactionService')
+  const tx = await recordStockChange({
+    rawMaterialId: req.params.id,
+    change,
+    unit,
+    transactionType: 'ADJUSTMENT',
+    referenceId,
+    remarks: reason,
+    createdBy: user,
+  })
   try { await recordAudit({ action: 'material.adjust_stock', userId: user, after: tx }) } catch (e) {}
-  res.json(tx)
+  res.status(201).json(tx)
 }
