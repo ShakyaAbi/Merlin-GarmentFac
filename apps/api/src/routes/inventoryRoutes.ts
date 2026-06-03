@@ -27,6 +27,8 @@ router.get('/materials/:id/prices', authenticate, materials.prices)
 router.get('/materials/:id/boms', authenticate, (req, res) => import('../controllers/inventory/bomsController').then(m => m.listBomsForMaterial(req as any, res as any)).catch(()=>res.json([])))
 router.get('/materials/:id/purchases', authenticate, materials.purchases)
 router.put('/materials/:id', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), materials.update)
+router.patch('/materials/:id/status', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), materials.toggleStatus)
+router.delete('/materials/:id', authenticate, requireRoles(Role.ADMIN), materials.remove)
 
 router.post('/purchases', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), purchases.create)
 router.get('/purchases/:id', authenticate, purchases.get)

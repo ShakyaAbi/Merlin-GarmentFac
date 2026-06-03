@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import * as svc from '../../services/inventory/materialService'
 import { recordAudit } from '../../utils/auditLog'
 
+// Creates a raw material
 export const create = async (req: Request, res: Response) => {
   const user = (req as any).user?.id
   const created = await svc.createMaterial({ ...req.body, createdBy: user })
@@ -9,12 +10,21 @@ export const create = async (req: Request, res: Response) => {
   res.status(201).json(created)
 }
 
+// Lists materials with filtering and pagination
 export const list = async (req: Request, res: Response) => {
-  const low = req.query.low === '1' || req.query.low === 'true'
-  const data = await svc.listMaterials({ lowStock: low })
+  const { low, search, categoryId, active, page, pageSize } = req.query
+  const data = await svc.listMaterials({
+    lowStock: low === '1' || low === 'true',
+    search: search as string | undefined,
+    categoryId: categoryId as string | undefined,
+    active: active !== undefined ? active === 'true' : undefined,
+    page: Number(page) || 1,
+    pageSize: Number(pageSize) || 20,
+  })
   res.json(data)
 }
 
+// Returns one material with stock
 export const get = async (req: Request, res: Response) => {
   const data = await svc.getMaterial(req.params.id)
   if (!data) return res.status(404).send('Not found')
@@ -22,6 +32,7 @@ export const get = async (req: Request, res: Response) => {
   res.json({ ...data, currentStock: stock })
 }
 
+// Lists stock transactions for a material
 export const transactions = async (req: Request, res: Response) => {
   const page = Number(req.query.page) || 1
   const pageSize = Number(req.query.pageSize) || 20
@@ -29,11 +40,13 @@ export const transactions = async (req: Request, res: Response) => {
   res.json(data)
 }
 
+// Lists price history for a material
 export const prices = async (req: Request, res: Response) => {
   const data = await svc.listPrices(req.params.id)
   res.json(data)
 }
 
+// Lists purchases for a material
 export const purchases = async (req: Request, res: Response) => {
   const page = Number(req.query.page) || 1
   const pageSize = Number(req.query.pageSize) || 20
@@ -41,6 +54,7 @@ export const purchases = async (req: Request, res: Response) => {
   res.json(data)
 }
 
+// Updates a material
 export const update = async (req: Request, res: Response) => {
   const user = (req as any).user?.id
   const updated = await svc.updateMaterialWithUser(req.params.id, req.body, user)
@@ -48,6 +62,24 @@ export const update = async (req: Request, res: Response) => {
   res.json(updated)
 }
 
+// Toggles material active status
+export const toggleStatus = async (req: Request, res: Response) => {
+  const user = (req as any).user?.id
+  const { active } = req.body
+  const updated = await svc.toggleMaterialStatus(req.params.id, active, user)
+  try { await recordAudit({ action: 'material.toggle_status', userId: user, after: { id: req.params.id, active } }) } catch (e) {}
+  res.json(updated)
+}
+
+// Soft deletes a material
+export const remove = async (req: Request, res: Response) => {
+  const user = (req as any).user?.id
+  await svc.deleteMaterial(req.params.id)
+  try { await recordAudit({ action: 'material.delete', userId: user, after: { id: req.params.id } }) } catch (e) {}
+  res.status(204).end()
+}
+
+// Adjusts stock for a material
 export const adjustStock = async (req: Request, res: Response) => {
   const user = (req as any).user?.id
   // Expect body: { change, reason, unit, referenceId }
