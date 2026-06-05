@@ -4,6 +4,7 @@ import { indicatorApi, submissionApi } from "./indicatorApi";
 import { importApi, exportApi } from "./importExportApi";
 import { notificationApi } from "./notificationApi";
 import { getToken, setToken, request } from "./apiClient";
+import { rawMaterialApi } from "./rawMaterialApi";
 
 export type { Invitation, OrganizationUser };
 
@@ -19,6 +20,7 @@ export const api = {
   ...importApi,
   ...exportApi,
   ...notificationApi,
+  ...rawMaterialApi,
   getInventoryAlerts: async () => request('/inventory/alerts'),
   getInventoryAlertsSummary: async () => request('/inventory/alerts/summary'),
   
