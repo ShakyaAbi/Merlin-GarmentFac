@@ -47,6 +47,7 @@ const buildTree = (nodes: LogframeNode[]) => {
   return roots;
 };
 
+// Creates a logframe node
 export const createNode = async (
   projectId: number,
   organizationId: number,
@@ -76,12 +77,14 @@ export const createNode = async (
   });
 };
 
+// Builds the logframe tree
 export const getTree = async (projectId: number, organizationId: number) => {
   await ensureProject(projectId, organizationId);
   const nodes = await logframeRepo.getByProject(projectId);
   return buildTree(nodes);
 };
 
+// Updates a logframe node
 export const updateNode = async (
   id: number,
   data: Partial<{ title: string; description: string; assumptions: string; risks: string; parentId: number | null; sortOrder: number; type: NodeType }>
@@ -117,6 +120,7 @@ export const updateNode = async (
   });
 };
 
+// Deletes a logframe node
 export const deleteNode = async (id: number) => {
   const existing = await logframeRepo.getById(id);
   if (!existing) throw new NotFoundError('NODE_NOT_FOUND', 'Logframe node not found');
@@ -130,6 +134,7 @@ export const deleteNode = async (id: number) => {
 };
 
 // Cascade delete: delete node and all descendants and their indicators/submissions
+// Deletes a node and its descendants
 export const deleteNodeCascade = async (id: number) => {
   const existing = await logframeRepo.getById(id);
   if (!existing) throw new NotFoundError('NODE_NOT_FOUND', 'Logframe node not found');

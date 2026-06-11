@@ -1,0 +1,408 @@
+import React, { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Ban, Download, ReceiptText, Send, WalletCards } from 'lucide-react'
+import { salesInvoiceApi, SalesInvoice } from '../../services/salesInvoiceApi'
+import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
+import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
+import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
+import { InvoiceItemTable, InvoiceDraftItem } from '../../components/sales/InvoiceItemTable'
+import { InvoiceTotalsCard } from '../../components/sales/InvoiceTotalsCard'
+import { Button } from '../../components/ui/Button'
+
+const money = (value: number | string | null | undefined) =>
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value ?? 0))
+
+const formatDateTime = (value?: string | null) => (value ? new Date(value).toLocaleString() : '-')
+
+const statusClass = (status?: string | null) => {
+  switch (status) {
+    case 'ISSUED':
+      return 'bg-blue-50 text-blue-700 border-blue-200'
+    case 'DRAFT':
+      return 'bg-slate-100 text-slate-700 border-slate-200'
+    case 'PENDING_APPROVAL':
+      return 'bg-amber-50 text-amber-700 border-amber-200'
+    case 'CANCELLED':
+      return 'bg-rose-50 text-rose-700 border-rose-200'
+    case 'PAID':
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    case 'PARTIAL':
+      return 'bg-amber-50 text-amber-700 border-amber-200'
+    case 'UNPAID':
+      return 'bg-rose-50 text-rose-700 border-rose-200'
+    default:
+      return 'bg-slate-100 text-slate-700 border-slate-200'
+  }
+}
+
+const saveBlob = (blob: Blob, filename: string) => {
+  const url = window.URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+const toDraftItems = (invoice?: SalesInvoice | null): InvoiceDraftItem[] =>
+  (invoice?.items || []).map((item) => ({
+    id: item.id,
+    productId: item.productId || '',
+    productCode: item.productCode || '',
+    productName: item.productName,
+    quantity: String(item.quantity ?? 0),
+    unitPrice: String(item.unitPrice ?? 0),
+    discountAmount: String(item.discountAmount ?? 0),
+    taxAmount: String(item.taxAmount ?? 0),
+    warehouseId: item.warehouseId || '',
+  }))
+
+export default function SalesInvoiceDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const [invoice, setInvoice] = useState<SalesInvoice | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('Cash')
+  const [paymentNote, setPaymentNote] = useState('')
+  const [cancelReason, setCancelReason] = useState('')
+
+  const loadInvoice = async () => {
+    if (!id) return
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await salesInvoiceApi.get(id)
+      setInvoice(data)
+      setPaymentAmount(String(Math.max(Number(data.dueAmount ?? data.grandTotal ?? 0), 0)))
+      setCancelReason('')
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load invoice.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadInvoice()
+  }, [id])
+
+  const summary = useMemo(() => {
+    const items = invoice?.items || []
+    const subtotal = items.reduce((sum, item) => sum + Number(item.quantity ?? 0) * Number(item.unitPrice ?? 0), 0)
+    const discountAmount = items.reduce((sum, item) => sum + Number(item.discountAmount ?? 0), 0)
+    const taxAmount = items.reduce((sum, item) => sum + Number(item.taxAmount ?? 0), 0)
+    const taxableAmount = Math.max(subtotal - discountAmount, 0)
+    const grandTotal = Number(invoice?.grandTotal ?? taxableAmount + taxAmount)
+    const paidAmount = Number(invoice?.paidAmount ?? 0)
+    const dueAmount = Number(invoice?.dueAmount ?? Math.max(grandTotal - paidAmount, 0))
+
+    return {
+      subtotal,
+      discountAmount,
+      taxableAmount,
+      nonTaxableAmount: Number(invoice?.nonTaxableAmount ?? 0),
+      taxAmount,
+      grandTotal,
+      paidAmount,
+      dueAmount,
+      invoiceStatus: invoice?.invoiceStatus || undefined,
+      paymentStatus: invoice?.paymentStatus || undefined,
+      printedCount: invoice?.printedCount ?? 0,
+      lineCount: items.length,
+    }
+  }, [invoice])
+
+  const draftItems = useMemo(() => toDraftItems(invoice), [invoice])
+
+  const mutateInvoice = async (label: string, action: () => Promise<SalesInvoice>) => {
+    if (!invoice) return
+    setBusy(label)
+    setError(null)
+    try {
+      const updated = await action()
+      setInvoice(updated)
+    } catch (err: any) {
+      setError(err?.message || 'Invoice update failed.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const handleDownloadCsv = async () => {
+    if (!invoice) return
+    setBusy('csv')
+    try {
+      const blob = await salesInvoiceApi.downloadCsv(invoice.id)
+      saveBlob(blob, `sales-invoice-${invoice.invoiceNumber || invoice.id}.csv`)
+    } catch (err: any) {
+      setError(err?.message || 'Failed to download CSV.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const handleSubmit = async () => mutateInvoice('submit', () => salesInvoiceApi.submit(invoice!.id))
+  const handleIssue = async () => mutateInvoice('issue', () => salesInvoiceApi.issue(invoice!.id))
+
+  const handlePayment = async () => {
+    await mutateInvoice('payment', () =>
+      salesInvoiceApi.payment(invoice!.id, {
+        amount: paymentAmount,
+        paymentMethod,
+        note: paymentNote,
+      }),
+    )
+    setPaymentNote('')
+  }
+
+  const handleCancel = async () => {
+    if (!cancelReason.trim()) {
+      setError('Cancellation reason is required.')
+      return
+    }
+    await mutateInvoice('cancel', () => salesInvoiceApi.cancel(invoice!.id, { reason: cancelReason.trim() }))
+  }
+
+  const customerName = invoice?.customer?.customerName || invoice?.customerName || 'Walk-in customer'
+
+  if (loading) {
+    return (
+      <div className="py-12 text-center text-sm text-slate-500" role="status" aria-live="polite">
+        Loading sales invoice...
+      </div>
+    )
+  }
+
+  if (error && !invoice) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+        {error}
+      </div>
+    )
+  }
+
+  if (!invoice) {
+    return (
+      <div className="py-12 text-center text-sm text-slate-500" role="status" aria-live="polite">
+        Invoice not found.
+      </div>
+    )
+  }
+
+  return (
+    <InventoryPageShell
+      eyebrow="Sales"
+      title={invoice.invoiceNumber || `Invoice ${invoice.id}`}
+      description={`Customer: ${customerName} | Status: ${invoice.invoiceStatus || 'UNKNOWN'} | Payment: ${invoice.paymentStatus || 'UNKNOWN'}`}
+      backTo={{ to: '/sales-invoices', label: 'Back to invoices' }}
+      actions={[
+        { label: 'Download CSV', variant: 'outline', onClick: handleDownloadCsv },
+        { label: 'New Invoice', variant: 'secondary', onClick: () => navigate('/sales-invoices/create') },
+      ]}
+    >
+      {error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+          {error}
+        </div>
+      ) : null}
+
+      <InventoryStatGrid
+        stats={[
+          { label: 'Grand total', value: money(summary.grandTotal) },
+          { label: 'Paid amount', value: money(summary.paidAmount), tone: 'success' },
+          { label: 'Due amount', value: money(summary.dueAmount), tone: 'warning' },
+          { label: 'Printed', value: `${summary.printedCount ?? 0}x` },
+        ]}
+      />
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-6">
+          <InventorySectionCard
+            title="Invoice Workflow"
+            description="Drafts can be edited before issue; issue is the stock-moving step for finished goods."
+            action={
+              <div className="flex flex-wrap gap-2">
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusClass(invoice.invoiceStatus)}`}>
+                  {invoice.invoiceStatus || 'UNKNOWN'}
+                </span>
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusClass(invoice.paymentStatus)}`}>
+                  {invoice.paymentStatus || 'UNKNOWN'}
+                </span>
+              </div>
+            }
+          >
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-slate-500">Customer</div>
+                <div className="mt-1 text-lg font-semibold text-slate-900">{customerName}</div>
+                <div className="mt-1 text-sm text-slate-600">{invoice.customer?.phone || 'No phone on file'}</div>
+                <div className="text-sm text-slate-600">{invoice.customer?.email || 'No email on file'}</div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-slate-500">Invoice metadata</div>
+                <div className="mt-2 space-y-2 text-sm text-slate-700">
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Invoice date</span>
+                    <span className="font-medium">{formatDateTime(invoice.invoiceDate)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Due date</span>
+                    <span className="font-medium">{formatDateTime(invoice.dueDate)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Fiscal year</span>
+                    <span className="font-medium">{invoice.fiscalYear || '-'}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Sales order</span>
+                    <span className="font-medium">{invoice.salesOrderId || '-'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={handleSubmit} isLoading={busy === 'submit'}>
+                <Send className="mr-2 h-4 w-4" />
+                Submit
+              </Button>
+              <Button type="button" onClick={handleIssue} isLoading={busy === 'issue'}>
+                <ReceiptText className="mr-2 h-4 w-4" />
+                Issue
+              </Button>
+              <Button type="button" variant="outline" onClick={handleDownloadCsv} isLoading={busy === 'csv'}>
+                <Download className="mr-2 h-4 w-4" />
+                CSV
+              </Button>
+            </div>
+          </InventorySectionCard>
+
+          <InventorySectionCard title="Finished-Goods Lines" description="Itemised line work for the invoice.">
+            <InvoiceItemTable items={draftItems} readOnly />
+          </InventorySectionCard>
+
+          <InvoiceTotalsCard
+            summary={summary}
+            footer={
+              <div className="space-y-2 text-sm text-slate-600">
+                <div>Created: {formatDateTime(invoice.createdAt)}</div>
+                <div>Issued: {formatDateTime(invoice.issuedAt)}</div>
+                <div>Cancelled: {formatDateTime(invoice.cancelledAt)}</div>
+                {invoice.cancellationReason ? <div>Reason: {invoice.cancellationReason}</div> : null}
+              </div>
+            }
+          />
+
+          <InventorySectionCard title="Payment History" description="Payments are recorded independently from the invoice issue step.">
+            {invoice.payments && invoice.payments.length > 0 ? (
+              <div className="space-y-3">
+                {invoice.payments.map((payment) => (
+                  <div key={payment.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-slate-900">{money(payment.amount)}</div>
+                        <div className="text-xs text-slate-500">
+                          {formatDateTime(payment.paymentDate || payment.createdAt || payment.paidAt)}
+                        </div>
+                      </div>
+                      <div className="text-xs font-medium text-slate-600">
+                        {payment.paymentMethod || payment.method || 'Payment method unknown'}
+                      </div>
+                    </div>
+                    {payment.note || payment.notes ? (
+                      <div className="mt-2 text-sm text-slate-600">{payment.note || payment.notes}</div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-6 text-sm text-slate-500">No payments have been recorded yet.</div>
+            )}
+          </InventorySectionCard>
+        </div>
+
+        <div className="space-y-6">
+          <InventorySectionCard title="Post Payment" description="Record collection against this invoice.">
+            <div className="space-y-4">
+              <label className="block text-sm">
+                <span className="mb-1 block text-slate-600">Amount</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={paymentAmount}
+                  onChange={(event) => setPaymentAmount(event.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block text-slate-600">Method</span>
+                <input
+                  value={paymentMethod}
+                  onChange={(event) => setPaymentMethod(event.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                  placeholder="Cash, bank transfer, card"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block text-slate-600">Note</span>
+                <textarea
+                  value={paymentNote}
+                  onChange={(event) => setPaymentNote(event.target.value)}
+                  className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2"
+                  placeholder="Optional payment note"
+                />
+              </label>
+              <Button type="button" onClick={handlePayment} isLoading={busy === 'payment'}>
+                <WalletCards className="mr-2 h-4 w-4" />
+                Record Payment
+              </Button>
+            </div>
+          </InventorySectionCard>
+
+          <InventorySectionCard title="Cancellation" description="Cancel only when the sales invoice should be voided.">
+            <div className="space-y-4">
+              <label className="block text-sm">
+                <span className="mb-1 block text-slate-600">Reason</span>
+                <textarea
+                  value={cancelReason}
+                  onChange={(event) => setCancelReason(event.target.value)}
+                  className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2"
+                  placeholder="Explain why the invoice is being cancelled"
+                />
+              </label>
+              <Button type="button" variant="danger" onClick={handleCancel} isLoading={busy === 'cancel'}>
+                <Ban className="mr-2 h-4 w-4" />
+                Cancel Invoice
+              </Button>
+            </div>
+          </InventorySectionCard>
+
+          <InventorySectionCard title="Quick Actions">
+            <div className="flex flex-col gap-2">
+              <Button type="button" variant="outline" onClick={() => navigate('/sales-invoices')}>
+                Back to list
+              </Button>
+              <Link
+                to="/sales-invoices/create"
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                New invoice
+              </Link>
+            </div>
+          </InventorySectionCard>
+        </div>
+      </div>
+    </InventoryPageShell>
+  )
+}

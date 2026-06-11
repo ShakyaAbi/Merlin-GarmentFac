@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
+  Home,
   FolderKanban,
   Settings,
   LogOut,
@@ -19,10 +20,28 @@ import {
   Clock,
   Users,
   Mail,
+  Plus,
+  Layers,
+  FileText,
+  FileSpreadsheet,
+  ArrowRightLeft,
+  BarChart3,
 } from "lucide-react";
 import { AnomalyNotification, CurrentUser } from "../types";
 import Silk from "./ui/Silk";
 import { api } from "../services/api";
+
+type InventoryAlertItem = {
+  id: string;
+  rawMaterialId: string;
+  createdAt?: string | null;
+  acknowledged?: boolean;
+  rawMaterial?: {
+    id: string;
+    name: string;
+    sku?: string | null;
+  } | null;
+};
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -33,19 +52,25 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isCollapsed, setIsCollapsed] = React.useState(false);
   const [notifications, setNotifications] = useState<AnomalyNotification[]>([]);
   const [overdueNotifications, setOverdueNotifications] = useState<any[]>([]);
+  const [inventoryAlerts, setInventoryAlerts] = useState<InventoryAlertItem[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [markingRead, setMarkingRead] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const sidebarNavRef = useRef<HTMLElement | null>(null);
 
   const location = useLocation();
   const navigate = useNavigate();
 
   const routeLabelMap: Record<string, string> = {
-    projects: "Projects",
+    projects: "Home",
     "data-entry": "Data Entry",
     indicators: "Indicators",
     settings: "Settings",
+    "sales-invoices": "Sales Invoices",
+    "sales-orders": "Sales Orders",
+    customers: "Customers",
+    reports: "Reports",
   };
 
   const breadcrumbItems = React.useMemo(() => {
@@ -60,6 +85,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       const previousSegment = segments[index - 1];
 
       let label = routeLabelMap[segment] || segment.replace(/-/g, " ");
+      if (segment === "create" && previousSegment === "sales-invoices") label = "Create Invoice";
+      if (segment === "list" && previousSegment === "projects") label = "Projects";
 
       if (isNumeric && previousSegment === "projects") label = "Project";
       if (isNumeric && previousSegment === "indicators") label = "Indicator";
@@ -78,15 +105,15 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     Promise.all([
       api.getAnomalyNotifications(),
       api.getOverdueNotifications(),
-      // Inventory alerts count
-      api.getInventoryAlerts && api.getInventoryAlerts(),
+      api.getInventoryAlerts?.(),
     ])
       .then(([{ notifications, totalUnread }, overdue, alerts]) => {
         setNotifications(notifications);
         setOverdueNotifications(overdue || []);
-        // alert summary helper returns { totalUnread }
-        const alertCount = (alerts && (alerts.totalUnread !== undefined)) ? alerts.totalUnread : ((alerts || []).filter ? (alerts || []).filter((a:any)=>!a.acknowledged).length : 0)
-        setUnreadCount(totalUnread + (overdue?.length || 0) + alertCount);
+        const inventoryList = Array.isArray(alerts) ? alerts : [];
+        setInventoryAlerts(inventoryList);
+        const inventoryUnread = inventoryList.filter((alert: InventoryAlertItem) => !alert.acknowledged).length;
+        setUnreadCount(totalUnread + (overdue?.length || 0) + inventoryUnread);
       })
       .catch(() => {});
   };
@@ -102,23 +129,105 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   }, []);
 
   const isAdmin = currentUser?.role === 'ADMIN';
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    public: true,
+    accounting: true,
+    buying: true,
+    selling: true,
+    stock: true,
+    projects: false,
+    support: false,
+    settings: false,
+  });
 
-  const navItems = [
-    { icon: FolderKanban, label: "Projects", path: "/projects" },
-    { icon: ClipboardCheck, label: "Data Entry", path: "/data-entry" },
-    ...(isAdmin ? [
-      { icon: Users, label: "Team", path: "/admin/users" },
-      { icon: Mail, label: "Invitations", path: "/admin/invitations" },
-    ] as const : []),
-    { icon: Settings, label: "Settings", path: "/settings" },
-  ];
+  const toggleSection = (key: string) => {
+    setOpenSections((current) => ({ ...current, [key]: !current[key] }));
+  };
 
-  // Inventory section links
-  const inventoryItems = [
-    { icon: Command, label: 'Suppliers', path: '/inventory/suppliers' },
-    { icon: FolderKanban, label: 'Materials', path: '/inventory/materials' },
-    { icon: ClipboardCheck, label: 'Purchases', path: '/inventory/purchases' },
-    { icon: AlertCircle, label: 'Alerts', path: '/inventory/alerts' },
+  type SidebarItem = { icon: React.ComponentType<{ className?: string }>; label: string; path: string }
+  type SidebarSection = { key: string; label: string; items: SidebarItem[]; collapsible?: boolean }
+
+  const sections: SidebarSection[] = [
+    {
+      key: 'public',
+      label: 'Public',
+      collapsible: true,
+      items: [
+        { icon: Home, label: 'Home', path: '/projects' },
+        { icon: FolderKanban, label: 'Projects', path: '/projects/list' },
+        { icon: ClipboardCheck, label: 'Data Entry', path: '/data-entry' },
+        { icon: BarChart3, label: 'Reports', path: '/reports' },
+      ],
+    },
+    {
+      key: 'accounting',
+      label: 'Accounting',
+      collapsible: true,
+      items: [
+        { icon: FileText, label: 'Expenses', path: '/expenses' },
+        { icon: FileText, label: 'Payments', path: '/payments' },
+        { icon: FileSpreadsheet, label: 'Financial Reports', path: '/reports' },
+      ],
+    },
+    {
+      key: 'buying',
+      label: 'Buying',
+      collapsible: true,
+      items: [
+        { icon: ClipboardCheck, label: 'Purchases', path: '/inventory/purchases' },
+        { icon: Command, label: 'Suppliers', path: '/inventory/suppliers' },
+      ],
+    },
+    {
+      key: 'selling',
+      label: 'Selling',
+      collapsible: true,
+      items: [
+        { icon: FileText, label: 'Sales Orders', path: '/sales-orders' },
+        { icon: FileText, label: 'Sales Invoices', path: '/sales-invoices' },
+        { icon: Users, label: 'Customers', path: '/inventory/customers' },
+      ],
+    },
+    {
+      key: 'stock',
+      label: 'Stock',
+      collapsible: true,
+      items: [
+        { icon: FolderKanban, label: 'Materials', path: '/inventory/materials' },
+        { icon: Layers, label: 'Finished Goods', path: '/inventory/finished-goods' },
+        { icon: Layers, label: 'Production', path: '/inventory/production' },
+        { icon: Layers, label: 'BOMs', path: '/inventory/boms/create' },
+        { icon: AlertCircle, label: 'Alerts', path: '/inventory/alerts' },
+      ],
+    },
+    {
+      key: 'projects',
+      label: 'Projects',
+      collapsible: true,
+      items: [
+        { icon: FolderKanban, label: 'Project List', path: '/projects/list' },
+        { icon: Plus, label: 'New Project', path: '/projects/list' },
+      ],
+    },
+    {
+      key: 'support',
+      label: 'Support',
+      collapsible: true,
+      items: [
+        { icon: ClipboardCheck, label: 'Material Entry', path: '/inventory/materials/entry' },
+        { icon: Users, label: 'Invitations', path: '/admin/invitations' },
+      ],
+    },
+    {
+      key: 'settings',
+      label: 'ERPNext Settings',
+      collapsible: true,
+      items: [
+        { icon: Settings, label: 'Settings', path: '/settings' },
+        { icon: FileSpreadsheet, label: 'Exports', path: '/exports' },
+        { icon: Users, label: 'Team', path: '/admin/users' },
+      ],
+    },
   ];
 
   const handleMarkAllRead = async () => {
@@ -126,11 +235,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     setMarkingRead(true);
     try {
       await api.markAllAnomaliesRead();
-      setUnreadCount(0);
-      // Re-fetch to update statuses
       fetchNotifications();
     } catch {}
     setMarkingRead(false);
+  };
+
+  const handleAckInventoryAlert = async (id: string) => {
+    try {
+      await api.acknowledgeInventoryAlert(id);
+      fetchNotifications();
+    } catch {}
   };
 
   const handleLogout = () => {
@@ -139,10 +253,66 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const toggleNotifications = () => {
-    if (!showNotifications) {
-      setUnreadCount(0);
-    }
     setShowNotifications(!showNotifications);
+  };
+
+  const handleSidebarItemClick = () => {
+    sidebarNavRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  };
+
+  const SidebarSection = ({ section }: { section: { key: string; label: string; items: SidebarItem[]; collapsible?: boolean } }) => {
+    const open = openSections[section.key] ?? true;
+    return (
+      <div>
+        {!isCollapsed ? (
+          <button
+            type="button"
+            onClick={() => toggleSection(section.key)}
+            className="mb-2 flex w-full items-center justify-between px-3 text-left text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 hover:text-slate-200"
+          >
+            <span>{section.label}</span>
+            <ChevronRight className={`h-4 w-4 transition-transform ${open ? 'rotate-90' : ''}`} />
+          </button>
+        ) : null}
+
+        {(open || isCollapsed) && (
+          <div className="space-y-1">
+            {section.items.map((item) => {
+              const isActive = location.pathname.startsWith(item.path);
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={handleSidebarItemClick}
+                  title={isCollapsed ? item.label : ''}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`group flex items-center ${
+                    isCollapsed ? 'justify-center px-0' : 'justify-between px-3'
+                  } py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                    isActive
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/30'
+                      : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
+                    <item.icon
+                      className={`w-5 h-5 transition-colors ${
+                        isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'
+                      }`}
+                    />
+                    {!isCollapsed ? <span className="whitespace-nowrap">{item.label}</span> : null}
+                  </div>
+                  {!isCollapsed && isActive ? <ChevronRight className="w-4 h-4 text-white/70" /> : null}
+                </Link>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
   };
 
 
@@ -220,101 +390,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto p-4 space-y-6 overflow-x-hidden">
-            <div>
-            {!isCollapsed && (
-              <h2 className="px-3 text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 animate-in fade-in whitespace-nowrap">
-                Main Menu
-              </h2>
-            )}
-            <div className="space-y-1">
-              {navItems.map((item) => {
-                const isActive = location.pathname.startsWith(item.path);
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => setSidebarOpen(false)}
-                    title={isCollapsed ? item.label : ""}
-                    className={`
-                      group flex items-center ${
-                        isCollapsed
-                          ? "justify-center px-0"
-                          : "justify-between px-3"
-                      } py-3 rounded-xl text-sm font-medium transition-all duration-200
-                      ${
-                        isActive
-                          ? "bg-blue-600 text-white shadow-lg shadow-blue-900/30"
-                          : "text-slate-300 hover:bg-white/10 hover:text-white"
-                      }
-                    `}
-                  >
-                    <div
-                      className={`flex items-center ${
-                        isCollapsed ? "justify-center" : "gap-3"
-                      }`}
-                    >
-                      <item.icon
-                        className={`w-5 h-5 transition-colors ${
-                          isActive
-                            ? "text-white"
-                            : "text-slate-400 group-hover:text-white"
-                        }`}
-                      />
-                      {!isCollapsed && (
-                        <span className="whitespace-nowrap">{item.label}</span>
-                      )}
-                    </div>
-                    {!isCollapsed && isActive && (
-                      <ChevronRight className="w-4 h-4 text-white/70" />
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          
-            {/* Inventory Section */}
-            <div className="mt-6">
-              {!isCollapsed && (
-                <h2 className="px-3 text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 animate-in fade-in whitespace-nowrap">
-                  Inventory
-                </h2>
-              )}
-              <div className="space-y-1">
-                {inventoryItems.map((item) => {
-                  const isActive = location.pathname.startsWith(item.path);
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      onClick={() => setSidebarOpen(false)}
-                      title={isCollapsed ? item.label : ""}
-                      className={
-                        `group flex items-center ${
-                          isCollapsed ? "justify-center px-0" : "justify-between px-3"
-                        } py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                          isActive
-                            ? "bg-blue-600 text-white shadow-lg shadow-blue-900/30"
-                            : "text-slate-300 hover:bg-white/10 hover:text-white"
-                        }`
-                      }
-                    >
-                      <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}>
-                        <item.icon className={`w-5 h-5 transition-colors ${isActive ? "text-white" : "text-slate-400 group-hover:text-white"}`} />
-                        {!isCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
-                      </div>
-                      {!isCollapsed && isActive && <ChevronRight className="w-4 h-4 text-white/70" />}
-                      {!isCollapsed && item.path === '/inventory/alerts' && (
-                        <div className="ml-2 flex items-center">
-                          {unreadCount > 0 && <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded">{unreadCount}</span>}
-                        </div>
-                      )}
-                    </Link>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
+        <nav ref={sidebarNavRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
+          {sections.map((section) => (
+            <SidebarSection key={section.key} section={section} />
+          ))}
         </nav>
 
         {/* User Profile */}
@@ -464,6 +543,56 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                           </Link>
                         ))}
 
+                      {inventoryAlerts.length > 0 && (
+                        <div className="px-4 py-3 bg-slate-50/30">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Inventory Alerts
+                            </p>
+                            <Link
+                              to="/inventory/alerts"
+                              onClick={() => setShowNotifications(false)}
+                              className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                            >
+                              Open page
+                            </Link>
+                          </div>
+                          <div className="space-y-2">
+                            {inventoryAlerts.map((alert) => (
+                              <div
+                                key={alert.id}
+                                className="rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-sm"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-slate-900 truncate">
+                                      {alert.rawMaterial?.name || "Unknown material"}
+                                    </p>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                      Low stock alert
+                                      {alert.createdAt ? ` · ${new Date(alert.createdAt).toLocaleString()}` : ""}
+                                    </p>
+                                  </div>
+                                  {!alert.acknowledged ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAckInventoryAlert(alert.id)}
+                                      className="shrink-0 rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-700"
+                                    >
+                                      Acknowledge
+                                    </button>
+                                  ) : (
+                                    <span className="shrink-0 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                                      Acknowledged
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {notifications.length > 0 ? (
                         notifications.map((n) => (
                           <Link
@@ -531,3 +660,73 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     </div>
   );
 };
+
+type SidebarItem = {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  path: string;
+};
+
+function SidebarSection({
+  title,
+  items,
+  isCollapsed,
+  locationPath,
+  onNavigate,
+  badgeCount,
+  badgePath,
+}: {
+  title: string;
+  items: SidebarItem[];
+  isCollapsed: boolean;
+  locationPath: string;
+  onNavigate: () => void;
+  badgeCount?: number;
+  badgePath?: string;
+}) {
+  return (
+    <div>
+      {!isCollapsed && (
+        <h3 className="px-3 mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 whitespace-nowrap">
+          {title}
+        </h3>
+      )}
+      <div className="space-y-1">
+        {items.map((item) => {
+          const isActive = locationPath.startsWith(item.path);
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              onClick={onNavigate}
+              title={isCollapsed ? item.label : ""}
+              aria-current={isActive ? "page" : undefined}
+              className={`group flex items-center ${
+                isCollapsed ? "justify-center px-0" : "justify-between px-3"
+              } py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                isActive
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-900/30"
+                  : "text-slate-300 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}>
+                <item.icon
+                  className={`w-5 h-5 transition-colors ${
+                    isActive ? "text-white" : "text-slate-400 group-hover:text-white"
+                  }`}
+                />
+                {!isCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
+              </div>
+              {!isCollapsed && isActive && <ChevronRight className="w-4 h-4 text-white/70" />}
+              {!isCollapsed && badgeCount && badgePath === item.path && badgeCount > 0 && (
+                <div className="ml-2 flex items-center">
+                  <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded">{badgeCount}</span>
+                </div>
+              )}
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

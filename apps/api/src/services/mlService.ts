@@ -55,6 +55,7 @@ export type MlHealthStatus = {
   lastError?: string;
 };
 
+// Error type for ML service failures
 export class MlServiceError extends Error {
   type: "CONFIG" | "TIMEOUT" | "HTTP" | "NETWORK";
   statusCode?: number;
@@ -70,6 +71,7 @@ export class MlServiceError extends Error {
   }
 }
 
+// Builds headers for ML requests
 const buildHeaders = () => {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -80,6 +82,7 @@ const buildHeaders = () => {
   return headers;
 };
 
+// Calls an ML endpoint with JSON payload
 const callMlEndpoint = async (
   path: string,
   payload: unknown,
@@ -110,6 +113,7 @@ const callMlEndpoint = async (
   }
 };
 
+// Scores a single submission
 export const scoreSubmission = async (
   payload: ScoreRequest,
 ): Promise<ScoreResult> => {
@@ -127,6 +131,7 @@ export const scoreSubmission = async (
   return (await res.json()) as ScoreResult;
 };
 
+// Scores a batch of values
 export const scoreBatch = async (payload: {
   indicatorId: number;
   dataType: IndicatorDataType;
@@ -147,6 +152,7 @@ export const scoreBatch = async (payload: {
   return (await res.json()) as { results: ScoreResult[] };
 };
 
+// Checks ML service health
 export const healthCheck = async (): Promise<MlHealthStatus> => {
   const checkedAt = new Date().toISOString();
   if (!config.mlServiceUrl) {
@@ -190,6 +196,7 @@ export const healthCheck = async (): Promise<MlHealthStatus> => {
   }
 };
 
+// Evaluates ML models against labeled data
 export const evaluateModels = async (
   payload: EvaluationRequest,
 ): Promise<{ results: EvaluationResult[] }> => {
@@ -207,6 +214,7 @@ export const evaluateModels = async (
   return (await res.json()) as { results: EvaluationResult[] };
 };
 
+// Fetches supported ML algorithms
 export const getAlgorithms = async (): Promise<{ algorithms: any[] }> => {
   const res = await callMlEndpoint("/algorithms", {});
 

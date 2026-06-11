@@ -1,6 +1,7 @@
 import { PrismaClient, Indicator } from "@prisma/client";
 import { ImportTemplateRepository } from "../repositories/importTemplateRepository";
 
+// Handles import template generation and validation
 export class TemplateService {
   private importTemplateRepo: ImportTemplateRepository;
   constructor(private prisma: PrismaClient) {
@@ -10,6 +11,7 @@ export class TemplateService {
   /**
    * Create default import template for an indicator
    */
+  // Creates a default template for one indicator
   async createDefaultImportTemplate(indicatorId: number, userId: number) {
     const indicator = await this.prisma.indicator.findUnique({
       where: { id: indicatorId },
@@ -33,6 +35,7 @@ export class TemplateService {
   /**
    * Generate default import column mapping based on indicator type
    */
+  // Builds the default column mapping for an indicator
   private generateDefaultImportMapping(indicator: Indicator): any {
     const columns = [];
 
@@ -184,6 +187,7 @@ export class TemplateService {
   /**
    * Validate template configuration
    */
+  // Validates a template column mapping
   validateImportTemplate(columnMapping: any): {
     valid: boolean;
     errors: string[];
@@ -210,6 +214,7 @@ export class TemplateService {
   /**
    * Generate sample CSV file based on template
    */
+  // Generates a sample CSV for the template
   generateSampleCSV(indicator: Indicator, columnMapping: any): string {
     const columns = columnMapping.columns || [];
     const headers = columns.map((col: any) => col.csvHeader);

@@ -11,6 +11,12 @@ import healthRoutes from "./healthRoutes";
 import notificationRoutes from "./notificationRoutes";
 import usersRoutes from "./usersRoutes";
 import suppliersRoutes from "./inventoryRoutes";
+import customerRoutes from "./customerRoutes";
+import productionRoutes from "./productionRoutes";
+import salesInvoiceRoutes from "./salesInvoiceRoutes";
+import salesOrderRoutes from "./salesOrderRoutes";
+import expenseRoutes from "./expenseRoutes";
+import operationsRoutes from "./operationsRoutes";
 
 const router = Router();
 
@@ -26,5 +32,11 @@ router.use("/", healthRoutes);
 router.use("/", notificationRoutes);
 router.use("/users", usersRoutes);
 router.use("/inventory", suppliersRoutes);
+router.use("/customers", customerRoutes);
+router.use("/production", productionRoutes);
+router.use("/sales-invoices", salesInvoiceRoutes);
+router.use("/sales-orders", salesOrderRoutes);
+router.use("/expenses", expenseRoutes);
+router.use("/operations", operationsRoutes);
 
 export default router;

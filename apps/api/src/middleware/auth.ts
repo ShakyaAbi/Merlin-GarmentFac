@@ -12,7 +12,12 @@ export const authenticate = async (
   next: NextFunction,
 ) => {
   // Bypass authentication if disabled — ensure seeded admin exists
-  if (config.authDisabled) {
+  const isLocalRequest =
+    req.hostname === 'localhost' ||
+    req.hostname === '127.0.0.1' ||
+    req.hostname === '::1';
+
+  if (config.authDisabled && isLocalRequest) {
     const adminEmail = adminSeed.email ?? "admin@gmail.com";
     let user = await userRepo.findByEmail(adminEmail);
     if (!user) {
@@ -22,6 +27,10 @@ export const authenticate = async (
     }
     req.user = { id: user.id, email: user.email, role: user.role, organizationId: user.organizationId } as any;
     return next();
+  }
+
+  if (config.authDisabled && !isLocalRequest) {
+    return next(new UnauthorizedError("Authentication bypass is only allowed on localhost"));
   }
 
   const authHeader = req.headers.authorization;

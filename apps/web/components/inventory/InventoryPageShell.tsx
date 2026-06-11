@@ -1,0 +1,87 @@
+import React from 'react'
+import { Link } from 'react-router-dom'
+import { Button } from '../ui/Button'
+
+type Action = {
+  label: string
+  onClick?: () => void
+  to?: string
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger'
+  size?: 'sm' | 'md' | 'lg'
+}
+
+type Props = {
+  eyebrow?: string
+  title: string
+  description?: string
+  backTo?: { to: string; label: string }
+  actions?: Action[]
+  children?: React.ReactNode
+}
+
+export function InventoryPageShell({ eyebrow, title, description, backTo, actions = [], children }: Props) {
+  const baseStyles =
+    'inline-flex items-center justify-center rounded-xl font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none shadow-sm active:translate-y-0'
+  const variants = {
+    primary:
+      'bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-700 hover:to-blue-600 focus:ring-blue-500 shadow-md hover:shadow-lg hover:-translate-y-0.5',
+    secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200 focus:ring-slate-400 border border-slate-200',
+    outline: 'border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 focus:ring-slate-400',
+    ghost: 'bg-transparent hover:bg-slate-100 text-slate-700 focus:ring-slate-400',
+    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 shadow-md hover:-translate-y-0.5',
+  } as const
+  const sizes = {
+    sm: 'h-9 px-3 text-xs',
+    md: 'h-11 px-4 py-2 text-sm',
+    lg: 'h-12 px-6 text-base',
+  } as const
+
+  return (
+    <div className="space-y-6">
+      <div>
+        {backTo ? (
+          <Link to={backTo.to} className="mb-4 inline-flex items-center text-sm text-slate-500 hover:text-blue-600">
+            {backTo.label}
+          </Link>
+        ) : null}
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            {eyebrow ? (
+              <div className="mb-2 inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">
+                {eyebrow}
+              </div>
+            ) : null}
+            <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
+            {description ? <p className="mt-1 text-slate-600">{description}</p> : null}
+          </div>
+          {actions.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2 md:justify-end">
+              {actions.map((action) =>
+                action.to ? (
+                  <Link
+                    key={action.label}
+                    to={action.to}
+                    className={`${baseStyles} ${variants[action.variant ?? 'primary']} ${sizes[action.size ?? 'md']}`}
+                  >
+                    {action.label}
+                  </Link>
+                ) : (
+                  <Button
+                    key={action.label}
+                    type="button"
+                    variant={action.variant ?? 'primary'}
+                    size={action.size ?? 'md'}
+                    onClick={action.onClick}
+                  >
+                    {action.label}
+                  </Button>
+                ),
+              )}
+            </div>
+          ) : null}
+        </div>
+      </div>
+      {children}
+    </div>
+  )
+}

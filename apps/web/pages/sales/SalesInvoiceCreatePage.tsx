@@ -1,0 +1,433 @@
+import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Search, ShoppingCart, Plus } from 'lucide-react'
+import { salesInvoiceApi, SalesInvoiceCustomer, SalesInvoiceProduct, SalesInvoicePayload } from '../../services/salesInvoiceApi'
+import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
+import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
+import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
+import { Button } from '../../components/ui/Button'
+import { InvoiceItemTable, InvoiceDraftItem } from '../../components/sales/InvoiceItemTable'
+import { InvoiceTotalsCard } from '../../components/sales/InvoiceTotalsCard'
+
+const today = new Date().toISOString().slice(0, 10)
+
+const money = (value: number | string | null | undefined) =>
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value ?? 0))
+
+const createId = () => {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return `line_${Date.now()}_${Math.random().toString(16).slice(2)}`
+}
+
+const toNumber = (value: string | number | null | undefined) => Number(value ?? 0)
+
+const calculateSummary = (items: InvoiceDraftItem[]) => {
+  const subtotal = items.reduce((sum, item) => sum + toNumber(item.quantity) * toNumber(item.unitPrice), 0)
+  const discountAmount = items.reduce((sum, item) => sum + toNumber(item.discountAmount), 0)
+  const taxAmount = items.reduce((sum, item) => sum + toNumber(item.taxAmount), 0)
+  const taxableAmount = Math.max(subtotal - discountAmount, 0)
+  const grandTotal = Math.max(taxableAmount + taxAmount, 0)
+
+  return {
+    subtotal,
+    discountAmount,
+    taxableAmount,
+    nonTaxableAmount: 0,
+    taxAmount,
+    grandTotal,
+    paidAmount: 0,
+    dueAmount: grandTotal,
+    invoiceStatus: 'DRAFT' as const,
+    paymentStatus: 'UNPAID' as const,
+    printedCount: 0,
+    lineCount: items.length,
+  }
+}
+
+const formatCustomer = (customer: SalesInvoiceCustomer) => {
+  const parts = [customer.phone, customer.panVatNumber].filter(Boolean)
+  return parts.length > 0 ? parts.join(' | ') : customer.customerType || 'Customer'
+}
+
+const formatProductPrice = (product: SalesInvoiceProduct) => money(product.sellingPrice ?? product.costPrice ?? 0)
+
+export default function SalesInvoiceCreatePage() {
+  const navigate = useNavigate()
+  const [customers, setCustomers] = useState<SalesInvoiceCustomer[]>([])
+  const [products, setProducts] = useState<SalesInvoiceProduct[]>([])
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [productSearch, setProductSearch] = useState('')
+  const [customerId, setCustomerId] = useState('')
+  const [invoiceDate, setInvoiceDate] = useState(today)
+  const [dueDate, setDueDate] = useState('')
+  const [remarks, setRemarks] = useState('')
+  const [items, setItems] = useState<InvoiceDraftItem[]>([
+    {
+      id: createId(),
+      productId: '',
+      productCode: '',
+      productName: '',
+      quantity: '1',
+      unitPrice: '0',
+      discountAmount: '0',
+      taxAmount: '0',
+      warehouseId: '',
+    },
+  ])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadCatalog = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [customerData, productData] = await Promise.all([
+        salesInvoiceApi.listCustomers(),
+        salesInvoiceApi.listProducts(),
+      ])
+      setCustomers(Array.isArray(customerData) ? customerData : [])
+      setProducts(Array.isArray(productData) ? productData : [])
+      if (!customerId && customerData?.[0]?.id) {
+        setCustomerId(customerData[0].id)
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load customers and finished goods.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadCatalog()
+  }, [])
+
+  const filteredCustomers = useMemo(() => {
+    const query = customerSearch.trim().toLowerCase()
+    if (!query) return customers
+    return customers.filter((customer) =>
+      [customer.customerName, customer.phone, customer.panVatNumber, customer.customerType]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query)),
+    )
+  }, [customerSearch, customers])
+
+  const filteredProducts = useMemo(() => {
+    const query = productSearch.trim().toLowerCase()
+    if (!query) return products
+    return products.filter((product) =>
+      [product.name, product.productCode, product.sku, product.category, product.description]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query)),
+    )
+  }, [productSearch, products])
+
+  const summary = useMemo(() => calculateSummary(items), [items])
+
+  const updateItem = (id: string, patch: Partial<InvoiceDraftItem>) => {
+    setItems((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)))
+  }
+
+  const addBlankItem = () => {
+    setItems((current) => [
+      ...current,
+      {
+        id: createId(),
+        productId: '',
+        productCode: '',
+        productName: '',
+        quantity: '1',
+        unitPrice: '0',
+        discountAmount: '0',
+        taxAmount: '0',
+        warehouseId: '',
+      },
+    ])
+  }
+
+  const addProductLine = (product: SalesInvoiceProduct) => {
+    const existingCode = product.productCode || product.sku || product.id
+    const unitPrice = String(product.sellingPrice ?? 0)
+    setItems((current) => [
+      ...current,
+      {
+        id: createId(),
+        productId: product.id,
+        productCode: existingCode,
+        productName: product.name,
+        quantity: '1',
+        unitPrice,
+        discountAmount: '0',
+        taxAmount: '0',
+        warehouseId: product.category || 'Finished Goods',
+      },
+    ])
+  }
+
+  const removeItem = (id: string) => setItems((current) => current.filter((item) => item.id !== id))
+
+  const buildPayload = (): SalesInvoicePayload => ({
+    customerId,
+    invoiceDate,
+    dueDate: dueDate || undefined,
+    remarks: remarks || undefined,
+    items: items.map((item) => ({
+      productId: item.productId || undefined,
+      productCode: item.productCode || undefined,
+      productName: item.productName.trim(),
+      quantity: Number(item.quantity || 0),
+      unitPrice: Number(item.unitPrice || 0),
+      discountAmount: Number(item.discountAmount || 0),
+      taxAmount: Number(item.taxAmount || 0),
+      lineTotal: Math.max(Number(item.quantity || 0) * Number(item.unitPrice || 0) - Number(item.discountAmount || 0) + Number(item.taxAmount || 0), 0),
+      warehouseId: item.warehouseId || undefined,
+    })),
+    invoiceStatus: 'DRAFT',
+    paymentStatus: 'UNPAID',
+  })
+
+  const validate = () => {
+    if (!customerId) return 'Select a customer.'
+    if (items.length === 0) return 'Add at least one finished-goods line.'
+    for (const item of items) {
+      if (!item.productId && !item.productName.trim()) return 'Every line needs a finished-good product.'
+      if (Number(item.quantity || 0) <= 0) return 'Each line must have a positive quantity.'
+      if (Number(item.unitPrice || 0) < 0) return 'Unit prices cannot be negative.'
+    }
+    return null
+  }
+
+  const saveInvoice = async (nextSteps: Array<'submit' | 'issue'> = []) => {
+    const validationMessage = validate()
+    if (validationMessage) {
+      setError(validationMessage)
+      return
+    }
+
+    setSaving(nextSteps.join('+') || 'draft')
+    setError(null)
+    try {
+      let invoice = await salesInvoiceApi.create(buildPayload())
+      for (const step of nextSteps) {
+        invoice = step === 'submit' ? await salesInvoiceApi.submit(invoice.id) : await salesInvoiceApi.issue(invoice.id)
+      }
+      navigate(`/sales-invoices/${invoice.id}`)
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save invoice.')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const selectedCustomer = customers.find((customer) => customer.id === customerId)
+
+  return (
+    <InventoryPageShell
+      eyebrow="Sales"
+      title="New Sales Invoice"
+      description="Build invoices around finished goods and let Merlin manage the sales workflow."
+      backTo={{ to: '/sales-invoices', label: 'Back to invoices' }}
+      actions={[
+        { label: 'Invoices', variant: 'outline', to: '/sales-invoices' },
+        { label: 'New Line', variant: 'secondary', onClick: addBlankItem },
+      ]}
+    >
+      {error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+          {error}
+        </div>
+      ) : null}
+
+      <InventoryStatGrid
+        stats={[
+          { label: 'Customer selected', value: selectedCustomer?.customerName || 'Choose one' },
+          { label: 'Lines', value: items.length },
+          { label: 'Grand total', value: money(summary.grandTotal) },
+          { label: 'Due amount', value: money(summary.dueAmount), tone: 'warning' },
+        ]}
+      />
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-6">
+          <InventorySectionCard title="Invoice Header" description="Choose the customer and invoice dates before adding finished-goods lines.">
+            {loading ? (
+              <div className="py-10 text-center text-sm text-slate-500" role="status" aria-live="polite">
+                Loading customers and finished goods...
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="block text-sm md:col-span-2">
+                  <span className="mb-1 block text-slate-600">Customer search</span>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={customerSearch}
+                      onChange={(event) => setCustomerSearch(event.target.value)}
+                      className="w-full rounded-xl border border-slate-300 bg-white py-2 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Search customer name, phone, PAN/VAT, or type"
+                    />
+                  </div>
+                </label>
+
+                <label className="block text-sm md:col-span-2">
+                  <span className="mb-1 block text-slate-600">Customer</span>
+                  <select
+                    value={customerId}
+                    onChange={(event) => setCustomerId(event.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                  >
+                    <option value="">Select customer</option>
+                    {filteredCustomers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.customerName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block text-sm">
+                  <span className="mb-1 block text-slate-600">Invoice date</span>
+                  <input
+                    type="date"
+                    value={invoiceDate}
+                    onChange={(event) => setInvoiceDate(event.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                  />
+                </label>
+
+                <label className="block text-sm">
+                  <span className="mb-1 block text-slate-600">Due date</span>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={(event) => setDueDate(event.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                  />
+                </label>
+
+                <label className="block text-sm md:col-span-2">
+                  <span className="mb-1 block text-slate-600">Remarks</span>
+                  <textarea
+                    value={remarks}
+                    onChange={(event) => setRemarks(event.target.value)}
+                    className="min-h-28 w-full rounded-xl border border-slate-300 px-3 py-2"
+                    placeholder="Optional invoice remarks"
+                  />
+                </label>
+              </div>
+            )}
+          </InventorySectionCard>
+
+          <InventorySectionCard title="Invoice Items" description="Use the catalog on the right to add finished-goods lines quickly.">
+            <InvoiceItemTable
+              items={items}
+              onAddItem={addBlankItem}
+              onRemoveItem={removeItem}
+              onChangeItem={updateItem}
+            />
+          </InventorySectionCard>
+
+          <InvoiceTotalsCard
+            summary={summary}
+            footer={
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" onClick={() => saveInvoice()} isLoading={saving === 'draft'}>
+                  Save Draft
+                </Button>
+                <Button type="button" variant="outline" onClick={() => saveInvoice(['submit'])} isLoading={saving === 'submit'}>
+                  Submit
+                </Button>
+                <Button type="button" onClick={() => saveInvoice(['submit', 'issue'])} isLoading={saving === 'submit+issue'}>
+                  Save &amp; Issue
+                </Button>
+              </div>
+            }
+          />
+        </div>
+
+        <div className="space-y-6">
+          <InventorySectionCard
+            title="Finished-Goods Catalog"
+            description="Pick ready-to-sell products. This replaces the old raw-material purchase mindset."
+          >
+            <div className="mb-3 flex items-center gap-2 rounded-2xl bg-blue-50 px-3 py-2 text-sm text-blue-700">
+              <ShoppingCart className="h-4 w-4" />
+              Add products from the catalog to build the invoice.
+            </div>
+
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Search catalog</span>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={productSearch}
+                  onChange={(event) => setProductSearch(event.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white py-2 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Search by product code, SKU, or name"
+                />
+              </div>
+            </label>
+
+            <div className="mt-4 space-y-2">
+              {filteredProducts.map((product) => (
+                <button
+                  key={product.id}
+                  type="button"
+                  onClick={() => addProductLine(product)}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50/40"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-slate-900">{product.name}</div>
+                      <div className="text-xs text-slate-500">
+                        {product.productCode || product.sku || product.id} | {product.unit || 'pcs'}
+                      </div>
+                      {product.category ? <div className="mt-1 text-xs text-slate-500">{product.category}</div> : null}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-sm font-semibold text-slate-900">{formatProductPrice(product)}</div>
+                      <div className="text-xs text-slate-500">Selling price</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+              {filteredProducts.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                  No finished goods found.
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2">
+              <Button type="button" variant="outline" onClick={addBlankItem}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add blank line
+              </Button>
+            </div>
+          </InventorySectionCard>
+
+          <InventorySectionCard title="Customer Snapshot" description="Who the invoice is being raised for.">
+            {selectedCustomer ? (
+              <div className="space-y-2 text-sm text-slate-600">
+                <div className="font-semibold text-slate-900">{selectedCustomer.customerName}</div>
+                <div>{selectedCustomer.phone || 'No phone'} </div>
+                <div>{selectedCustomer.email || 'No email'}</div>
+                <div>{selectedCustomer.panVatNumber || 'No PAN/VAT'}</div>
+                <div>{formatCustomer(selectedCustomer)}</div>
+              </div>
+            ) : (
+              <div className="text-sm text-slate-500">Select a customer to preview their details.</div>
+            )}
+          </InventorySectionCard>
+        </div>
+      </div>
+    </InventoryPageShell>
+  )
+}

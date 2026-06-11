@@ -126,6 +126,14 @@ model User {
   exportTemplates         ExportTemplate[]
   invitationsSent         Invitation[] @relation("InvitationsSent")
   indicatorsCreated       Indicator[]  @relation("IndicatorsCreated")
+  salesInvoicesCreated    SalesInvoice[] @relation("SalesInvoicesCreated")
+  salesInvoicesApproved   SalesInvoice[] @relation("SalesInvoicesApproved")
+  salesInvoicesIssued     SalesInvoice[] @relation("SalesInvoicesIssued")
+  salesInvoicesCancelled  SalesInvoice[] @relation("SalesInvoicesCancelled")
+  salesInvoicePaymentsReceived SalesInvoicePayment[] @relation("SalesInvoicePaymentsReceived")
+  finishedGoodsCreated    FinishedGoodProduct[] @relation("FinishedGoodsCreated")
+  finishedGoodsUpdated    FinishedGoodProduct[] @relation("FinishedGoodsUpdated")
+  finishedGoodStockTransactionsCreated FinishedGoodStockTransaction[] @relation("FinishedGoodStockTransactionsCreated")
 }
 
 model Organization {
@@ -343,6 +351,24 @@ enum SupplierStatus {
   INACTIVE
 }
 
+enum SalesInvoiceStatus {
+  DRAFT
+  PENDING_APPROVAL
+  ISSUED
+  CANCELLED
+}
+
+enum SalesPaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+enum SalesStockTransactionType {
+  SALE_OUT
+  SALE_RETURN
+}
+
 model Supplier {
   id            String          @id @default(cuid())
   name          String
@@ -361,11 +387,34 @@ model Supplier {
   updatedAt     DateTime        @updatedAt()
   deletedAt     DateTime?
   purchases     Purchase[]
+}
 
-  @@index([name])
-  @@index([phone])
-  @@index([email])
-  @@index([panVatNumber])
+model Customer {
+  id            String       @id @default(cuid())
+  customerName  String
+  phone         String?
+  address       String?
+  panVatNumber  String?
+  customerType  String?
+  email         String?
+  notes         String?
+  createdBy     Int?
+  updatedBy     Int?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt()
+  deletedAt     DateTime?
+  salesInvoices SalesInvoice[]
+  salesOrders   SalesOrder[]
+}
+
+model RawMaterialCategory {
+  id            String       @id @default(cuid())
+  categoryName  String       @unique
+  description   String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt()
+  deletedAt     DateTime?
+  rawMaterials  RawMaterial[]
 }
 
 model RawMaterial {
@@ -378,6 +427,12 @@ model RawMaterial {
   active          Boolean  @default(true)
   costPrice       Decimal?
   reorderLevel    Float?
+  categoryId      String?
+  category        RawMaterialCategory? @relation(fields: [categoryId], references: [id])
+  averageUnitCost Decimal? @default(0)
+  notes           String?
+  updatedBy       Int?
+  deletedAt       DateTime?
   createdBy       Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt()
@@ -385,7 +440,35 @@ model RawMaterial {
   stockTransactions StockTransaction[]
   lowStockAlerts  LowStockAlert[]
   bomItems        BOMItem[]
+  productionIssueLines ProductionIssueLine[]
   @@index([sku, name])
+}
+
+model FinishedGoodProduct {
+  id             String   @id @default(cuid())
+  sku            String?  @unique
+  productCode    String?  @unique
+  name           String
+  description    String?
+  category       String?
+  unit           String   @default("pcs")
+  sellingPrice   Decimal  @default(0)
+  costPrice      Decimal  @default(0)
+  reorderLevel   Float?   @default(0)
+  active         Boolean  @default(true)
+  notes          String?
+  createdBy      Int?
+  createdByUser  User?    @relation("FinishedGoodsCreated", fields: [createdBy], references: [id])
+  updatedBy      Int?
+  updatedByUser  User?    @relation("FinishedGoodsUpdated", fields: [updatedBy], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt()
+  deletedAt      DateTime?
+  stockTransactions FinishedGoodStockTransaction[]
+  invoiceItems   SalesInvoiceItem[]
+  salesOrderItems SalesOrderItem[]
+  productionOrders ProductionOrder[] @relation("ProductionFinishedGood")
+  productionCompletionLines ProductionCompletionLine[] @relation("ProductionCompletionFinishedGood")
 }
 
 model Purchase {
@@ -421,10 +504,29 @@ model StockTransaction {
   rawMaterial   RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
   change        Float
   unit          String
+  transactionType String  @default("ADJUSTMENT")
+  balanceAfter    Float?
+  unitCost        Decimal?
   reason        String
   referenceId   String?
   createdBy     Int?
   createdAt     DateTime @default(now())
+}
+
+model FinishedGoodStockTransaction {
+  id              String   @id @default(cuid())
+  productId       String
+  product         FinishedGoodProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  change          Float
+  unit            String
+  transactionType SalesStockTransactionType @default(SALE_OUT)
+  balanceAfter    Float?
+  unitCost        Decimal?
+  reason          String
+  referenceId     String?
+  createdBy       Int?
+  createdByUser   User?    @relation("FinishedGoodStockTransactionsCreated", fields: [createdBy], references: [id])
+  createdAt       DateTime @default(now())
 }
 
 model LowStockAlert {
@@ -444,6 +546,7 @@ model BillOfMaterials {
   createdBy   Int?
   createdAt   DateTime @default(now())
   items       BOMItem[]
+  productionOrders ProductionOrder[] @relation("ProductionBom")
 }
 
 model BOMItem {
@@ -455,4 +558,224 @@ model BOMItem {
   consumption      Float
   unit             String
   yield            Float?
+}
+
+enum ProductionOrderStatus {
+  DRAFT
+  MATERIAL_ISSUED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model ProductionOrder {
+  id                String                @id @default(cuid())
+  orderNumber       String?               @unique
+  bomId             String
+  bom               BillOfMaterials       @relation("ProductionBom", fields: [bomId], references: [id])
+  finishedGoodId    String
+  finishedGood      FinishedGoodProduct   @relation("ProductionFinishedGood", fields: [finishedGoodId], references: [id])
+  finishedGoodName  String
+  quantityPlanned   Float
+  quantityProduced  Float                 @default(0)
+  status            ProductionOrderStatus @default(DRAFT)
+  issuedAt          DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  notes             String?
+  createdBy         Int?
+  updatedBy         Int?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt()
+  issueLines        ProductionIssueLine[]
+  completionLines   ProductionCompletionLine[]
+
+  @@index([bomId])
+  @@index([finishedGoodId])
+  @@index([status])
+}
+
+model ProductionIssueLine {
+  id                String          @id @default(cuid())
+  productionOrderId String
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  rawMaterialId     String
+  rawMaterial       RawMaterial     @relation(fields: [rawMaterialId], references: [id])
+  quantity          Float
+  unit              String
+  bomConsumption    Float
+  createdAt         DateTime        @default(now())
+
+  @@index([productionOrderId])
+  @@index([rawMaterialId])
+}
+
+model ProductionCompletionLine {
+  id                String          @id @default(cuid())
+  productionOrderId String
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  finishedGoodId    String
+  finishedGood      FinishedGoodProduct @relation("ProductionCompletionFinishedGood", fields: [finishedGoodId], references: [id])
+  quantity          Float
+  unit              String
+  createdAt         DateTime        @default(now())
+
+  @@index([productionOrderId])
+  @@index([finishedGoodId])
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  FULFILLED
+  CANCELLED
+}
+
+model SalesOrder {
+  id             String            @id @default(cuid())
+  orderNumber    String?           @unique
+  customerId     String
+  customer       Customer          @relation(fields: [customerId], references: [id])
+  status         SalesOrderStatus  @default(DRAFT)
+  orderDate      DateTime          @default(now())
+  requiredBy     DateTime?
+  notes          String?
+  subtotal       Decimal           @default(0)
+  discountAmount Decimal           @default(0)
+  taxAmount      Decimal           @default(0)
+  grandTotal     Decimal           @default(0)
+  createdBy      Int?
+  updatedBy      Int?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt()
+  items          SalesOrderItem[]
+  invoices       SalesInvoice[]
+
+  @@index([customerId])
+  @@index([status])
+}
+
+model SalesOrderItem {
+  id             String     @id @default(cuid())
+  salesOrderId   String
+  salesOrder     SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  productId      String
+  product        FinishedGoodProduct @relation(fields: [productId], references: [id])
+  productCode    String?
+  productName    String
+  quantity       Float
+  unitPrice      Decimal
+  discountAmount Decimal   @default(0)
+  taxAmount      Decimal   @default(0)
+  lineTotal      Decimal
+  createdAt      DateTime  @default(now())
+
+  @@index([salesOrderId])
+  @@index([productId])
+}
+
+model SalesInvoice {
+  id                 String              @id @default(cuid())
+  invoiceNumber      String?             @unique
+  fiscalYear         String?
+  customerId         String
+  customer           Customer            @relation(fields: [customerId], references: [id])
+  salesOrderId       String?
+  salesOrder         SalesOrder?         @relation(fields: [salesOrderId], references: [id])
+  invoiceDate        DateTime
+  dueDate            DateTime?
+  subtotal           Decimal             @default(0)
+  discountAmount     Decimal             @default(0)
+  taxableAmount      Decimal             @default(0)
+  nonTaxableAmount   Decimal             @default(0)
+  taxAmount          Decimal             @default(0)
+  grandTotal         Decimal             @default(0)
+  paidAmount         Decimal             @default(0)
+  dueAmount          Decimal             @default(0)
+  paymentStatus      SalesPaymentStatus  @default(UNPAID)
+  invoiceStatus      SalesInvoiceStatus   @default(DRAFT)
+  printedCount       Int                 @default(0)
+  syncStatus         String?
+  syncReference      String?
+  cancellationReason String?
+  remarks            String?
+  createdBy          Int?
+  createdByUser      User?               @relation("SalesInvoicesCreated", fields: [createdBy], references: [id])
+  approvedBy         Int?
+  approvedByUser     User?               @relation("SalesInvoicesApproved", fields: [approvedBy], references: [id])
+  issuedBy           Int?
+  issuedByUser       User?               @relation("SalesInvoicesIssued", fields: [issuedBy], references: [id])
+  cancelledBy        Int?
+  cancelledByUser    User?               @relation("SalesInvoicesCancelled", fields: [cancelledBy], references: [id])
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt()
+  approvedAt         DateTime?
+  issuedAt           DateTime?
+  cancelledAt        DateTime?
+  items              SalesInvoiceItem[]
+  payments           SalesInvoicePayment[]
+}
+
+model SalesInvoiceItem {
+  id             String              @id @default(cuid())
+  invoiceId      String
+  invoice        SalesInvoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId      String
+  product        FinishedGoodProduct @relation(fields: [productId], references: [id])
+  productCode    String?
+  productName    String
+  quantity       Float
+  unitPrice      Decimal
+  discountAmount Decimal             @default(0)
+  taxableAmount  Decimal             @default(0)
+  taxAmount      Decimal             @default(0)
+  lineTotal      Decimal
+  costPrice      Decimal             @default(0)
+  profitAmount   Decimal             @default(0)
+  warehouseId    String?
+  createdAt      DateTime            @default(now())
+}
+
+model SalesInvoicePayment {
+  id              String       @id @default(cuid())
+  invoiceId       String
+  invoice         SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  paymentDate     DateTime
+  amount          Decimal
+  paymentMethod   String
+  note            String?
+  receivedBy      Int?
+  receivedByUser  User?        @relation("SalesInvoicePaymentsReceived", fields: [receivedBy], references: [id])
+  createdAt       DateTime     @default(now())
+}
+
+enum ExpenseStatus {
+  DRAFT
+  APPROVED
+  PAID
+  VOID
+}
+
+model Expense {
+  id             String        @id @default(cuid())
+  expenseNumber  String?       @unique
+  expenseDate    DateTime      @default(now())
+  category       String
+  vendor         String?
+  description    String
+  amount         Decimal       @default(0)
+  currency       String        @default("USD")
+  status         ExpenseStatus @default(DRAFT)
+  paymentDate    DateTime?
+  notes          String?
+  createdBy      Int?
+  updatedBy      Int?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt()
+  deletedAt      DateTime?
+
+  @@index([expenseDate])
+  @@index([category])
+  @@index([status])
 }

@@ -1,5 +1,6 @@
 import { prisma } from '../../prisma'
 import { recordAudit } from '../../utils/auditLog'
+import { AppError } from '../../utils/errors'
 
 export async function recordStockChange(params: {
   rawMaterialId: string
@@ -19,7 +20,7 @@ export async function recordStockChange(params: {
     })
     const currentBalance = (agg._sum.change || 0) + params.change
     if (currentBalance < 0) {
-      throw new Error('Insufficient stock: transaction would cause negative balance')
+      throw new AppError(409, 'INSUFFICIENT_STOCK', 'Insufficient stock: transaction would cause negative balance')
     }
 
     // Create transaction

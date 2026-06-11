@@ -132,12 +132,14 @@ export const createIndicator = async (
 };
 
 
+// Lists project indicators
 export const getIndicators = async (projectId: number, organizationId: number, includeDeleted = false) => {
   await ensureProject(projectId, organizationId);
   return indicatorRepo.getIndicatorsByProject(projectId, organizationId, includeDeleted);
 };
 
 
+// Fetches one indicator by ID
 export const getIndicatorById = async (
   id: number,
   organizationId: number,
@@ -152,6 +154,7 @@ export const getIndicatorById = async (
   return indicator;
 };
 
+// Updates an indicator
 export const updateIndicator = async (
   id: number,
   organizationId: number,
@@ -254,6 +257,7 @@ export const updateIndicator = async (
   return updatedIndicator;
 };
 
+// Recalculates anomaly flags for an indicator
 export const recalculateIndicatorAnomalies = async (
   indicatorId: number,
   organizationId: number,
@@ -292,6 +296,7 @@ const calculateTrend = (
   return "stable";
 };
 
+// Builds indicator statistics
 export const getIndicatorWithStats = async (id: number, organizationId: number, includeDeleted = false) => {
   const indicator = await indicatorRepo.getByIdWithSubmissions(id, organizationId, includeDeleted);
   if (!indicator)
@@ -386,6 +391,7 @@ export const getIndicatorWithStats = async (id: number, organizationId: number, 
   };
 };
 
+// Detects reporting gaps for an indicator
 export const detectReportingGaps = (
   submissions: { reportedAt: Date }[],
   expectedFrequency: "DAILY" | "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY",
@@ -430,6 +436,7 @@ export const detectReportingGaps = (
   return gaps;
 };
 
+// Bulk updates indicators
 export const bulkUpdateIndicators = async (
   projectId: number,
   organizationId: number,
@@ -476,6 +483,7 @@ export const bulkUpdateIndicators = async (
   );
 };
 
+// Soft-deletes an indicator
 export const deleteIndicator = async (id: number, organizationId: number) => {
   const indicator = await indicatorRepo.getById(id, organizationId);
 
@@ -486,6 +494,7 @@ export const deleteIndicator = async (id: number, organizationId: number) => {
   return indicatorRepo.deleteIndicator(id, organizationId);
 };
 
+// Gets indicator templates
 export const getIndicatorTemplates = async (indicatorId: number, organizationId: number) => {
   const indicator = await indicatorRepo.getById(indicatorId, organizationId);
 
@@ -509,6 +518,7 @@ export const getIndicatorTemplates = async (indicatorId: number, organizationId:
   };
 };
 
+// Gets disaggregated category stats
 export const getDisaggregatedCategoryStats = async (indicatorId: number, organizationId: number, includeDeleted = false) => {
   const indicator = await indicatorRepo.getByIdWithSubmissions(indicatorId, organizationId, includeDeleted);
 
@@ -558,6 +568,7 @@ export const getDisaggregatedCategoryStats = async (indicatorId: number, organiz
   };
 };
 
+// Calculates reporting compliance
 export const getReportingCompliance = async (
   indicatorId: number,
   organizationId: number,
@@ -606,6 +617,7 @@ export const getReportingCompliance = async (
   );
 };
 
+// Builds category time-series stats
 export const getCategoryTimeSeriesStats = async (
   indicatorId: number,
   organizationId: number,
@@ -649,6 +661,7 @@ export const getCategoryTimeSeriesStats = async (
   );
 };
 
+// Evaluates ML anomaly models
 export const evaluateML = async (
   indicatorId: number,
   organizationId: number,
@@ -696,6 +709,7 @@ export const evaluateML = async (
   });
 };
 
+// Lists available ML algorithms
 export const getMLAlgorithms = async () => {
   const { getAlgorithms } = await import("./mlService");
   return getAlgorithms();

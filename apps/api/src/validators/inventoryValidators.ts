@@ -26,6 +26,11 @@ export const createMaterialSchema = z.object({
   averageUnitCost: z.coerce.number().optional(),
 })
 
+export const updateMaterialSchema = createMaterialSchema.partial().extend({
+  name: z.string().trim().min(1).optional(),
+  defaultUnit: z.string().trim().min(1).optional(),
+})
+
 export const adjustStockSchema = z.object({
   change: z.coerce.number(),
   unit: z.string().trim().min(1),
@@ -33,6 +38,10 @@ export const adjustStockSchema = z.object({
   referenceId: z.string().trim().optional(),
   transactionType: z.string().trim().optional(),
   unitCost: z.coerce.number().optional(),
+})
+
+export const toggleMaterialStatusSchema = z.object({
+  active: z.coerce.boolean(),
 })
 
 export const createPurchaseSchema = z.object({

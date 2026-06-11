@@ -522,6 +522,7 @@ const detectAnomaly = async (
   return anomalyResult;
 };
 
+// Resets anomaly flags for an indicator
 export const resetAnomaliesForIndicator = async (
   indicatorId: number,
   organizationId: number,
@@ -537,6 +538,7 @@ export const resetAnomaliesForIndicator = async (
   });
 };
 
+// Recalculates anomaly flags for an indicator
 export const recalculateAnomaliesForIndicator = async (
   indicatorId: number,
   organizationId: number,
@@ -605,6 +607,7 @@ export const recalculateAnomaliesForIndicator = async (
   }
 };
 
+// Creates a submission and evaluates anomalies
 export const createSubmission = async (
   indicatorId: number,
   organizationId: number,
@@ -689,6 +692,7 @@ export const createSubmission = async (
 
 };
 
+// Lists submissions with filters
 export const listSubmissions = async (
   indicatorId: number,
   organizationId: number,
@@ -736,6 +740,7 @@ export const listSubmissions = async (
   }));
 };
 
+// Updates a submission and rechecks anomalies
 export const updateSubmission = async (
   submissionId: number,
   organizationId: number,
@@ -814,6 +819,7 @@ export const updateSubmission = async (
   }
 };
 
+// Soft-deletes a submission
 export const deleteSubmission = async (
   submissionId: number,
   organizationId: number,
@@ -837,6 +843,7 @@ export const deleteSubmission = async (
     });
 };
 
+// Restores a deleted submission
 export const restoreSubmission = async (submissionId: number, organizationId: number, userId: number) => {
   const submission = await submissionRepo.getById(submissionId, organizationId);
   if (!submission) {
@@ -862,6 +869,7 @@ export const restoreSubmission = async (submissionId: number, organizationId: nu
   }
 };
 
+// Marks an anomaly as acknowledged
 export const acknowledgeAnomaly = async (
   submissionId: number,
   organizationId: number,
@@ -886,6 +894,7 @@ export const acknowledgeAnomaly = async (
   });
 };
 
+// Resolves an anomaly
 export const resolveAnomaly = async (
   submissionId: number,
   organizationId: number,
@@ -910,6 +919,7 @@ export const resolveAnomaly = async (
   });
 };
 
+// Marks an anomaly as a false positive
 export const markAnomalyFalsePositive = async (
   submissionId: number,
   organizationId: number,
@@ -934,6 +944,7 @@ export const markAnomalyFalsePositive = async (
   });
 };
 
+// Updates an anomaly status
 export const updateAnomalyStatus = async (
   submissionId: number,
   organizationId: number,

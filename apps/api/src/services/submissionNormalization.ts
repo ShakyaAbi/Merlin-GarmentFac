@@ -80,6 +80,7 @@ const normalizeScalarValue = (
   }
 };
 
+// Normalizes a submission payload by indicator type
 export const normalizeSubmissionByIndicator = ({
   dataType,
   payload,

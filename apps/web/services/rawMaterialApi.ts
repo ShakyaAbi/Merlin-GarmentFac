@@ -1,4 +1,6 @@
-import { request } from './apiClient'
+import { request, getToken } from './apiClient'
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1'
 
 export interface RawMaterialPayload {
   name: string
@@ -68,4 +70,60 @@ export const rawMaterialApi = {
 
   getPurchases: (id: string) =>
     request<any[]>(`/inventory/materials/${id}/purchases`),
+
+  exportCSV: async (filters?: Record<string, any>): Promise<Blob> => {
+    const token = getToken()
+    const response = await fetch(`${API_BASE}/inventory/materials/export`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ filters: filters || {} }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error?.error?.message || 'Export failed')
+    }
+
+    return response.blob()
+  },
+
+  downloadImportTemplate: async (): Promise<Blob> => {
+    const token = getToken()
+    const response = await fetch(`${API_BASE}/inventory/materials/import-template-sample`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error?.error?.message || 'Template download failed')
+    }
+
+    return response.blob()
+  },
+
+  uploadCSV: async (file: File): Promise<any> => {
+    const token = getToken()
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch(`${API_BASE}/inventory/materials/import`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error?.error?.message || error?.message || 'Import failed')
+    }
+
+    return response.json()
+  },
 }

@@ -1,3 +1,5 @@
-# package marker for garment_factory app
+__version__ = "0.0.1"
+
 from . import hooks
-__all__ = ['hooks']
+
+__all__ = ["hooks", "__version__"]

@@ -2,10 +2,10 @@
 import React, { useEffect, useState } from 'react';
 import { CurrentUser } from '../types';
 import { api } from '../services/api';
-import { User, Lock, Mail, Shield, Calendar } from 'lucide-react';
+import { User, Lock, Mail, Shield, Calendar, Server, KeyRound, Database } from 'lucide-react';
 
 export const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'security'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'system'>('profile');
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -14,6 +14,8 @@ export const Settings: React.FC = () => {
   const [changing, setChanging] = useState(false);
   const [securityError, setSecurityError] = useState<string | null>(null);
   const [securitySuccess, setSecuritySuccess] = useState<string | null>(null);
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1';
+  const authMode = import.meta.env.VITE_AUTH_DISABLED === 'true' ? 'Local dev bypass only' : 'JWT enforced';
 
   useEffect(() => {
     api.me()
@@ -47,6 +49,7 @@ export const Settings: React.FC = () => {
            {[
              { id: 'profile', label: 'My Profile', icon: User },
              { id: 'security', label: 'Security', icon: Lock },
+             { id: 'system', label: 'System', icon: Server },
            ].map(tab => (
              <button
                key={tab.id}
@@ -131,6 +134,42 @@ export const Settings: React.FC = () => {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* System Tab */}
+              {activeTab === 'system' && (
+                <div className="p-6 md:p-8 space-y-6">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">System Settings</h2>
+                    <p className="text-sm text-slate-500">Read-only environment and runtime information for this Merlin session.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <Server className="w-4 h-4 text-slate-500" />
+                        API Base URL
+                      </div>
+                      <div className="mt-2 text-sm text-slate-900 break-all">{apiBase}</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <KeyRound className="w-4 h-4 text-slate-500" />
+                        Auth Mode
+                      </div>
+                      <div className="mt-2 text-sm text-slate-900">{authMode}</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 md:col-span-2">
+                      <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <Database className="w-4 h-4 text-slate-500" />
+                        Connected Features
+                      </div>
+                      <div className="mt-2 text-sm text-slate-600">
+                        Inventory, sales, payments, expenses, production, exports, and customer master data are available from the current app shell.
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 

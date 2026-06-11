@@ -9,6 +9,7 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const diffDays = (start: Date, end: Date) =>
   Math.max(0, Math.ceil((end.getTime() - start.getTime()) / MS_PER_DAY));
 
+// Creates a new project
 export const createProject = async (organizationId: number, data: {
   name: string;
   description?: string;
@@ -38,8 +39,10 @@ export const createProject = async (organizationId: number, data: {
   });
 };
 
+// Lists projects for an organization
 export const listProjects = async (organizationId: number) => projectRepo.getProjects(organizationId);
 
+// Fetches one project
 export const getProject = async (id: number, organizationId: number) => {
   const project = await projectRepo.getProjectById(id, organizationId);
   if (!project) {
@@ -48,6 +51,7 @@ export const getProject = async (id: number, organizationId: number) => {
   return project;
 };
 
+// Updates a project
 export const updateProject = async (
   id: number,
   organizationId: number,
@@ -81,11 +85,13 @@ export const updateProject = async (
   });
 };
 
+// Deletes a project
 export const deleteProject = async (id: number, organizationId: number) => {
   await getProject(id, organizationId);
   return projectRepo.deleteProject(id, organizationId);
 };
 
+// Builds project statistics
 export const getProjectStats = async (id: number, organizationId: number) => {
   const project = await getProject(id, organizationId);
   const now = new Date();
@@ -127,6 +133,7 @@ export const getProjectStats = async (id: number, organizationId: number) => {
   };
 };
 
+// Builds project alerts
 export const getProjectAlerts = async (id: number, organizationId: number) => {
   const project = await getProject(id, organizationId);
   const now = new Date();
@@ -203,6 +210,7 @@ export const getProjectAlerts = async (id: number, organizationId: number) => {
   return alerts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
+// Lists recent project activities
 export const getProjectActivities = async (id: number, organizationId: number) => {
   await getProject(id, organizationId);
   return prisma.submission.findMany({

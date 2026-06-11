@@ -1,38 +1,87 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { request } from '../../services/apiClient'
+import { Button } from '../../components/ui/Button'
+import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
+import { InventoryDocumentShell } from '../../components/inventory/InventoryDocumentShell'
 
-type Item = { id?: string; rawMaterialId: string; quantity: number; unit: string; unitPrice: string }
+type Item = { rawMaterialId: string; quantity: number; unit: string; unitPrice: string }
+
+type Supplier = { id: string; name: string }
+type Material = { id: string; name: string; sku?: string | null; defaultUnit?: string | null }
+
+type TabKey = 'details' | 'items' | 'taxes' | 'more'
 
 export default function PurchaseCreate() {
-  const [suppliers, setSuppliers] = useState<any[]>([])
-  const [materials, setMaterials] = useState<any[]>([])
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState<TabKey>('details')
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [materials, setMaterials] = useState<Material[]>([])
   const [supplierId, setSupplierId] = useState('')
+  const [requiredBy, setRequiredBy] = useState('')
+  const [company, setCompany] = useState('Merlin Lite')
+  const [applyTaxWithholding, setApplyTaxWithholding] = useState(false)
+  const [isSubcontracted, setIsSubcontracted] = useState(false)
+  const [taxCategory, setTaxCategory] = useState('')
+  const [shippingRule, setShippingRule] = useState('')
+  const [incoterm, setIncoterm] = useState('')
+  const [purchaseTaxTemplate, setPurchaseTaxTemplate] = useState('')
+  const [notes, setNotes] = useState('')
   const [items, setItems] = useState<Item[]>([{ rawMaterialId: '', quantity: 1, unit: 'unit', unitPrice: '0' }])
   const [submitting, setSubmitting] = useState(false)
-  const [errors, setErrors] = useState<Record<string,string>>({})
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(true)
+  const selectedMaterial = searchParams.get('material')
 
   useEffect(() => {
-    request('/inventory/suppliers').then(setSuppliers).catch(()=>{})
-    request('/inventory/materials').then(setMaterials).catch(()=>{})
+    let alive = true
+
+    Promise.all([request('/inventory/suppliers'), request('/inventory/materials')])
+      .then(([supplierData, materialData]) => {
+        if (!alive) return
+        const supplierRows = Array.isArray(supplierData) ? supplierData : Array.isArray((supplierData as any)?.data) ? (supplierData as any).data : []
+        const materialRows = Array.isArray(materialData) ? materialData : Array.isArray((materialData as any)?.data) ? (materialData as any).data : []
+        setSuppliers(supplierRows)
+        setMaterials(materialRows)
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+
+    return () => {
+      alive = false
+    }
   }, [])
 
-  const addLine = () => setItems([...items, { rawMaterialId: '', quantity: 1, unit: 'unit', unitPrice: '0' }])
-  const removeLine = (idx:number) => setItems(items.filter((_,i)=>i!==idx))
-  const updateLine = (idx:number, patch:Partial<Item>) => { const copy = [...items]; copy[idx] = { ...copy[idx], ...patch }; setItems(copy) }
+  useEffect(() => {
+    if (!selectedMaterial) return
+    setItems((current) => {
+      if (current.length === 0) return [{ rawMaterialId: selectedMaterial, quantity: 1, unit: 'unit', unitPrice: '0' }]
+      const next = [...current]
+      next[0] = { ...next[0], rawMaterialId: selectedMaterial }
+      return next
+    })
+  }, [selectedMaterial])
 
-  const lineValid = (it: Item) => {
-    if (!it.rawMaterialId) return false
-    if (!it.quantity || Number(it.quantity) <= 0) return false
-    if (!it.unitPrice || Number(it.unitPrice) < 0) return false
-    return true
+  const addLine = () => setItems((current) => [...current, { rawMaterialId: '', quantity: 1, unit: 'unit', unitPrice: '0' }])
+  const removeLine = (idx: number) => setItems((current) => current.filter((_, i) => i !== idx))
+  const updateLine = (idx: number, patch: Partial<Item>) => {
+    const copy = [...items]
+    copy[idx] = { ...copy[idx], ...patch }
+    setItems(copy)
   }
 
-  const total = useMemo(() => items.reduce((s, it) => s + (Number(it.quantity) * Number(it.unitPrice || 0)), 0), [items])
+  const total = useMemo(() => items.reduce((sum, it) => sum + Number(it.quantity) * Number(it.unitPrice || 0), 0), [items])
+  const totalQty = useMemo(() => items.reduce((sum, it) => sum + Number(it.quantity || 0), 0), [items])
+  const anyInvalid = !supplierId || items.some((it) => !it.rawMaterialId || !it.quantity || Number(it.quantity) <= 0 || !it.unitPrice || Number(it.unitPrice) < 0)
 
   const validate = () => {
-    const e: Record<string,string> = {}
-    if (!supplierId) e['supplier'] = 'Supplier is required'
-    if (items.length === 0) e['items'] = 'At least one item is required'
+    const e: Record<string, string> = {}
+    if (!supplierId) e.supplier = 'Supplier is required'
+    if (!company.trim()) e.company = 'Company is required'
+    if (items.length === 0) e.items = 'At least one item is required'
     items.forEach((it, idx) => {
       if (!it.rawMaterialId) e[`item.${idx}.material`] = 'Select material'
       if (!it.quantity || Number(it.quantity) <= 0) e[`item.${idx}.quantity`] = 'Quantity must be > 0'
@@ -45,67 +94,290 @@ export default function PurchaseCreate() {
   const submit = async () => {
     if (!validate()) return
     setSubmitting(true)
-    const payload = { supplierId, items: items.map(({ rawMaterialId, quantity, unit, unitPrice }) => ({ rawMaterialId, quantity, unit, unitPrice })) }
+    const payload = {
+      supplierId,
+      items: items.map(({ rawMaterialId, quantity, unit, unitPrice }) => ({ rawMaterialId, quantity, unit, unitPrice })),
+    }
     try {
       const res = await request('/inventory/purchases', { method: 'POST', body: payload })
-      alert('Purchase created: ' + (res as any).id)
-      window.location.hash = '/inventory/purchases'
-    } catch (err:any) { alert('Error: ' + (err?.message || 'failed')) }
+      alert(`Purchase created: ${(res as any).id}`)
+      navigate('/inventory/purchases')
+    } catch (err: any) {
+      alert(`Error: ${err?.message || 'failed'}`)
+    }
     setSubmitting(false)
   }
 
-  const anyInvalid = !supplierId || items.some(it => !lineValid(it))
-
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Create Purchase</h1>
-
-      <div>
-        <label className="block text-sm font-medium text-slate-700">Supplier</label>
-        <select value={supplierId} onChange={e=>setSupplierId(e.target.value)} className="mt-1 block w-72 p-2 border rounded">
-          <option value="">Select supplier</option>
-          {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-        {errors['supplier'] && <div className="text-xs text-red-600 mt-1">{errors['supplier']}</div>}
+    <InventoryDocumentShell
+      title="Purchase Order"
+      status={<span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">Not Saved</span>}
+      actions={[
+        { label: 'Save', onClick: submit, disabled: submitting || anyInvalid || loading },
+        { label: 'Cancel', variant: 'outline', to: '/inventory/purchases' },
+      ]}
+      leftRail={
+        <div className="space-y-4">
+          <InventorySectionCard title="Assigned To">
+            <div className="text-sm text-slate-600">Use the document controls to route the purchase order.</div>
+          </InventorySectionCard>
+          <InventorySectionCard title="Attachments">
+            <div className="text-sm text-slate-600">No attachments added.</div>
+          </InventorySectionCard>
+          <InventorySectionCard title="Tags">
+            <div className="text-sm text-slate-600">Add tags later if needed.</div>
+          </InventorySectionCard>
+        </div>
+      }
+      footer={
+        <InventorySectionCard title="Activity">
+          <div className="space-y-2 text-sm text-slate-600">
+            <div>Purchase orders can be reviewed after save from the list view.</div>
+            <div>Use the material detail page to trace stock impact and price history.</div>
+          </div>
+        </InventorySectionCard>
+      }
+    >
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        {[
+          { key: 'details', label: 'Details' },
+          { key: 'items', label: 'Items' },
+          { key: 'taxes', label: 'Taxes and Charges' },
+          { key: 'more', label: 'More Info' },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setActiveTab(tab.key as TabKey)}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+              activeTab === tab.key ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      <div>
-        <h2 className="text-lg font-medium">Items</h2>
-        {errors['items'] && <div className="text-xs text-red-600 mt-1">{errors['items']}</div>}
-        {items.map((it, idx) => (
-          <div key={idx} className="p-3 border rounded mt-2 flex items-center gap-3">
-            <select value={it.rawMaterialId} onChange={e=>updateLine(idx,{ rawMaterialId: e.target.value })} className="p-2 border rounded">
-              <option value="">Select material</option>
-              {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
-            <input type="number" value={it.quantity} onChange={e=>updateLine(idx,{ quantity: Number(e.target.value) })} className="p-2 w-24 border rounded" />
-            <input type="text" value={it.unit} onChange={e=>updateLine(idx,{ unit: e.target.value })} className="p-2 w-24 border rounded" />
-            <input type="text" value={it.unitPrice} onChange={e=>updateLine(idx,{ unitPrice: e.target.value })} className="p-2 w-32 border rounded" />
-            <div className="ml-auto text-sm text-slate-600">Line: {(Number(it.quantity) * Number(it.unitPrice || 0)).toFixed(2)}</div>
-            <button onClick={()=>removeLine(idx)} className="text-red-500 px-2">Remove</button>
-            <div className="w-full">
-              {errors[`item.${idx}.material`] && <div className="text-xs text-red-600">{errors[`item.${idx}.material`]}</div>}
-              {errors[`item.${idx}.quantity`] && <div className="text-xs text-red-600">{errors[`item.${idx}.quantity`]}</div>}
-              {errors[`item.${idx}.unitPrice`] && <div className="text-xs text-red-600">{errors[`item.${idx}.unitPrice`]}</div>}
+      {errorBlock(errors)}
+
+      <InventorySectionCard
+        title="Details"
+        description="Supplier and order metadata."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" onClick={addLine}>
+              Add Row
+            </Button>
+            <Button type="button" onClick={submit} disabled={submitting || anyInvalid || loading}>
+              {submitting ? 'Saving...' : 'Save'}
+            </Button>
+          </div>
+        }
+      >
+        {loading ? (
+          <div className="py-10 text-center text-sm text-slate-500" role="status" aria-live="polite">
+            Loading purchase context...
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Series *</span>
+              <input className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono" value="PUR-ORD-.YYYY.-" readOnly />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Date *</span>
+              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={new Date().toLocaleDateString('en-GB')} readOnly />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Company *</span>
+              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={company} onChange={(e) => setCompany(e.target.value)} />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Supplier *</span>
+              <select
+                value={supplierId}
+                onChange={(e) => setSupplierId(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                aria-invalid={Boolean(errors.supplier)}
+              >
+                <option value="">Select supplier</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Required By</span>
+              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={requiredBy} onChange={(e) => setRequiredBy(e.target.value)} placeholder="Optional required-by date" />
+            </label>
+            <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={applyTaxWithholding} onChange={(e) => setApplyTaxWithholding(e.target.checked)} />
+                <span className="text-sm font-medium text-slate-700">Apply Tax Withholding Amount</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={isSubcontracted} onChange={(e) => setIsSubcontracted(e.target.checked)} />
+                <span className="text-sm font-medium text-slate-700">Is Subcontracted</span>
+              </label>
             </div>
           </div>
-        ))}
-        <div className="mt-2">
-          <button onClick={addLine} className="px-3 py-2 bg-blue-600 text-white rounded">Add item</button>
-        </div>
-      </div>
+        )}
+      </InventorySectionCard>
 
-      <div className="flex items-center justify-between p-3 bg-slate-50 rounded">
-        <div>
-          <div className="text-sm text-slate-600">Total</div>
-          <div className="text-xl font-bold">{total.toFixed(2)}</div>
+      {activeTab === 'items' && (
+        <InventorySectionCard
+          title="Items"
+          description="Raw material lines in a dense table layout."
+          action={<Button type="button" variant="outline" onClick={addLine}>Add Multiple</Button>}
+        >
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <caption className="sr-only">Purchase order items</caption>
+                <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="w-12 px-4 py-3"><input type="checkbox" aria-label="Select all rows" /></th>
+                    <th className="px-4 py-3 font-semibold">No.</th>
+                    <th className="px-4 py-3 font-semibold">Item Code *</th>
+                    <th className="px-4 py-3 font-semibold">Required By *</th>
+                    <th className="px-4 py-3 font-semibold">Quantity *</th>
+                    <th className="px-4 py-3 font-semibold">UOM *</th>
+                    <th className="px-4 py-3 font-semibold">Rate (INR)</th>
+                    <th className="px-4 py-3 font-semibold">Amount (INR)</th>
+                    <th className="w-14 px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {items.map((it, idx) => {
+                    const selected = materials.find((m) => m.id === it.rawMaterialId)
+                    const amount = Number(it.quantity || 0) * Number(it.unitPrice || 0)
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 align-top"><input type="checkbox" aria-label={`Select row ${idx + 1}`} /></td>
+                        <td className="px-4 py-3 align-top font-medium text-slate-900">{idx + 1}</td>
+                        <td className="px-4 py-3 align-top">
+                          <select
+                            value={it.rawMaterialId}
+                            onChange={(e) => {
+                              const next = materials.find((m) => m.id === e.target.value)
+                              updateLine(idx, { rawMaterialId: e.target.value, unit: next?.defaultUnit || it.unit })
+                            }}
+                            className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                          >
+                            <option value="">Select material</option>
+                            {materials.map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.name}{m.sku ? ` • ${m.sku}` : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {selected ? `${selected.name}${selected.sku ? ` • ${selected.sku}` : ''}` : 'Choose a material'}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={requiredBy} onChange={(e) => setRequiredBy(e.target.value)} />
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <input
+                            type="number"
+                            value={it.quantity}
+                            onChange={(e) => updateLine(idx, { quantity: Number(e.target.value) })}
+                            className="w-24 rounded-xl border border-slate-300 px-3 py-2 text-right"
+                          />
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <input className="w-24 rounded-xl border border-slate-300 px-3 py-2" value={it.unit} onChange={(e) => updateLine(idx, { unit: e.target.value })} />
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <input type="number" value={it.unitPrice} onChange={(e) => updateLine(idx, { unitPrice: e.target.value })} className="w-28 rounded-xl border border-slate-300 px-3 py-2 text-right" />
+                        </td>
+                        <td className="px-4 py-3 align-top font-medium text-slate-900">
+                          {amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <Button type="button" variant="ghost" size="sm" onClick={() => removeLine(idx)} disabled={items.length === 1}>
+                            Remove
+                          </Button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/60 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
+                <span>Showing 1 - {items.length} of {items.length} entries</span>
+                <span>Selected: 0</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={addLine}>Add Row</Button>
+                <Button type="button" variant="outline" size="sm" onClick={submit} disabled={submitting || anyInvalid || loading}>
+                  {submitting ? 'Saving...' : 'Save Purchase'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </InventorySectionCard>
+      )}
+
+      {activeTab === 'taxes' && (
+        <InventorySectionCard title="Taxes and Charges">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Tax Category</span>
+              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={taxCategory} onChange={(e) => setTaxCategory(e.target.value)} />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Shipping Rule</span>
+              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={shippingRule} onChange={(e) => setShippingRule(e.target.value)} />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Incoterm</span>
+              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={incoterm} onChange={(e) => setIncoterm(e.target.value)} />
+            </label>
+            <label className="block text-sm md:col-span-3">
+              <span className="mb-1 block text-slate-600">Purchase Taxes and Charges Template</span>
+              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={purchaseTaxTemplate} onChange={(e) => setPurchaseTaxTemplate(e.target.value)} />
+            </label>
+          </div>
+        </InventorySectionCard>
+      )}
+
+      {activeTab === 'more' && (
+        <InventorySectionCard title="More Info">
+          <label className="block text-sm">
+            <span className="mb-1 block text-slate-600">Notes</span>
+            <textarea className="w-full rounded-xl border border-slate-300 px-3 py-2" rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Internal notes, supplier instructions, or receiving guidance..." />
+          </label>
+        </InventorySectionCard>
+      )}
+
+      <InventorySectionCard title="Summary">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total quantity</div>
+            <div className="mt-1 text-2xl font-bold text-slate-900">{totalQty}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total (INR)</div>
+            <div className="mt-1 text-2xl font-bold text-slate-900">{total.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</div>
+          </div>
         </div>
-        <div>
-          <button disabled={anyInvalid || submitting} onClick={submit} className={`px-4 py-2 rounded ${anyInvalid ? 'bg-slate-300 text-slate-600' : 'bg-green-600 text-white'}`}>
-            {submitting ? 'Creating...' : 'Create Purchase'}
-          </button>
-        </div>
-      </div>
+      </InventorySectionCard>
+    </InventoryDocumentShell>
+  )
+}
+
+function errorBlock(errors: Record<string, string>) {
+  const messages = Object.values(errors)
+  if (messages.length === 0) return null
+  return (
+    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+      {messages[0]}
     </div>
   )
 }

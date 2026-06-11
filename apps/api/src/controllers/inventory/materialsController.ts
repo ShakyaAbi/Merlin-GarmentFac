@@ -1,11 +1,15 @@
 import { Request, Response } from 'express'
 import * as svc from '../../services/inventory/materialService'
 import { recordAudit } from '../../utils/auditLog'
+import { adjustStockSchema, createMaterialSchema, toggleMaterialStatusSchema, updateMaterialSchema } from '../../validators/inventoryValidators'
+import { AppError } from '../../utils/errors'
 
 // Creates a raw material
 export const create = async (req: Request, res: Response) => {
   const user = (req as any).user?.id
-  const created = await svc.createMaterial({ ...req.body, createdBy: user })
+  const parsed = createMaterialSchema.safeParse(req.body)
+  if (!parsed.success) throw new AppError(400, 'INVALID_INPUT', 'Invalid material payload', { errors: parsed.error.errors })
+  const created = await svc.createMaterial({ ...parsed.data, createdBy: user })
   try { await recordAudit({ action: 'material.create', userId: user, after: created }) } catch (e) {}
   res.status(201).json(created)
 }
@@ -57,7 +61,9 @@ export const purchases = async (req: Request, res: Response) => {
 // Updates a material
 export const update = async (req: Request, res: Response) => {
   const user = (req as any).user?.id
-  const updated = await svc.updateMaterialWithUser(req.params.id, req.body, user)
+  const parsed = updateMaterialSchema.safeParse(req.body)
+  if (!parsed.success) throw new AppError(400, 'INVALID_INPUT', 'Invalid material payload', { errors: parsed.error.errors })
+  const updated = await svc.updateMaterialWithUser(req.params.id, parsed.data, user)
   try { await recordAudit({ action: 'material.update', userId: user, after: updated }) } catch (e) {}
   res.json(updated)
 }
@@ -65,7 +71,9 @@ export const update = async (req: Request, res: Response) => {
 // Toggles material active status
 export const toggleStatus = async (req: Request, res: Response) => {
   const user = (req as any).user?.id
-  const { active } = req.body
+  const parsed = toggleMaterialStatusSchema.safeParse(req.body)
+  if (!parsed.success) throw new AppError(400, 'INVALID_INPUT', 'Invalid material status payload', { errors: parsed.error.errors })
+  const { active } = parsed.data
   const updated = await svc.toggleMaterialStatus(req.params.id, active, user)
   try { await recordAudit({ action: 'material.toggle_status', userId: user, after: { id: req.params.id, active } }) } catch (e) {}
   res.json(updated)
@@ -82,7 +90,9 @@ export const remove = async (req: Request, res: Response) => {
 // Adjusts stock for a material
 export const adjustStock = async (req: Request, res: Response) => {
   const user = (req as any).user?.id
-  const { change, reason, unit, referenceId } = req.body
+  const parsed = adjustStockSchema.safeParse(req.body)
+  if (!parsed.success) throw new AppError(400, 'INVALID_INPUT', 'Invalid stock adjustment payload', { errors: parsed.error.errors })
+  const { change, reason, unit, referenceId, unitCost } = parsed.data
   const { recordStockChange } = await import('../../services/inventory/stockTransactionService')
   const tx = await recordStockChange({
     rawMaterialId: req.params.id,
@@ -91,6 +101,7 @@ export const adjustStock = async (req: Request, res: Response) => {
     transactionType: 'ADJUSTMENT',
     referenceId,
     remarks: reason,
+    unitCost,
     createdBy: user,
   })
   try { await recordAudit({ action: 'material.adjust_stock', userId: user, after: tx }) } catch (e) {}

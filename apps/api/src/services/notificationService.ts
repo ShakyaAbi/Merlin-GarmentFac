@@ -27,6 +27,7 @@ export interface OverdueNotificationItem {
   daysOverdue: number;
 }
 
+// Fetches recent anomaly notifications
 export const getAnomalyNotifications = async (): Promise<{
   notifications: AnomalyNotificationItem[];
   totalUnread: number;
@@ -78,6 +79,7 @@ export const getAnomalyNotifications = async (): Promise<{
   return { notifications, totalUnread };
 };
 
+// Fetches overdue reporting notifications
 export const getOverdueNotifications = async (): Promise<OverdueNotificationItem[]> => {
   const indicators = await prisma.indicator.findMany({
     include: {
@@ -133,6 +135,7 @@ export const getOverdueNotifications = async (): Promise<OverdueNotificationItem
   return overdue.sort((a, b) => b.daysOverdue - a.daysOverdue).slice(0, MAX_NOTIFICATIONS);
 };
 
+// Marks anomaly notifications as read
 export const markAllAnomaliesRead = async (userId: number): Promise<void> => {
   const since = new Date();
   since.setDate(since.getDate() - LOOKBACK_DAYS);

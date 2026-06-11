@@ -5,6 +5,7 @@ import { importApi, exportApi } from "./importExportApi";
 import { notificationApi } from "./notificationApi";
 import { getToken, setToken, request } from "./apiClient";
 import { rawMaterialApi } from "./rawMaterialApi";
+import { salesInvoiceApi } from "./salesInvoiceApi";
 
 export type { Invitation, OrganizationUser };
 
@@ -21,8 +22,11 @@ export const api = {
   ...exportApi,
   ...notificationApi,
   ...rawMaterialApi,
+  ...salesInvoiceApi,
   getInventoryAlerts: async () => request('/inventory/alerts'),
   getInventoryAlertsSummary: async () => request('/inventory/alerts/summary'),
+  acknowledgeInventoryAlert: async (id: string) =>
+    request(`/inventory/alerts/${id}/ack`, { method: "POST" }),
   
   // Generic methods
   get: async <T = any>(path: string): Promise<T> => request<T>(path),
