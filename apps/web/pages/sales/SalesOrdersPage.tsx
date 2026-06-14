@@ -13,7 +13,7 @@ const today = new Date().toISOString().slice(0, 10)
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'NPR',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number(value ?? 0))
@@ -110,6 +110,15 @@ export default function SalesOrdersPage() {
   }, [filteredOrders])
 
   const selectedCustomer = customers.find((customer) => customer.id === customerId)
+  const selectedLinesTotal = useMemo(
+    () =>
+      lines.reduce((sum, line) => {
+        const qty = Number(line.quantity || 0)
+        const rate = Number(line.unitPrice || 0)
+        return sum + qty * rate
+      }, 0),
+    [lines],
+  )
 
   const updateLine = (id: string, patch: Partial<DraftLine>) => {
     setLines((current) => current.map((line) => (line.id === id ? { ...line, ...patch } : line)))
@@ -139,7 +148,7 @@ export default function SalesOrdersPage() {
 
   const validate = () => {
     if (!customerId) return 'Select a customer.'
-    if (!lines.some((line) => line.productId)) return 'Add at least one finished-good item.'
+    if (!lines.some((line) => line.productId)) return 'Add at least one article item.'
     if (lines.some((line) => line.productId && Number(line.quantity || 0) <= 0)) return 'Order quantities must be greater than zero.'
     return null
   }
@@ -167,7 +176,7 @@ export default function SalesOrdersPage() {
     <InventoryPageShell
       eyebrow="Sales"
       title="Sales Orders"
-      description="Capture customer demand before invoicing and keep finished-goods sales separate from inventory consumption."
+      description="Capture customer demand before invoicing and keep article sales separate from inventory consumption."
       actions={[
         { label: 'Refresh', variant: 'outline', onClick: loadData },
         { label: 'New Order', onClick: () => document.getElementById('sales-order-form')?.scrollIntoView({ behavior: 'smooth' }) },
@@ -267,7 +276,7 @@ export default function SalesOrdersPage() {
           <div id="sales-order-form">
           <InventorySectionCard
             title="New Sales Order"
-            description="Build a sales order from finished goods. Inventory only changes later when the invoice is issued."
+            description="Build a sales order from articles. Inventory only changes later when the invoice is issued."
           >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <label className="block text-sm md:col-span-2">
@@ -320,7 +329,7 @@ export default function SalesOrdersPage() {
                         <option value="">Select product</option>
                         {products.map((product) => (
                           <option key={product.id} value={product.id}>
-                            {product.name}
+                            {product.name} {product.productCode || product.sku ? ` - ${product.productCode || product.sku}` : ''}
                           </option>
                         ))}
                       </select>
@@ -338,9 +347,15 @@ export default function SalesOrdersPage() {
                         Remove
                       </Button>
                     </div>
-                    <div className="md:col-span-4 text-xs text-slate-500">Line {index + 1} is billed from finished goods only.</div>
+                    <div className="md:col-span-4 text-xs text-slate-500">
+                      Line {index + 1} is billed from articles only. Line amount: {money(Number(line.quantity || 0) * Number(line.unitPrice || 0))}
+                    </div>
                   </div>
                 ))}
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                Estimated order total: <span className="font-semibold text-slate-900">{money(selectedLinesTotal)}</span>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -370,7 +385,7 @@ export default function SalesOrdersPage() {
             )}
           </InventorySectionCard>
 
-          <InventorySectionCard title="Finished Goods Catalog" description="Pick items from the ready-to-sell catalog.">
+          <InventorySectionCard title="Articles Catalog" description="Pick items from the ready-to-sell catalog.">
             <div className="space-y-2">
               {products.map((product) => (
                 <button key={product.id} type="button" onClick={() => setLines((current) => [...current, { id: createId(), productId: product.id, quantity: '1', unitPrice: String(product.sellingPrice ?? 0) }])} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50/40">
@@ -385,7 +400,7 @@ export default function SalesOrdersPage() {
               ))}
               {products.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-                  No finished goods found.
+                  No articles found.
                 </div>
               ) : null}
             </div>

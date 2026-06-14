@@ -22,7 +22,7 @@ type PaymentRow = {
 }
 
 const money = (value: number | string | null | undefined) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
+  new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
 
 export default function PaymentsPage() {
   const [invoices, setInvoices] = useState<SalesInvoice[]>([])

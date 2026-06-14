@@ -12,9 +12,64 @@ type InvoiceItemInput = {
   warehouseId?: string
 }
 
+const VAT_RATE = new Prisma.Decimal('0.13')
+
 function toDate(value?: string | Date | null) {
   if (!value) return null
   return value instanceof Date ? value : new Date(value)
+}
+
+function decimal(value: number | string | Prisma.Decimal | null | undefined, fallback = 0) {
+  return new Prisma.Decimal(value ?? fallback)
+}
+
+function deriveLineTaxableAmount(quantity: Prisma.Decimal, unitPrice: Prisma.Decimal, discountAmount: Prisma.Decimal) {
+  const taxableAmount = quantity.mul(unitPrice).minus(discountAmount)
+  return taxableAmount.lessThan(0) ? new Prisma.Decimal(0) : taxableAmount
+}
+
+function deriveLineAmounts(item: InvoiceItemInput, unitPrice: Prisma.Decimal, product: any) {
+  const quantity = decimal(item.quantity)
+  const discountAmount = decimal(item.discountAmount)
+  const taxableAmount = deriveLineTaxableAmount(quantity, unitPrice, discountAmount)
+  const taxAmount = taxableAmount.mul(VAT_RATE)
+  const lineTotal = taxableAmount.plus(taxAmount)
+  const costPrice = decimal(product.costPrice)
+  const profitAmount = lineTotal.minus(quantity.mul(costPrice))
+
+  return {
+    quantity,
+    unitPrice,
+    discountAmount,
+    taxableAmount,
+    taxAmount,
+    lineTotal,
+    costPrice,
+    profitAmount,
+  }
+}
+
+function sumExistingItemTaxableAmount(item: any) {
+  if (item.taxableAmount != null) return decimal(item.taxableAmount)
+  if (item.lineTotal != null && item.taxAmount != null) {
+    return decimal(item.lineTotal).minus(decimal(item.taxAmount))
+  }
+  return deriveLineTaxableAmount(decimal(item.quantity), decimal(item.unitPrice), decimal(item.discountAmount))
+}
+
+function buildInvoiceTotalsFromItems(items: any[], invoiceDiscountValue: number | string | Prisma.Decimal | null | undefined) {
+  const subtotal = items.reduce((sum, item) => sum.plus(sumExistingItemTaxableAmount(item)), new Prisma.Decimal(0))
+  const invoiceDiscount = decimal(invoiceDiscountValue)
+
+  if (invoiceDiscount.greaterThan(subtotal)) {
+    throw new AppError(400, 'INVALID_DISCOUNT', 'Invoice discount cannot exceed the subtotal')
+  }
+
+  const taxableAmount = subtotal.minus(invoiceDiscount)
+  const taxAmount = taxableAmount.mul(VAT_RATE)
+  const grandTotal = taxableAmount.plus(taxAmount)
+
+  return { subtotal, invoiceDiscount, taxableAmount, taxAmount, grandTotal }
 }
 
 async function buildInvoiceData(payload: any) {
@@ -32,69 +87,54 @@ async function buildInvoiceData(payload: any) {
 
   if (productMap.size !== productIds.length) {
     const missing = productIds.filter((id) => !productMap.has(id))
-    throw new AppError(400, 'INVALID_PRODUCT', `Unknown finished-good product(s): ${missing.join(', ')}`)
+    throw new AppError(400, 'INVALID_PRODUCT', `Unknown article product(s): ${missing.join(', ')}`)
   }
 
-  const invoiceDiscount = new Prisma.Decimal(payload.discountAmount || 0)
-  const taxAmount = new Prisma.Decimal(payload.taxAmount || 0)
+  const invoiceDiscountValue = payload.discountAmount ?? 0
   const preparedItems: Array<Omit<Prisma.SalesInvoiceItemUncheckedCreateInput, 'invoiceId'>> = []
-  let subtotal = new Prisma.Decimal(0)
-  let totalProfit = new Prisma.Decimal(0)
 
   for (const item of items) {
     const product = productMap.get(item.productId)!
-    const quantity = new Prisma.Decimal(item.quantity)
-    const unitPrice = new Prisma.Decimal(item.unitPrice ?? product.sellingPrice ?? 0)
-    const itemDiscount = new Prisma.Decimal(item.discountAmount || 0)
-    const lineGross = quantity.mul(unitPrice)
-    const lineTotal = lineGross.minus(itemDiscount)
-    const costPrice = new Prisma.Decimal(product.costPrice || 0)
-    const profitAmount = lineTotal.minus(quantity.mul(costPrice))
-
-    subtotal = subtotal.plus(lineTotal)
-    totalProfit = totalProfit.plus(profitAmount)
+    const unitPrice = decimal(item.unitPrice ?? product.sellingPrice ?? 0)
+    const lineAmounts = deriveLineAmounts(item, unitPrice, product)
 
     preparedItems.push({
       productId: product.id,
       productCode: product.productCode,
       productName: product.name,
-      quantity: Number(item.quantity),
-      unitPrice,
-      discountAmount: itemDiscount,
-      taxableAmount: lineTotal,
-      taxAmount: new Prisma.Decimal(0),
-      lineTotal,
-      costPrice,
-      profitAmount,
+      quantity: Number(lineAmounts.quantity),
+      unitPrice: lineAmounts.unitPrice,
+      discountAmount: lineAmounts.discountAmount,
+      taxableAmount: lineAmounts.taxableAmount,
+      taxAmount: lineAmounts.taxAmount,
+      lineTotal: lineAmounts.lineTotal,
+      costPrice: lineAmounts.costPrice,
+      profitAmount: lineAmounts.profitAmount,
       warehouseId: item.warehouseId || null,
     })
   }
 
-  if (invoiceDiscount.greaterThan(subtotal)) {
-    throw new AppError(400, 'INVALID_DISCOUNT', 'Invoice discount cannot exceed the subtotal')
-  }
+  const totals = buildInvoiceTotalsFromItems(preparedItems, invoiceDiscountValue)
 
-  const taxableAmount = subtotal.minus(invoiceDiscount)
-  const grandTotal = taxableAmount.plus(taxAmount)
   const invoiceDate = toDate(payload.invoiceDate) || new Date()
   const dueDate = toDate(payload.dueDate)
 
   return {
     invoiceData: {
-      invoiceNumber: payload.invoiceNumber || null,
+      invoiceNumber: payload.invoiceNumber ?? null,
       fiscalYear: payload.fiscalYear || `FY${invoiceDate.getFullYear()}`,
       customerId: payload.customerId,
       salesOrderId: payload.salesOrderId ?? null,
       invoiceDate,
       dueDate,
-      subtotal,
-      discountAmount: invoiceDiscount,
-      taxableAmount,
+      subtotal: totals.subtotal,
+      discountAmount: totals.invoiceDiscount,
+      taxableAmount: totals.taxableAmount,
       nonTaxableAmount: new Prisma.Decimal(0),
-      taxAmount,
-      grandTotal,
+      taxAmount: totals.taxAmount,
+      grandTotal: totals.grandTotal,
       paidAmount: new Prisma.Decimal(0),
-      dueAmount: grandTotal,
+      dueAmount: totals.grandTotal,
       paymentStatus: 'UNPAID',
       invoiceStatus: 'DRAFT',
       remarks: payload.remarks || null,
@@ -113,42 +153,37 @@ function invoiceEditable(invoice: any) {
 }
 
 function rebuildFromExisting(invoice: any, payload: any) {
-  const invoiceDiscount = new Prisma.Decimal(payload.discountAmount ?? invoice.discountAmount ?? 0)
-  const taxAmount = new Prisma.Decimal(payload.taxAmount ?? invoice.taxAmount ?? 0)
+  const invoiceDiscountValue = payload.discountAmount ?? invoice.discountAmount ?? 0
   const preparedItems: Array<Omit<Prisma.SalesInvoiceItemUncheckedCreateInput, 'invoiceId'>> = []
-  let subtotal = new Prisma.Decimal(0)
-  let totalProfit = new Prisma.Decimal(0)
 
   for (const item of invoice.items) {
-    const lineTotal = new Prisma.Decimal(item.lineTotal || 0)
-    const quantity = new Prisma.Decimal(item.quantity || 0)
-    const costPrice = new Prisma.Decimal(item.costPrice || 0)
-
-    subtotal = subtotal.plus(lineTotal)
-    totalProfit = totalProfit.plus(lineTotal.minus(quantity.mul(costPrice)))
+    const quantity = decimal(item.quantity)
+    const unitPrice = decimal(item.unitPrice)
+    const discountAmount = decimal(item.discountAmount)
+    const taxableAmount = sumExistingItemTaxableAmount(item)
+    const taxAmount = taxableAmount.mul(VAT_RATE)
+    const lineTotal = taxableAmount.plus(taxAmount)
+    const costPrice = decimal(item.costPrice)
 
     preparedItems.push({
       productId: item.productId,
       productCode: item.productCode,
       productName: item.productName,
-      quantity: Number(item.quantity),
-      unitPrice: item.unitPrice,
-      discountAmount: item.discountAmount,
-      taxableAmount: item.taxableAmount,
-      taxAmount: item.taxAmount,
-      lineTotal: item.lineTotal,
-      costPrice: item.costPrice,
-      profitAmount: item.profitAmount,
+      quantity: Number(quantity),
+      unitPrice,
+      discountAmount,
+      taxableAmount,
+      taxAmount,
+      lineTotal,
+      costPrice,
+      profitAmount: lineTotal.minus(quantity.mul(costPrice)),
       warehouseId: item.warehouseId || null,
     })
   }
 
-  if (invoiceDiscount.greaterThan(subtotal)) {
-    throw new AppError(400, 'INVALID_DISCOUNT', 'Invoice discount cannot exceed the subtotal')
-  }
-
-  const taxableAmount = subtotal.minus(invoiceDiscount)
-  const grandTotal = taxableAmount.plus(taxAmount)
+  const totals = buildInvoiceTotalsFromItems(invoice.items, invoiceDiscountValue)
+  const paidAmount = decimal(invoice.paidAmount)
+  const dueAmount = totals.grandTotal.minus(paidAmount)
 
   return {
     invoiceData: {
@@ -157,14 +192,14 @@ function rebuildFromExisting(invoice: any, payload: any) {
       customerId: payload.customerId ?? invoice.customerId,
       invoiceDate: toDate(payload.invoiceDate) || invoice.invoiceDate,
       dueDate: toDate(payload.dueDate) ?? invoice.dueDate,
-      subtotal,
-      discountAmount: invoiceDiscount,
-      taxableAmount,
+      subtotal: totals.subtotal,
+      discountAmount: totals.invoiceDiscount,
+      taxableAmount: totals.taxableAmount,
       nonTaxableAmount: invoice.nonTaxableAmount ?? new Prisma.Decimal(0),
-      taxAmount,
-      grandTotal,
-      paidAmount: invoice.paidAmount ?? new Prisma.Decimal(0),
-      dueAmount: grandTotal.minus(new Prisma.Decimal(invoice.paidAmount || 0)),
+      taxAmount: totals.taxAmount,
+      grandTotal: totals.grandTotal,
+      paidAmount,
+      dueAmount,
       remarks: payload.remarks ?? invoice.remarks ?? null,
     },
     items: preparedItems,
@@ -335,6 +370,10 @@ export async function getInvoice(id: string) {
   return invoice
 }
 
+export async function previewNextInvoiceNumber(invoiceDate: Date) {
+  return repo.previewNextInvoiceNumber(invoiceDate)
+}
+
 export async function createInvoice(payload: any, userId?: number) {
   const prepared = await buildInvoiceData({ ...payload, createdBy: userId })
   return repo.createDraftInvoice(prepared.invoiceData, prepared.items)
@@ -350,7 +389,12 @@ export async function updateInvoice(id: string, payload: any, userId?: number) {
   }
 
   const prepared = payload.items?.length
-    ? await buildInvoiceData({ ...payload, customerId: payload.customerId || invoice.customerId, createdBy: userId })
+    ? await buildInvoiceData({
+        ...payload,
+        invoiceNumber: payload.invoiceNumber ?? invoice.invoiceNumber ?? null,
+        customerId: payload.customerId || invoice.customerId,
+        createdBy: userId,
+      })
     : rebuildFromExisting(invoice, payload)
 
   return repo.updateDraftInvoice(id, prepared.invoiceData, payload.items?.length ? prepared.items : undefined)

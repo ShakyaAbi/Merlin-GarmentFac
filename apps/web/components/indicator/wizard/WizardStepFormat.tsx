@@ -73,7 +73,7 @@ export const WizardStepFormat: React.FC<WizardStepFormatProps> = ({
               placeholder={
                 formData.type === IndicatorType.PERCENTAGE
                   ? "%"
-                  : "e.g., kg, USD"
+                  : "e.g., kg, NPR"
               }
             />
           </div>

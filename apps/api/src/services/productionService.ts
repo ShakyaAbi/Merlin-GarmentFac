@@ -1,18 +1,10 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../prisma'
 import { AppError } from '../utils/errors'
+import { allocateDocumentNumber } from './sequenceService'
 
 function toNumber(value: any) {
   return Number(value ?? 0)
-}
-
-async function loadBom(tx: any, bomId: string) {
-  const bom = await tx.billOfMaterials.findUnique({
-    where: { id: bomId },
-    include: { items: { include: { rawMaterial: true } } },
-  } as any)
-  if (!bom) throw new AppError(404, 'NOT_FOUND', 'BOM not found')
-  return bom as any
 }
 
 async function loadFinishedGood(tx: any, finishedGoodId: string) {
@@ -25,7 +17,6 @@ async function loadProductionOrder(tx: any, id: string) {
   return tx.productionOrder.findUnique({
     where: { id },
     include: {
-      bom: { include: { items: { include: { rawMaterial: true } } } },
       finishedGood: true,
       issueLines: { include: { rawMaterial: true } },
       completionLines: { include: { finishedGood: true } },
@@ -46,7 +37,6 @@ export async function listProductionOrders(opts: { search?: string } = {}) {
     where,
     orderBy: { createdAt: 'desc' },
     include: {
-      bom: { include: { items: { include: { rawMaterial: true } } } },
       finishedGood: true,
       issueLines: { include: { rawMaterial: true } },
       completionLines: { include: { finishedGood: true } },
@@ -58,14 +48,14 @@ export async function getProductionOrder(id: string) {
   return loadProductionOrder(prisma as any, id)
 }
 
-export async function createProductionOrder(payload: { bomId: string; finishedGoodId: string; quantityPlanned: number; notes?: string }, userId?: number) {
+export async function createProductionOrder(payload: { finishedGoodId: string; quantityPlanned: number; notes?: string }, userId?: number) {
   return prisma.$transaction(async (tx) => {
-    const bom = await loadBom(tx as any, payload.bomId)
     const fg = await loadFinishedGood(tx as any, payload.finishedGoodId)
+    const orderNumber = await allocateDocumentNumber('production_order', { tx })
 
     const created = await (tx as any).productionOrder.create({
       data: {
-        bomId: bom.id,
+        orderNumber,
         finishedGoodId: fg.id,
         finishedGoodName: fg.name,
         quantityPlanned: payload.quantityPlanned,
@@ -88,16 +78,18 @@ export async function issueProductionOrder(id: string, userId?: number, issueRea
       throw new AppError(409, 'INVALID_STATUS', 'Only draft production orders can be issued')
     }
 
-    for (const item of order.bom.items as any[]) {
+    const bomItems = Array.isArray(order.finishedGood?.bomData?.items) ? order.finishedGood.bomData.items : []
+    for (const item of bomItems as any[]) {
       const requiredQty = toNumber(item.consumption) * toNumber(order.quantityPlanned)
-      const unit = item.unit || item.rawMaterial.defaultUnit
+      const rawMaterial = await (tx as any).rawMaterial.findUnique({ where: { id: item.rawMaterialId } })
+      const unit = item.unit || rawMaterial?.defaultUnit
       const currentStock = await (tx as any).stockTransaction.aggregate({
         _sum: { change: true },
         where: { rawMaterialId: item.rawMaterialId },
       })
       const balance = Number(currentStock._sum.change || 0)
       if (balance < requiredQty) {
-        throw new AppError(409, 'INSUFFICIENT_STOCK', `Insufficient stock for ${item.rawMaterial.name}`)
+        throw new AppError(409, 'INSUFFICIENT_STOCK', `Insufficient stock for ${rawMaterial?.name || item.rawMaterialId}`)
       }
       const nextBalance = balance - requiredQty
       await (tx as any).stockTransaction.create({

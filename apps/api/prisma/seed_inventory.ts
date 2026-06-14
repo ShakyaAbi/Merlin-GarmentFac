@@ -413,7 +413,7 @@ const finishedGoods: FinishedGoodSeed[] = [
     sellingPrice: 24,
     costPrice: 9.5,
     reorderLevel: 50,
-    notes: 'Core catalog item for finished-goods sales.',
+    notes: 'Core catalog item for article sales.',
     openingStock: 120,
   },
   {
@@ -441,7 +441,7 @@ const finishedGoods: FinishedGoodSeed[] = [
     sellingPrice: 38,
     costPrice: 15.8,
     reorderLevel: 30,
-    notes: 'High-rotation finished-good SKU.',
+    notes: 'High-rotation article SKU.',
     openingStock: 65,
   },
 ]
@@ -530,36 +530,47 @@ const upsertMaterial = async (
   })
 
 const upsertBom = async (prisma: PrismaClient, bom: BomSeed, materialByKey: Record<string, { id: string }>, userId?: number) => {
-  const existing = await prisma.billOfMaterials.findUnique({
+  const article = await prisma.finishedGoodProduct.findUnique({
     where: { id: bom.id },
-    include: { items: true },
   })
 
-  const record = existing
-    ? existing
-    : await prisma.billOfMaterials.create({
-        data: {
-          id: bom.id,
-          name: bom.name,
-          garmentStyle: bom.garmentStyle,
-          createdBy: userId,
-        },
-      })
-
-  if (existing?.items?.length) return record
-
-  await prisma.bOMItem.createMany({
-    data: bom.items.map((item) => ({
-      bomId: record.id,
+  const bomData = {
+    name: bom.name,
+    garmentStyle: bom.garmentStyle,
+    items: bom.items.map((item) => ({
       rawMaterialId: materialByKey[item.rawMaterialKey].id,
       consumption: item.consumption,
       unit: item.unit,
+      rate: 0,
       yield: item.yield,
     })),
-    skipDuplicates: true,
-  })
+  }
 
-  return record
+  if (article) {
+    return prisma.finishedGoodProduct.update({
+      where: { id: article.id },
+      data: { bomData: bomData as any },
+    })
+  }
+
+  return prisma.finishedGoodProduct.create({
+    data: {
+      id: bom.id,
+      sku: bom.id,
+      productCode: bom.id,
+      name: bom.name,
+      description: bom.garmentStyle,
+      category: bom.garmentStyle,
+      unit: 'pcs',
+      sellingPrice: new Prisma.Decimal(0),
+      costPrice: new Prisma.Decimal(0),
+      reorderLevel: 0,
+      active: true,
+      notes: null,
+      bomData: bomData as any,
+      createdBy: userId,
+    } as any,
+  })
 }
 
 const upsertPurchase = async (

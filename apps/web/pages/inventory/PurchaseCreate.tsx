@@ -4,6 +4,7 @@ import { request } from '../../services/apiClient'
 import { Button } from '../../components/ui/Button'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
 import { InventoryDocumentShell } from '../../components/inventory/InventoryDocumentShell'
+import { calculateInvoiceTotals } from '../../components/invoices/invoiceTotals'
 
 type Item = { rawMaterialId: string; quantity: number; unit: string; unitPrice: string }
 
@@ -33,6 +34,7 @@ export default function PurchaseCreate() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const selectedMaterial = searchParams.get('material')
+  const [invoiceNumber, setInvoiceNumber] = useState('')
 
   useEffect(() => {
     let alive = true
@@ -75,11 +77,27 @@ export default function PurchaseCreate() {
 
   const total = useMemo(() => items.reduce((sum, it) => sum + Number(it.quantity) * Number(it.unitPrice || 0), 0), [items])
   const totalQty = useMemo(() => items.reduce((sum, it) => sum + Number(it.quantity || 0), 0), [items])
-  const anyInvalid = !supplierId || items.some((it) => !it.rawMaterialId || !it.quantity || Number(it.quantity) <= 0 || !it.unitPrice || Number(it.unitPrice) < 0)
+  const summary = useMemo(
+    () =>
+      calculateInvoiceTotals({
+        lines: items.map((item) => ({
+          id: item.rawMaterialId || `${item.quantity}-${item.unitPrice}`,
+          quantity: Number(item.quantity || 0),
+          rate: Number(item.unitPrice || 0),
+          amount: Number(item.quantity || 0) * Number(item.unitPrice || 0),
+        })),
+      }),
+    [items],
+  )
+  const anyInvalid =
+    !supplierId ||
+    !invoiceNumber.trim() ||
+    items.some((it) => !it.rawMaterialId || !it.quantity || Number(it.quantity) <= 0 || !it.unitPrice || Number(it.unitPrice) < 0)
 
   const validate = () => {
     const e: Record<string, string> = {}
     if (!supplierId) e.supplier = 'Supplier is required'
+    if (!invoiceNumber.trim()) e.invoiceNumber = 'Invoice number is required'
     if (!company.trim()) e.company = 'Company is required'
     if (items.length === 0) e.items = 'At least one item is required'
     items.forEach((it, idx) => {
@@ -96,6 +114,7 @@ export default function PurchaseCreate() {
     setSubmitting(true)
     const payload = {
       supplierId,
+      invoiceNumber: invoiceNumber.trim(),
       items: items.map(({ rawMaterialId, quantity, unit, unitPrice }) => ({ rawMaterialId, quantity, unit, unitPrice })),
     }
     try {
@@ -110,29 +129,20 @@ export default function PurchaseCreate() {
 
   return (
     <InventoryDocumentShell
-      title="Purchase Order"
+      title="Purchase Invoice"
       status={<span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">Not Saved</span>}
       actions={[
         { label: 'Save', onClick: submit, disabled: submitting || anyInvalid || loading },
         { label: 'Cancel', variant: 'outline', to: '/inventory/purchases' },
       ]}
       leftRail={
-        <div className="space-y-4">
-          <InventorySectionCard title="Assigned To">
-            <div className="text-sm text-slate-600">Use the document controls to route the purchase order.</div>
-          </InventorySectionCard>
-          <InventorySectionCard title="Attachments">
-            <div className="text-sm text-slate-600">No attachments added.</div>
-          </InventorySectionCard>
-          <InventorySectionCard title="Tags">
-            <div className="text-sm text-slate-600">Add tags later if needed.</div>
-          </InventorySectionCard>
-        </div>
+        null
       }
       footer={
         <InventorySectionCard title="Activity">
           <div className="space-y-2 text-sm text-slate-600">
             <div>Purchase orders can be reviewed after save from the list view.</div>
+            <div>Purchase invoices update raw-material stock and supplier ledger balances automatically.</div>
             <div>Use the material detail page to trace stock impact and price history.</div>
           </div>
         </InventorySectionCard>
@@ -162,7 +172,7 @@ export default function PurchaseCreate() {
 
       <InventorySectionCard
         title="Details"
-        description="Supplier and order metadata."
+        description="Supplier and purchase-invoice metadata."
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" onClick={addLine}>
@@ -179,14 +189,15 @@ export default function PurchaseCreate() {
             Loading purchase context...
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">Series *</span>
-              <input className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono" value="PUR-ORD-.YYYY.-" readOnly />
-            </label>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             <label className="block text-sm">
               <span className="mb-1 block text-slate-600">Date *</span>
-              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={new Date().toLocaleDateString('en-GB')} readOnly />
+              <input
+                type="date"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                value={new Date().toISOString().slice(0, 10)}
+                readOnly
+              />
             </label>
             <label className="block text-sm">
               <span className="mb-1 block text-slate-600">Company *</span>
@@ -209,8 +220,23 @@ export default function PurchaseCreate() {
               </select>
             </label>
             <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Invoice Number *</span>
+              <input
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                placeholder="Supplier invoice number"
+                aria-invalid={Boolean(errors.invoiceNumber)}
+              />
+            </label>
+            <label className="block text-sm">
               <span className="mb-1 block text-slate-600">Required By</span>
-              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={requiredBy} onChange={(e) => setRequiredBy(e.target.value)} placeholder="Optional required-by date" />
+              <input
+                type="date"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                value={requiredBy}
+                onChange={(e) => setRequiredBy(e.target.value)}
+              />
             </label>
             <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <label className="flex items-center gap-2">
@@ -244,8 +270,8 @@ export default function PurchaseCreate() {
                     <th className="px-4 py-3 font-semibold">Required By *</th>
                     <th className="px-4 py-3 font-semibold">Quantity *</th>
                     <th className="px-4 py-3 font-semibold">UOM *</th>
-                    <th className="px-4 py-3 font-semibold">Rate (INR)</th>
-                    <th className="px-4 py-3 font-semibold">Amount (INR)</th>
+                    <th className="px-4 py-3 font-semibold">Rate (NPR)</th>
+                    <th className="px-4 py-3 font-semibold">Amount (NPR)</th>
                     <th className="w-14 px-4 py-3" />
                   </tr>
                 </thead>
@@ -278,7 +304,12 @@ export default function PurchaseCreate() {
                           </div>
                         </td>
                         <td className="px-4 py-3 align-top">
-                          <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={requiredBy} onChange={(e) => setRequiredBy(e.target.value)} />
+                          <input
+                            type="date"
+                            className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                            value={requiredBy}
+                            onChange={(e) => setRequiredBy(e.target.value)}
+                          />
                         </td>
                         <td className="px-4 py-3 align-top">
                           <input
@@ -295,7 +326,7 @@ export default function PurchaseCreate() {
                           <input type="number" value={it.unitPrice} onChange={(e) => updateLine(idx, { unitPrice: e.target.value })} className="w-28 rounded-xl border border-slate-300 px-3 py-2 text-right" />
                         </td>
                         <td className="px-4 py-3 align-top font-medium text-slate-900">
-                          {amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+                          {amount.toLocaleString('en-NP', { style: 'currency', currency: 'NPR' })}
                         </td>
                         <td className="px-4 py-3 align-top">
                           <Button type="button" variant="ghost" size="sm" onClick={() => removeLine(idx)} disabled={items.length === 1}>
@@ -363,8 +394,9 @@ export default function PurchaseCreate() {
             <div className="mt-1 text-2xl font-bold text-slate-900">{totalQty}</div>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total (INR)</div>
-            <div className="mt-1 text-2xl font-bold text-slate-900">{total.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Grand total (NPR)</div>
+            <div className="mt-1 text-2xl font-bold text-slate-900">{summary.grandTotal.toLocaleString('en-NP', { style: 'currency', currency: 'NPR' })}</div>
+            <div className="mt-1 text-sm text-slate-500">VAT 13%: {summary.taxAmount.toLocaleString('en-NP', { style: 'currency', currency: 'NPR' })}</div>
           </div>
         </div>
       </InventorySectionCard>

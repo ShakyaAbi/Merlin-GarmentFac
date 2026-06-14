@@ -436,7 +436,7 @@ export const ProjectDetail: React.FC = () => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency: "NPR",
       maximumFractionDigits: 0,
     }).format(amount);
   };
@@ -856,7 +856,7 @@ export const ProjectDetail: React.FC = () => {
                   className={`w-full px-3 py-2.5 border rounded-xl bg-white text-slate-900 shadow-sm uppercase ${
                     budgetCurrencyMissing ? "border-red-300" : "border-slate-200"
                   }`}
-                  placeholder="USD"
+                  placeholder="NPR"
                 />
               </div>
             </div>

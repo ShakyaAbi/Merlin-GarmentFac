@@ -1,11 +1,19 @@
 import { Prisma, PrismaClient } from '@prisma/client'
+import { appendSupplierLedgerEntry } from '../../services/ledgerService'
+import { allocateDocumentNumber } from '../../services/sequenceService'
 
 const prisma = new PrismaClient()
 
 // Creates a purchase and its line items
 export const createPurchaseTransactional = async (purchaseData: any, items: any[], userId?: number) => {
   return prisma.$transaction(async (tx) => {
-    const purchase = await tx.purchase.create({ data: { ...purchaseData, createdBy: userId } })
+    const invoiceNumber =
+      purchaseData.invoiceNumber ||
+      (await allocateDocumentNumber('purchase_invoice', {
+        fiscalYear: purchaseData.fiscalYear || undefined,
+        tx,
+      }))
+    const purchase = await tx.purchase.create({ data: { ...purchaseData, invoiceNumber, createdBy: userId } })
     const createdItems: any[] = []
     let total = 0
 
@@ -44,6 +52,19 @@ export const createPurchaseTransactional = async (purchaseData: any, items: any[
     }
 
     await tx.purchase.update({ where: { id: purchase.id }, data: { totalAmount: total } })
+    await appendSupplierLedgerEntry({
+      tx,
+      supplierId: purchase.supplierId,
+      entryType: 'PURCHASE_INVOICE',
+      entryDate: purchase.invoiceDate,
+      referenceType: 'purchase_invoice',
+      referenceId: purchase.id,
+      documentNumber: invoiceNumber,
+      description: `Purchase invoice ${invoiceNumber}`,
+      debit: 0,
+      credit: total,
+      createdBy: userId ?? null,
+    })
     return { purchaseId: purchase.id, total, items: createdItems }
   })
 }

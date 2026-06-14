@@ -295,7 +295,7 @@ const invoiceSeeds: InvoiceSeed[] = [
     syncStatus: 'SYNCED',
     syncReference: 'SYNC-2526-0003',
     cancellationReason: null,
-    remarks: 'Settled hotel supply order with mixed finished-goods lines.',
+    remarks: 'Settled hotel supply order with mixed article lines.',
     items: [
       {
         id: 'sales_invoice_paid_0003_item_1',
@@ -368,7 +368,7 @@ const invoiceSeeds: InvoiceSeed[] = [
     syncStatus: 'VOIDED',
     syncReference: 'SYNC-2526-0004',
     cancellationReason: 'Customer postponed the showroom launch and cancelled the shipment before delivery.',
-    remarks: 'Cancelled after issue; stock was reversed back into finished goods.',
+    remarks: 'Cancelled after issue; stock was reversed back into articles.',
     items: [
       {
         id: 'sales_invoice_cancelled_0004_item_1',
@@ -559,12 +559,12 @@ const upsertFinishedGoods = async (tx: Prisma.TransactionClient, createdByUserId
     where: { id: 'cat_finished_goods' },
     create: {
       id: 'cat_finished_goods',
-      categoryName: 'Finished Goods',
-      description: 'Ready-to-sell garments backed by finished-goods stock transactions.',
+      categoryName: 'Articles',
+      description: 'Ready-to-sell garments backed by article stock transactions.',
     },
     update: {
-      categoryName: 'Finished Goods',
-      description: 'Ready-to-sell garments backed by finished-goods stock transactions.',
+      categoryName: 'Articles',
+      description: 'Ready-to-sell garments backed by article stock transactions.',
       deletedAt: null,
     },
   })
@@ -585,7 +585,7 @@ const upsertFinishedGoods = async (tx: Prisma.TransactionClient, createdByUserId
         costPrice: new Prisma.Decimal(String(good.costPrice)),
         reorderLevel: good.reorderLevel,
         averageUnitCost: new Prisma.Decimal(String(good.averageUnitCost)),
-        notes: 'Seeded finished-goods item for sales invoice demo data.',
+        notes: 'Seeded article item for sales invoice demo data.',
         createdBy: createdByUserId,
         updatedBy: createdByUserId,
       },
@@ -599,7 +599,7 @@ const upsertFinishedGoods = async (tx: Prisma.TransactionClient, createdByUserId
         costPrice: new Prisma.Decimal(String(good.costPrice)),
         reorderLevel: good.reorderLevel,
         averageUnitCost: new Prisma.Decimal(String(good.averageUnitCost)),
-        notes: 'Seeded finished-goods item for sales invoice demo data.',
+        notes: 'Seeded article item for sales invoice demo data.',
         deletedAt: null,
         updatedBy: createdByUserId,
       },
@@ -666,7 +666,7 @@ const seedOpeningStock = async (tx: Prisma.TransactionClient, createdByUserId?: 
         transactionType: 'PRODUCTION_RECEIPT',
         balanceAfter,
         unitCost: new Prisma.Decimal(String(good.costPrice)),
-        reason: 'Seeded opening finished-goods stock for sales invoice demo data.',
+        reason: 'Seeded opening article stock for sales invoice demo data.',
         referenceId: good.openingReferenceId,
         createdBy: createdByUserId,
         createdAt: new Date('2026-05-17T08:00:00.000Z'),
@@ -930,7 +930,7 @@ export async function main() {
   try {
     const summary = await seedSalesInvoices({ prisma })
     console.log(
-      `Sales invoice seed complete: ${summary.customers} customers, ${summary.finishedGoods} finished goods, ${summary.invoices} invoices`,
+      `Sales invoice seed complete: ${summary.customers} customers, ${summary.finishedGoods} articles, ${summary.invoices} invoices`,
     )
   } finally {
     await prisma.$disconnect()

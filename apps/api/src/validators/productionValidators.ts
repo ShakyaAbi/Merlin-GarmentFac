@@ -1,7 +1,6 @@
 import { z } from 'zod'
 
 export const createProductionOrderSchema = z.object({
-  bomId: z.string().trim().min(1, 'BOM is required'),
   finishedGoodId: z.string().trim().min(1, 'Finished good is required'),
   quantityPlanned: z.coerce.number().positive('Planned quantity must be greater than zero'),
   notes: z.string().trim().optional(),

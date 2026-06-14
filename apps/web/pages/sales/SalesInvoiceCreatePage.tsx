@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, ShoppingCart, Plus } from 'lucide-react'
 import { salesInvoiceApi, SalesInvoiceCustomer, SalesInvoiceProduct, SalesInvoicePayload } from '../../services/salesInvoiceApi'
@@ -10,11 +10,12 @@ import { InvoiceItemTable, InvoiceDraftItem } from '../../components/sales/Invoi
 import { InvoiceTotalsCard } from '../../components/sales/InvoiceTotalsCard'
 
 const today = new Date().toISOString().slice(0, 10)
+const VAT_RATE = 0.13
 
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'NPR',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number(value ?? 0))
@@ -28,11 +29,24 @@ const createId = () => {
 
 const toNumber = (value: string | number | null | undefined) => Number(value ?? 0)
 
+const toMoneyString = (value: number) => value.toFixed(2)
+
+const calculateLineTax = (item: Pick<InvoiceDraftItem, 'quantity' | 'unitPrice' | 'discountAmount'>) => {
+  const subtotal = toNumber(item.quantity) * toNumber(item.unitPrice)
+  const taxable = Math.max(subtotal - toNumber(item.discountAmount), 0)
+  return taxable * VAT_RATE
+}
+
+const normalizeItem = (item: InvoiceDraftItem): InvoiceDraftItem => ({
+  ...item,
+  taxAmount: toMoneyString(calculateLineTax(item)),
+})
+
 const calculateSummary = (items: InvoiceDraftItem[]) => {
   const subtotal = items.reduce((sum, item) => sum + toNumber(item.quantity) * toNumber(item.unitPrice), 0)
   const discountAmount = items.reduce((sum, item) => sum + toNumber(item.discountAmount), 0)
-  const taxAmount = items.reduce((sum, item) => sum + toNumber(item.taxAmount), 0)
   const taxableAmount = Math.max(subtotal - discountAmount, 0)
+  const taxAmount = taxableAmount * VAT_RATE
   const grandTotal = Math.max(taxableAmount + taxAmount, 0)
 
   return {
@@ -62,6 +76,7 @@ export default function SalesInvoiceCreatePage() {
   const navigate = useNavigate()
   const [customers, setCustomers] = useState<SalesInvoiceCustomer[]>([])
   const [products, setProducts] = useState<SalesInvoiceProduct[]>([])
+  const [invoiceNumber, setInvoiceNumber] = useState('')
   const [customerSearch, setCustomerSearch] = useState('')
   const [productSearch, setProductSearch] = useState('')
   const [customerId, setCustomerId] = useState('')
@@ -99,7 +114,7 @@ export default function SalesInvoiceCreatePage() {
         setCustomerId(customerData[0].id)
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to load customers and finished goods.')
+      setError(err?.message || 'Failed to load customers and articles.')
     } finally {
       setLoading(false)
     }
@@ -108,6 +123,25 @@ export default function SalesInvoiceCreatePage() {
   useEffect(() => {
     void loadCatalog()
   }, [])
+
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      try {
+        const nextInvoiceNumber = await salesInvoiceApi.previewNextInvoiceNumber(invoiceDate)
+        if (alive) setInvoiceNumber(nextInvoiceNumber)
+      } catch {
+        if (alive) {
+          const year = new Date(invoiceDate).getFullYear()
+          setInvoiceNumber(`SI-${year}-00001`)
+        }
+      }
+    })()
+
+    return () => {
+      alive = false
+    }
+  }, [invoiceDate])
 
   const filteredCustomers = useMemo(() => {
     const query = customerSearch.trim().toLowerCase()
@@ -132,7 +166,13 @@ export default function SalesInvoiceCreatePage() {
   const summary = useMemo(() => calculateSummary(items), [items])
 
   const updateItem = (id: string, patch: Partial<InvoiceDraftItem>) => {
-    setItems((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)))
+    setItems((current) =>
+      current.map((item) => {
+        if (item.id !== id) return item
+        const next = normalizeItem({ ...item, ...patch })
+        return next
+      }),
+    )
   }
 
   const addBlankItem = () => {
@@ -146,7 +186,7 @@ export default function SalesInvoiceCreatePage() {
         quantity: '1',
         unitPrice: '0',
         discountAmount: '0',
-        taxAmount: '0',
+        taxAmount: toMoneyString(0),
         warehouseId: '',
       },
     ])
@@ -165,8 +205,8 @@ export default function SalesInvoiceCreatePage() {
         quantity: '1',
         unitPrice,
         discountAmount: '0',
-        taxAmount: '0',
-        warehouseId: product.category || 'Finished Goods',
+        taxAmount: toMoneyString(calculateLineTax({ quantity: '1', unitPrice, discountAmount: '0' })),
+        warehouseId: product.category || 'Articles',
       },
     ])
   }
@@ -174,10 +214,12 @@ export default function SalesInvoiceCreatePage() {
   const removeItem = (id: string) => setItems((current) => current.filter((item) => item.id !== id))
 
   const buildPayload = (): SalesInvoicePayload => ({
+    invoiceNumber: invoiceNumber.trim(),
     customerId,
     invoiceDate,
     dueDate: dueDate || undefined,
     remarks: remarks || undefined,
+    taxAmount: summary.taxAmount,
     items: items.map((item) => ({
       productId: item.productId || undefined,
       productCode: item.productCode || undefined,
@@ -185,8 +227,8 @@ export default function SalesInvoiceCreatePage() {
       quantity: Number(item.quantity || 0),
       unitPrice: Number(item.unitPrice || 0),
       discountAmount: Number(item.discountAmount || 0),
-      taxAmount: Number(item.taxAmount || 0),
-      lineTotal: Math.max(Number(item.quantity || 0) * Number(item.unitPrice || 0) - Number(item.discountAmount || 0) + Number(item.taxAmount || 0), 0),
+      taxAmount: calculateLineTax(item),
+      lineTotal: Math.max(Number(item.quantity || 0) * Number(item.unitPrice || 0) - Number(item.discountAmount || 0) + calculateLineTax(item), 0),
       warehouseId: item.warehouseId || undefined,
     })),
     invoiceStatus: 'DRAFT',
@@ -195,9 +237,10 @@ export default function SalesInvoiceCreatePage() {
 
   const validate = () => {
     if (!customerId) return 'Select a customer.'
-    if (items.length === 0) return 'Add at least one finished-goods line.'
+    if (!invoiceNumber.trim()) return 'Invoice number is required.'
+    if (items.length === 0) return 'Add at least one article line.'
     for (const item of items) {
-      if (!item.productId && !item.productName.trim()) return 'Every line needs a finished-good product.'
+      if (!item.productId && !item.productName.trim()) return 'Every line needs an article product.'
       if (Number(item.quantity || 0) <= 0) return 'Each line must have a positive quantity.'
       if (Number(item.unitPrice || 0) < 0) return 'Unit prices cannot be negative.'
     }
@@ -232,7 +275,7 @@ export default function SalesInvoiceCreatePage() {
     <InventoryPageShell
       eyebrow="Sales"
       title="New Sales Invoice"
-      description="Build invoices around finished goods and let Merlin manage the sales workflow."
+      description="Build invoices around articles and let Merlin manage the sales workflow."
       backTo={{ to: '/sales-invoices', label: 'Back to invoices' }}
       actions={[
         { label: 'Invoices', variant: 'outline', to: '/sales-invoices' },
@@ -256,10 +299,10 @@ export default function SalesInvoiceCreatePage() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
-          <InventorySectionCard title="Invoice Header" description="Choose the customer and invoice dates before adding finished-goods lines.">
+      <InventorySectionCard title="Invoice Header" description="Choose the customer and invoice dates before adding article lines.">
             {loading ? (
               <div className="py-10 text-center text-sm text-slate-500" role="status" aria-live="polite">
-                Loading customers and finished goods...
+                Loading customers and articles...
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -290,6 +333,16 @@ export default function SalesInvoiceCreatePage() {
                       </option>
                     ))}
                   </select>
+                </label>
+
+                <label className="block text-sm">
+                  <span className="mb-1 block text-slate-600">Invoice Number</span>
+                  <input
+                    value={invoiceNumber}
+                    readOnly
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2"
+                    placeholder="SI-2026-00001"
+                  />
                 </label>
 
                 <label className="block text-sm">
@@ -325,9 +378,11 @@ export default function SalesInvoiceCreatePage() {
             )}
           </InventorySectionCard>
 
-          <InventorySectionCard title="Invoice Items" description="Use the catalog on the right to add finished-goods lines quickly.">
+          <InventorySectionCard title="Invoice Items" description="Use the catalog on the right to add article lines quickly.">
             <InvoiceItemTable
               items={items}
+              taxEditable={false}
+              showWarehouse={false}
               onAddItem={addBlankItem}
               onRemoveItem={removeItem}
               onChangeItem={updateItem}
@@ -400,7 +455,7 @@ export default function SalesInvoiceCreatePage() {
               ))}
               {filteredProducts.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-                  No finished goods found.
+                  No articles found.
                 </div>
               ) : null}
             </div>

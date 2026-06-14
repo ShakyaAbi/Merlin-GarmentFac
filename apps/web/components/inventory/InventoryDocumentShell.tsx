@@ -36,11 +36,15 @@ export function InventoryDocumentShell({ title, status, actions = [], leftRail, 
     lg: 'h-12 px-6 text-base',
   } as const
 
+  const hasLeftRail = Boolean(leftRail)
+
   return (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[220px_minmax(0,1fr)]">
-      <aside className="space-y-4">
-        {leftRail}
-      </aside>
+    <div className={hasLeftRail ? 'grid grid-cols-1 gap-6 xl:grid-cols-[220px_minmax(0,1fr)]' : 'space-y-6'}>
+      {hasLeftRail ? (
+        <aside className="space-y-4">
+          {leftRail}
+        </aside>
+      ) : null}
 
       <div className="space-y-6">
         <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:flex-row md:items-center md:justify-between">

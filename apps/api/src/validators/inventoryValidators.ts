@@ -46,7 +46,7 @@ export const toggleMaterialStatusSchema = z.object({
 
 export const createPurchaseSchema = z.object({
   supplierId: z.string().trim().min(1),
-  invoiceNumber: z.string().optional(),
+  invoiceNumber: z.string().trim().min(1),
   invoiceDate: z.string().optional(),
   currency: z.string().optional(),
   items: z.array(purchaseItemSchema).min(1),

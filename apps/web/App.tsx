@@ -14,6 +14,7 @@ import { GoogleCallback } from './pages/GoogleCallback';
 import { Layout } from './components/Layout';
 import HomePage from './pages/HomePage'
 import SuppliersPage from './pages/inventory/SuppliersPage'
+import SupplierDetailPage from './pages/inventory/SupplierDetailPage'
 import MaterialsPage from './pages/inventory/MaterialsPage'
 import CreateMaterialPage from './pages/inventory/CreateMaterialPage'
 import PurchasesPage from './pages/inventory/PurchasesPage'
@@ -21,11 +22,12 @@ import PurchaseCreate from './pages/inventory/PurchaseCreate'
 import PurchaseDetailPage from './pages/inventory/PurchaseDetailPage'
 import AlertsPage from './pages/inventory/AlertsPage'
 import MaterialDetail from './pages/inventory/MaterialDetail'
-import CreateBomPage from './pages/inventory/CreateBomPage'
+import CreateArticlePage from './pages/inventory/CreateArticlePage'
 import MaterialEntryPage from './pages/inventory/MaterialEntryPage'
 import CustomersPage from './pages/inventory/CustomersPage'
 import CustomerDetailPage from './pages/inventory/CustomerDetailPage'
 import FinishedGoodsPage from './pages/inventory/FinishedGoodsPage'
+import FinishedGoodDetailPage from './pages/inventory/FinishedGoodDetailPage'
 import OperationsDashboardPage from './pages/inventory/OperationsDashboardPage'
 import ProductionOrdersPage from './pages/inventory/ProductionOrdersPage'
 import ProductionOrderDetailPage from './pages/inventory/ProductionOrderDetailPage'
@@ -55,10 +57,12 @@ const App: React.FC = () => {
             <Route path="/projects/:id" element={<ProjectDetail />} />
             <Route path="/indicators/:id" element={<IndicatorDetail />} />
             <Route path="/inventory/suppliers" element={<SuppliersPage />} />
+            <Route path="/inventory/suppliers/:id" element={<SupplierDetailPage />} />
             <Route path="/inventory/customers" element={<CustomersPage />} />
             <Route path="/inventory/customers/:id" element={<CustomerDetailPage />} />
             <Route path="/inventory/materials" element={<MaterialsPage />} />
             <Route path="/inventory/finished-goods" element={<FinishedGoodsPage />} />
+            <Route path="/inventory/finished-goods/:id" element={<FinishedGoodDetailPage />} />
             <Route path="/inventory/production" element={<ProductionOrdersPage />} />
             <Route path="/inventory/production/:id" element={<ProductionOrderDetailPage />} />
             <Route path="/inventory/materials/create" element={<CreateMaterialPage />} />
@@ -68,7 +72,8 @@ const App: React.FC = () => {
             <Route path="/inventory/purchases/:id" element={<PurchaseDetailPage />} />
             <Route path="/inventory/alerts" element={<AlertsPage />} />
             <Route path="/inventory/materials/:id" element={<MaterialDetail />} />
-            <Route path="/inventory/boms/create" element={<CreateBomPage />} />
+            <Route path="/inventory/boms/create" element={<Navigate to="/inventory/finished-goods/create" replace />} />
+            <Route path="/inventory/finished-goods/create" element={<CreateArticlePage />} />
             <Route path="/sales-invoices" element={<SalesInvoiceListPage />} />
             <Route path="/sales-invoices/create" element={<SalesInvoiceCreatePage />} />
             <Route path="/sales-invoices/:id" element={<SalesInvoiceDetailPage />} />

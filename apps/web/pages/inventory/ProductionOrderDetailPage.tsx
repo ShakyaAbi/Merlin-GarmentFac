@@ -7,7 +7,7 @@ import { InventoryDataTable } from '../../components/inventory/InventoryDataTabl
 import { Button } from '../../components/ui/Button'
 
 const money = (value: number | string | null | undefined) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
+  new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
 
 export default function ProductionOrderDetailPage() {
   const { id } = useParams()
@@ -65,19 +65,18 @@ export default function ProductionOrderDetailPage() {
     }
   }
 
-  const estimatedMaterialCost = Array.isArray(order?.bom?.items)
-    ? order.bom.items.reduce((sum: number, item: any) => {
-        const unitCost = Number(item.rawMaterial?.costPrice ?? item.rawMaterial?.averageUnitCost ?? 0)
-        const consumption = Number(item.consumption ?? 0)
-        return sum + unitCost * consumption * Number(order.quantityPlanned ?? 0)
-      }, 0)
-    : 0
+  const bomItems = Array.isArray(order?.finishedGood?.bomData?.items) ? order.finishedGood.bomData.items : []
+  const estimatedMaterialCost = bomItems.reduce((sum: number, item: any) => {
+    const unitCost = Number(item.rawMaterial?.costPrice ?? item.rawMaterial?.averageUnitCost ?? 0)
+    const consumption = Number(item.consumption ?? 0)
+    return sum + unitCost * consumption * Number(order.quantityPlanned ?? 0)
+  }, 0)
 
   return (
     <InventoryPageShell
       eyebrow="Production"
       title={order?.orderNumber || 'Production Order'}
-      description="Review the bill of materials, material issues, and finished-good completions for this order."
+      description="Review the bill of materials, material issues, and article completions for this order."
       backTo={{ to: '/inventory/production', label: 'Back to production register' }}
       actions={[
         { label: 'Issue Materials', variant: 'outline', onClick: issue },
@@ -102,9 +101,9 @@ export default function ProductionOrderDetailPage() {
               </div>
             </InventorySectionCard>
 
-            <InventorySectionCard title="BOM" description="Consumed materials are derived from the bill of materials.">
+            <InventorySectionCard title="Article Materials" description="Consumed materials are derived from the article's material bill.">
               <div className="space-y-2 text-sm text-slate-600">
-                <div className="font-semibold text-slate-900">{order.bom?.garmentStyle || order.bom?.name || 'Unknown BOM'}</div>
+                <div className="font-semibold text-slate-900">{order.finishedGood?.bomData?.garmentStyle || order.finishedGood?.bomData?.name || 'Unknown article bill'}</div>
                 <div>Finished good unit: {order.finishedGood?.unit || 'pcs'}</div>
                 <div>Finished good cost: {money(order.finishedGood?.costPrice)}</div>
                 <div>Estimated material cost: {money(estimatedMaterialCost)}</div>
@@ -131,7 +130,7 @@ export default function ProductionOrderDetailPage() {
           <InventorySectionCard title="Completion Lines" description="Finished goods are recorded only on completion.">
             <InventoryDataTable
               caption="Completion lines"
-              columns={[{ label: 'Finished Good' }, { label: 'Qty' }, { label: 'Unit' }]}
+              columns={[{ label: 'Article' }, { label: 'Qty' }, { label: 'Unit' }]}
             >
               {order.completionLines?.map((line: any) => (
                 <tr key={line.id} className="border-b border-slate-100 last:border-b-0">

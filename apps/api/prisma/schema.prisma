@@ -1,3 +1,12 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
 model AuditLog {
   id             Int      @id @default(autoincrement())
   action         String
@@ -8,20 +17,800 @@ model AuditLog {
   meta           Json?
   createdAt      DateTime @default(now())
 
-  // Indexes for fast lookup
   @@index([userId])
   @@index([submissionId])
   @@index([indicatorId])
   @@index([organizationId])
   @@index([action])
 }
-generator client {
-  provider = "prisma-client-js"
+
+model Invitation {
+  id              Int          @id @default(autoincrement())
+  email           String
+  organizationId  Int
+  invitedByUserId Int
+  role            Role
+  token           String       @unique
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  invitedBy       User         @relation("InvitationsSent", fields: [invitedByUserId], references: [id])
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([email, organizationId])
 }
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+model User {
+  id                                   Int                            @id @default(autoincrement())
+  email                                String                         @unique
+  passwordHash                         String
+  role                                 Role
+  name                                 String?
+  jobTitle                             String?
+  organizationId                       Int
+  timezone                             String?
+  avatar                               String?
+  notificationPreferences              Json?
+  createdAt                            DateTime                       @default(now())
+  exportTemplates                      ExportTemplate[]
+  finishedGoodsCreated                 FinishedGoodProduct[]          @relation("FinishedGoodsCreated")
+  finishedGoodsUpdated                 FinishedGoodProduct[]          @relation("FinishedGoodsUpdated")
+  finishedGoodStockTransactionsCreated FinishedGoodStockTransaction[] @relation("FinishedGoodStockTransactionsCreated")
+  importJobs                           ImportJob[]
+  importTemplates                      ImportTemplate[]
+  indicatorsCreated                    Indicator[]                    @relation("IndicatorsCreated")
+  invitationsSent                      Invitation[]                   @relation("InvitationsSent")
+  salesInvoicesApproved                SalesInvoice[]                 @relation("SalesInvoicesApproved")
+  salesInvoicesCancelled               SalesInvoice[]                 @relation("SalesInvoicesCancelled")
+  salesInvoicesCreated                 SalesInvoice[]                 @relation("SalesInvoicesCreated")
+  salesInvoicesIssued                  SalesInvoice[]                 @relation("SalesInvoicesIssued")
+  salesInvoicePaymentsReceived         SalesInvoicePayment[]          @relation("SalesInvoicePaymentsReceived")
+  anomalyReviews                       Submission[]                   @relation("AnomalyReviews")
+  submissions                          Submission[]
+  deletedSubmissions                   Submission[]                   @relation("DeletedSubmissions")
+  updatedSubmissions                   Submission[]                   @relation("UpdatedSubmissions")
+  organization                         Organization                   @relation(fields: [organizationId], references: [id])
+}
+
+model Organization {
+  id          Int          @id @default(autoincrement())
+  name        String
+  createdAt   DateTime     @default(now())
+  invitations Invitation[]
+  projects    Project[]
+  users       User[]
+}
+
+model Project {
+  id             Int            @id @default(autoincrement())
+  organizationId Int
+  name           String
+  description    String?
+  status         ProjectStatus  @default(DRAFT)
+  startDate      DateTime?
+  endDate        DateTime?
+  sectors        String[]       @default([])
+  location       String?
+  donor          String?
+  budgetAmount   Float?
+  budgetSpent    Float?
+  budgetCurrency String?
+  createdAt      DateTime       @default(now())
+  indicators     Indicator[]
+  nodes          LogframeNode[]
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+}
+
+model LogframeNode {
+  id          Int            @id @default(autoincrement())
+  projectId   Int
+  type        NodeType
+  title       String
+  description String?
+  assumptions String?
+  risks       String?
+  parentId    Int?
+  sortOrder   Int            @default(0)
+  createdAt   DateTime       @default(now())
+  indicators  Indicator[]
+  parent      LogframeNode?  @relation("LogframeHierarchy", fields: [parentId], references: [id])
+  children    LogframeNode[] @relation("LogframeHierarchy")
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([parentId])
+}
+
+model Indicator {
+  id                    Int               @id @default(autoincrement())
+  projectId             Int
+  logframeNodeId        Int
+  name                  String
+  unit                  String
+  baselineValue         Float?
+  targetValue           Float?
+  baselineCategory      String?
+  targetCategory        String?
+  dataType              IndicatorDataType
+  minValue              Float?
+  maxValue              Float?
+  anomalyConfig         Json?
+  validationConfig      Json?
+  categories            Json?
+  categoryConfig        Json?
+  createdAt             DateTime          @default(now())
+  reminderEnabled       Boolean           @default(false)
+  reminderDaysBeforeDue Int?
+  reminderDaysAfterDue  Int?
+  reminderRecipients    Json?
+  createdByUserId       Int
+  exportTemplates       ExportTemplate[]
+  importJobs            ImportJob[]
+  importTemplates       ImportTemplate[]
+  createdByUser         User              @relation("IndicatorsCreated", fields: [createdByUserId], references: [id])
+  logframeNode          LogframeNode      @relation(fields: [logframeNodeId], references: [id], onDelete: Cascade)
+  project               Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  submissions           Submission[]
+
+  @@index([logframeNodeId])
+  @@index([createdByUserId])
+  @@index([projectId])
+}
+
+model Submission {
+  id                Int            @id @default(autoincrement())
+  indicatorId       Int
+  reportedAt        DateTime
+  value             String
+  categoryValue     String?
+  disaggregationKey String?
+  evidence          String?
+  createdByUserId   Int
+  sourceImportJobId Int?
+  createdAt         DateTime       @default(now())
+  isAnomaly         Boolean        @default(false)
+  anomalyReason     String?
+  anomalyStatus     AnomalyStatus?
+  anomalyScore      Float?
+  anomalyThreshold  Float?
+  anomalyMethod     String?
+  anomalyMeta       Json?
+  anomalyReviewedBy Int?
+  anomalyReviewedAt DateTime?
+  deletedAt         DateTime?
+  deletedByUserId   Int?
+  updatedAt         DateTime       @updatedAt
+  updatedByUserId   Int?
+  reviewer          User?          @relation("AnomalyReviews", fields: [anomalyReviewedBy], references: [id])
+  createdByUser     User           @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+  deletedByUser     User?          @relation("DeletedSubmissions", fields: [deletedByUserId], references: [id])
+  indicator         Indicator      @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  sourceImportJob   ImportJob?     @relation(fields: [sourceImportJobId], references: [id])
+  updatedByUser     User?          @relation("UpdatedSubmissions", fields: [updatedByUserId], references: [id])
+
+  @@unique([indicatorId, reportedAt, disaggregationKey])
+  @@index([anomalyReviewedBy])
+  @@index([sourceImportJobId])
+  @@index([deletedAt])
+  @@index([deletedByUserId])
+  @@index([updatedByUserId])
+  @@index([indicatorId])
+}
+
+model ImportTemplate {
+  id              Int         @id @default(autoincrement())
+  indicatorId     Int
+  name            String
+  description     String?
+  isDefault       Boolean     @default(false)
+  columnMapping   Json
+  createdByUserId Int
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  importJobs      ImportJob[]
+  createdBy       User        @relation(fields: [createdByUserId], references: [id])
+  indicator       Indicator   @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+
+  @@index([indicatorId])
+  @@index([createdByUserId])
+}
+
+model ImportJob {
+  id             Int             @id @default(autoincrement())
+  importType     ImportType
+  indicatorId    Int?
+  templateId     Int?
+  userId         Int
+  fileName       String
+  fileSize       Int
+  totalRows      Int
+  processedRows  Int             @default(0)
+  successfulRows Int             @default(0)
+  failedRows     Int             @default(0)
+  warningRows    Int             @default(0)
+  status         ImportStatus    @default(PENDING)
+  importMode     ImportMode      @default(CREATE_ONLY)
+  createdAt      DateTime        @default(now())
+  completedAt    DateTime?
+  indicator      Indicator?      @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  template       ImportTemplate? @relation(fields: [templateId], references: [id])
+  user           User            @relation(fields: [userId], references: [id])
+  stagingRows    ImportJobRow[]
+  submissions    Submission[]
+
+  @@index([indicatorId])
+  @@index([userId])
+  @@index([status])
+}
+
+model ImportJobRow {
+  id               Int       @id @default(autoincrement())
+  jobId            Int
+  rowNumber        Int
+  rawData          Json
+  normalizedData   Json?
+  validationStatus RowStatus @default(PENDING)
+  errors           Json?
+  warnings         Json?
+  createdAt        DateTime  @default(now())
+  job              ImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, rowNumber])
+  @@index([jobId])
+  @@index([validationStatus])
+}
+
+model ExportTemplate {
+  id              Int       @id @default(autoincrement())
+  indicatorId     Int
+  name            String
+  description     String?
+  isDefault       Boolean   @default(false)
+  columnConfig    Json
+  filterConfig    Json?
+  formatConfig    Json?
+  createdByUserId Int
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       User      @relation(fields: [createdByUserId], references: [id])
+  indicator       Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+
+  @@index([indicatorId])
+  @@index([createdByUserId])
+}
+
+model Supplier {
+  id               String                @id @default(cuid())
+  supplierNumber   String?               @unique
+  name             String
+  contactName      String?
+  phone            String?
+  email            String?
+  address          String?
+  panVatNumber     String?
+  status           SupplierStatus        @default(ACTIVE)
+  notes            String?
+  externalRef      String?
+  openingBalance   Decimal               @default(0)
+  balance          Decimal               @default(0)
+  createdBy        Int?
+  updatedBy        Int?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  deletedAt        DateTime?
+  purchases        Purchase[]
+  supplierPayments SupplierPayment[]
+  ledgerEntries    SupplierLedgerEntry[]
+}
+
+model Customer {
+  id             String                @id @default(cuid())
+  customerNumber String?               @unique
+  customerName   String
+  phone          String?
+  address        String?
+  panVatNumber   String?
+  customerType   String?
+  email          String?
+  notes          String?
+  openingBalance Decimal               @default(0)
+  createdBy      Int?
+  updatedBy      Int?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  deletedAt      DateTime?
+  salesInvoices  SalesInvoice[]
+  salesOrders    SalesOrder[]
+  ledgerEntries  CustomerLedgerEntry[]
+}
+
+model RawMaterialCategory {
+  id           String        @id @default(cuid())
+  categoryName String        @unique
+  description  String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  deletedAt    DateTime?
+  rawMaterials RawMaterial[]
+}
+
+model RawMaterial {
+  id                   String                @id @default(cuid())
+  sku                  String?               @unique
+  name                 String
+  description          String?
+  defaultUnit          String
+  unitConversions      Json?
+  active               Boolean               @default(true)
+  costPrice            Decimal?
+  reorderLevel         Float?
+  categoryId           String?
+  averageUnitCost      Decimal?              @default(0)
+  notes                String?
+  updatedBy            Int?
+  deletedAt            DateTime?
+  createdBy            Int?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  lowStockAlerts       LowStockAlert[]
+  productionIssueLines ProductionIssueLine[]
+  purchaseItems        PurchaseItem[]
+  category             RawMaterialCategory?  @relation(fields: [categoryId], references: [id])
+  stockTransactions    StockTransaction[]
+
+  @@index([sku, name])
+}
+
+model FinishedGoodProduct {
+  id                        String                         @id @default(cuid())
+  sku                       String?                        @unique
+  productCode               String?                        @unique
+  name                      String
+  description               String?
+  category                  String?
+  articleCategoryId         String?
+  unit                      String                         @default("pcs")
+  sellingPrice              Decimal                        @default(0)
+  costPrice                 Decimal                        @default(0)
+  reorderLevel              Float?                         @default(0)
+  active                    Boolean                        @default(true)
+  notes                     String?
+  bomData                   Json?
+  createdBy                 Int?
+  updatedBy                 Int?
+  createdAt                 DateTime                       @default(now())
+  updatedAt                 DateTime                       @updatedAt
+  deletedAt                 DateTime?
+  createdByUser             User?                          @relation("FinishedGoodsCreated", fields: [createdBy], references: [id])
+  updatedByUser             User?                          @relation("FinishedGoodsUpdated", fields: [updatedBy], references: [id])
+  articleCategory           ArticleCategory?               @relation(fields: [articleCategoryId], references: [id])
+  stockTransactions         FinishedGoodStockTransaction[]
+  productionCompletionLines ProductionCompletionLine[]     @relation("ProductionCompletionFinishedGood")
+  productionOrders          ProductionOrder[]              @relation("ProductionFinishedGood")
+  invoiceItems              SalesInvoiceItem[]
+  salesOrderItems           SalesOrderItem[]
+}
+
+model Purchase {
+  id            String         @id @default(cuid())
+  supplierId    String
+  invoiceNumber String?        @unique
+  invoiceDate   DateTime
+  currency      String         @default("NPR")
+  totalAmount   Decimal        @default(0)
+  createdBy     Int?
+  createdAt     DateTime       @default(now())
+  status        String         @default("received")
+  notes         String?
+  supplier      Supplier       @relation(fields: [supplierId], references: [id])
+  items         PurchaseItem[]
+
+  @@index([supplierId, createdAt])
+  @@index([invoiceDate])
+}
+
+model PurchaseItem {
+  id            String      @id @default(cuid())
+  purchaseId    String
+  rawMaterialId String
+  quantity      Float
+  unit          String
+  unitPrice     Decimal
+  lineTotal     Decimal
+  purchase      Purchase    @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  rawMaterial   RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+}
+
+model StockTransaction {
+  id              String      @id @default(cuid())
+  rawMaterialId   String
+  change          Float
+  unit            String
+  transactionType String      @default("ADJUSTMENT")
+  balanceAfter    Float?
+  unitCost        Decimal?
+  reason          String
+  referenceId     String?
+  createdBy       Int?
+  createdAt       DateTime    @default(now())
+  rawMaterial     RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+}
+
+model FinishedGoodStockTransaction {
+  id              String                    @id @default(cuid())
+  productId       String
+  change          Float
+  unit            String
+  transactionType SalesStockTransactionType @default(SALE_OUT)
+  balanceAfter    Float?
+  unitCost        Decimal?
+  reason          String
+  referenceId     String?
+  createdBy       Int?
+  createdAt       DateTime                  @default(now())
+  createdByUser   User?                     @relation("FinishedGoodStockTransactionsCreated", fields: [createdBy], references: [id])
+  product         FinishedGoodProduct       @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model LowStockAlert {
+  id             String      @id @default(cuid())
+  rawMaterialId  String
+  triggeredAt    DateTime    @default(now())
+  acknowledged   Boolean     @default(false)
+  acknowledgedBy Int?
+  rawMaterial    RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+}
+
+model ProductionOrder {
+  id               String                     @id @default(cuid())
+  orderNumber      String?                    @unique
+  finishedGoodId   String
+  finishedGoodName String
+  quantityPlanned  Float
+  quantityProduced Float                      @default(0)
+  status           ProductionOrderStatus      @default(DRAFT)
+  issuedAt         DateTime?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  cancelledAt      DateTime?
+  notes            String?
+  createdBy        Int?
+  updatedBy        Int?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  completionLines  ProductionCompletionLine[]
+  issueLines       ProductionIssueLine[]
+  finishedGood     FinishedGoodProduct        @relation("ProductionFinishedGood", fields: [finishedGoodId], references: [id])
+  @@index([finishedGoodId])
+  @@index([status])
+}
+
+model ProductionIssueLine {
+  id                String          @id @default(cuid())
+  productionOrderId String
+  rawMaterialId     String
+  quantity          Float
+  unit              String
+  bomConsumption    Float
+  createdAt         DateTime        @default(now())
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  rawMaterial       RawMaterial     @relation(fields: [rawMaterialId], references: [id])
+
+  @@index([productionOrderId])
+  @@index([rawMaterialId])
+}
+
+model ProductionCompletionLine {
+  id                String              @id @default(cuid())
+  productionOrderId String
+  finishedGoodId    String
+  quantity          Float
+  unit              String
+  createdAt         DateTime            @default(now())
+  finishedGood      FinishedGoodProduct @relation("ProductionCompletionFinishedGood", fields: [finishedGoodId], references: [id])
+  productionOrder   ProductionOrder     @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+
+  @@index([productionOrderId])
+  @@index([finishedGoodId])
+}
+
+model SalesOrder {
+  id             String           @id @default(cuid())
+  orderNumber    String?          @unique
+  customerId     String
+  status         SalesOrderStatus @default(DRAFT)
+  orderDate      DateTime         @default(now())
+  requiredBy     DateTime?
+  notes          String?
+  subtotal       Decimal          @default(0)
+  discountAmount Decimal          @default(0)
+  taxAmount      Decimal          @default(0)
+  grandTotal     Decimal          @default(0)
+  createdBy      Int?
+  updatedBy      Int?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  invoices       SalesInvoice[]
+  customer       Customer         @relation(fields: [customerId], references: [id])
+  items          SalesOrderItem[]
+
+  @@index([customerId])
+  @@index([status])
+}
+
+model SalesOrderItem {
+  id             String              @id @default(cuid())
+  salesOrderId   String
+  productId      String
+  productCode    String?
+  productName    String
+  quantity       Float
+  unitPrice      Decimal
+  discountAmount Decimal             @default(0)
+  taxAmount      Decimal             @default(0)
+  lineTotal      Decimal
+  createdAt      DateTime            @default(now())
+  product        FinishedGoodProduct @relation(fields: [productId], references: [id])
+  salesOrder     SalesOrder          @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+
+  @@index([salesOrderId])
+  @@index([productId])
+}
+
+model SalesInvoice {
+  id                 String                @id @default(cuid())
+  invoiceNumber      String?               @unique
+  fiscalYear         String?
+  customerId         String
+  salesOrderId       String?
+  invoiceDate        DateTime
+  dueDate            DateTime?
+  subtotal           Decimal               @default(0)
+  discountAmount     Decimal               @default(0)
+  taxableAmount      Decimal               @default(0)
+  nonTaxableAmount   Decimal               @default(0)
+  taxAmount          Decimal               @default(0)
+  grandTotal         Decimal               @default(0)
+  paidAmount         Decimal               @default(0)
+  dueAmount          Decimal               @default(0)
+  paymentStatus      SalesPaymentStatus    @default(UNPAID)
+  invoiceStatus      SalesInvoiceStatus    @default(DRAFT)
+  printedCount       Int                   @default(0)
+  syncStatus         String?
+  syncReference      String?
+  cancellationReason String?
+  remarks            String?
+  createdBy          Int?
+  approvedBy         Int?
+  issuedBy           Int?
+  cancelledBy        Int?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  approvedAt         DateTime?
+  issuedAt           DateTime?
+  cancelledAt        DateTime?
+  approvedByUser     User?                 @relation("SalesInvoicesApproved", fields: [approvedBy], references: [id])
+  cancelledByUser    User?                 @relation("SalesInvoicesCancelled", fields: [cancelledBy], references: [id])
+  createdByUser      User?                 @relation("SalesInvoicesCreated", fields: [createdBy], references: [id])
+  customer           Customer              @relation(fields: [customerId], references: [id])
+  issuedByUser       User?                 @relation("SalesInvoicesIssued", fields: [issuedBy], references: [id])
+  salesOrder         SalesOrder?           @relation(fields: [salesOrderId], references: [id])
+  items              SalesInvoiceItem[]
+  payments           SalesInvoicePayment[]
+}
+
+model SalesInvoiceItem {
+  id             String              @id @default(cuid())
+  invoiceId      String
+  productId      String
+  productCode    String?
+  productName    String
+  quantity       Float
+  unitPrice      Decimal
+  discountAmount Decimal             @default(0)
+  taxableAmount  Decimal             @default(0)
+  taxAmount      Decimal             @default(0)
+  lineTotal      Decimal
+  costPrice      Decimal             @default(0)
+  profitAmount   Decimal             @default(0)
+  warehouseId    String?
+  createdAt      DateTime            @default(now())
+  invoice        SalesInvoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product        FinishedGoodProduct @relation(fields: [productId], references: [id])
+}
+
+model SalesInvoicePayment {
+  id             String       @id @default(cuid())
+  paymentNumber  String?      @unique
+  invoiceId      String
+  paymentDate    DateTime
+  amount         Decimal
+  paymentMethod  String
+  note           String?
+  receivedBy     Int?
+  createdAt      DateTime     @default(now())
+  invoice        SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  receivedByUser User?        @relation("SalesInvoicePaymentsReceived", fields: [receivedBy], references: [id])
+}
+
+model Expense {
+  id            String        @id @default(cuid())
+  expenseNumber String?       @unique
+  expenseDate   DateTime      @default(now())
+  category      String
+  vendor        String?
+  description   String
+  amount        Decimal       @default(0)
+  currency      String        @default("USD")
+  status        ExpenseStatus @default(DRAFT)
+  paymentDate   DateTime?
+  notes         String?
+  createdBy     Int?
+  updatedBy     Int?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  @@index([expenseDate])
+  @@index([category])
+  @@index([status])
+}
+
+model DocumentSequence {
+  key        String   @id
+  nextNumber Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model CustomerLedgerEntry {
+  id             String                  @id @default(cuid())
+  customerId     String
+  entryDate      DateTime                @default(now())
+  entryType      CustomerLedgerEntryType
+  referenceType  String?
+  referenceId    String?
+  documentNumber String?
+  description    String?
+  debit          Decimal                 @default(0)
+  credit         Decimal                 @default(0)
+  runningBalance Decimal                 @default(0)
+  createdBy      Int?
+  createdAt      DateTime                @default(now())
+  customer       Customer                @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, entryDate])
+  @@index([referenceId])
+}
+
+model SupplierPayment {
+  id            String   @id @default(cuid())
+  paymentNumber String?  @unique
+  supplierId    String
+  paymentDate   DateTime @default(now())
+  amount        Decimal
+  paymentMethod String
+  note          String?
+  createdBy     Int?
+  createdAt     DateTime @default(now())
+  supplier      Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId, paymentDate])
+}
+
+model SupplierLedgerEntry {
+  id             String                  @id @default(cuid())
+  supplierId     String
+  entryDate      DateTime                @default(now())
+  entryType      SupplierLedgerEntryType
+  referenceType  String?
+  referenceId    String?
+  documentNumber String?
+  description    String?
+  debit          Decimal                 @default(0)
+  credit         Decimal                 @default(0)
+  runningBalance Decimal                 @default(0)
+  createdBy      Int?
+  createdAt      DateTime                @default(now())
+  supplier       Supplier                @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId, entryDate])
+  @@index([referenceId])
+}
+
+model ArticleCategory {
+  id          String                @id @default(cuid())
+  name        String                @unique
+  description String?
+  status      ArticleCategoryStatus @default(ACTIVE)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  deletedAt   DateTime?
+  articles    FinishedGoodProduct[]
+}
+
+model sales_customers {
+  id               String           @id
+  customer_code    String           @unique
+  name             String
+  pan_vat_number   String?
+  phone            String?
+  email            String?
+  billing_address  String?
+  shipping_address String?
+  contact_person   String?
+  notes            String?
+  created_by       Int?
+  created_at       DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime         @default(now()) @db.Timestamptz(6)
+  sales_invoices   sales_invoices[]
+}
+
+model sales_invoice_items {
+  id              String         @id
+  invoice_id      String
+  product_id      String
+  product_code    String?
+  product_name    String
+  quantity        Decimal        @db.Decimal(14, 2)
+  unit_price      Decimal        @db.Decimal(14, 2)
+  discount_amount Decimal        @default(0) @db.Decimal(14, 2)
+  taxable_amount  Decimal        @default(0) @db.Decimal(14, 2)
+  tax_amount      Decimal        @default(0) @db.Decimal(14, 2)
+  line_total      Decimal        @db.Decimal(14, 2)
+  cost_price      Decimal        @default(0) @db.Decimal(14, 2)
+  profit_amount   Decimal        @default(0) @db.Decimal(14, 2)
+  warehouse_id    String?
+  created_at      DateTime       @default(now()) @db.Timestamptz(6)
+  sales_invoices  sales_invoices @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model sales_invoice_payments {
+  id               String         @id
+  invoice_id       String
+  payment_date     DateTime       @db.Timestamptz(6)
+  amount           Decimal        @db.Decimal(14, 2)
+  method           String
+  reference_number String?
+  notes            String?
+  created_at       DateTime       @default(now()) @db.Timestamptz(6)
+  sales_invoices   sales_invoices @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model sales_invoices {
+  id                     String                   @id
+  invoice_number         String                   @unique
+  fiscal_year            String?
+  customer_id            String
+  invoice_date           DateTime                 @db.Timestamptz(6)
+  due_date               DateTime?                @db.Timestamptz(6)
+  subtotal               Decimal                  @default(0) @db.Decimal(14, 2)
+  discount_amount        Decimal                  @default(0) @db.Decimal(14, 2)
+  taxable_amount         Decimal                  @default(0) @db.Decimal(14, 2)
+  non_taxable_amount     Decimal                  @default(0) @db.Decimal(14, 2)
+  tax_amount             Decimal                  @default(0) @db.Decimal(14, 2)
+  grand_total            Decimal                  @default(0) @db.Decimal(14, 2)
+  paid_amount            Decimal                  @default(0) @db.Decimal(14, 2)
+  due_amount             Decimal                  @default(0) @db.Decimal(14, 2)
+  payment_status         String                   @default("UNPAID")
+  invoice_status         String                   @default("DRAFT")
+  printed_count          Int                      @default(0)
+  sync_status            String?
+  sync_reference         String?
+  cancellation_reason    String?
+  remarks                String?
+  created_by             Int?
+  approved_by            Int?
+  issued_by              Int?
+  cancelled_by           Int?
+  created_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  approved_at            DateTime?                @db.Timestamptz(6)
+  issued_at              DateTime?                @db.Timestamptz(6)
+  cancelled_at           DateTime?                @db.Timestamptz(6)
+  sales_invoice_items    sales_invoice_items[]
+  sales_invoice_payments sales_invoice_payments[]
+  sales_customers        sales_customers          @relation(fields: [customer_id], references: [id], onUpdate: NoAction)
 }
 
 enum Role {
@@ -88,264 +877,6 @@ enum RowStatus {
   SKIPPED
 }
 
-model Invitation {
-  id               Int        @id @default(autoincrement())
-  email            String
-  organization     Organization @relation(fields: [organizationId], references: [id])
-  organizationId   Int
-  invitedBy        User @relation("InvitationsSent", fields: [invitedByUserId], references: [id])
-  invitedByUserId  Int
-  role             Role
-  token            String     @unique
-  expiresAt        DateTime
-  acceptedAt       DateTime?
-  createdAt        DateTime   @default(now())
-
-  @@unique([email, organizationId])
-}
-
-model User {
-  id                      Int       @id @default(autoincrement())
-  email                   String    @unique
-  passwordHash            String
-  role                    Role
-  name                    String?
-  jobTitle                String?
-  organizationId          Int
-  organization            Organization @relation(fields: [organizationId], references: [id])
-  timezone                String?
-  avatar                  String?
-  notificationPreferences Json?
-  createdAt               DateTime  @default(now())
-  submissions             Submission[]
-  anomalyReviews          Submission[] @relation("AnomalyReviews")
-  deletedSubmissions      Submission[] @relation("DeletedSubmissions")
-  updatedSubmissions      Submission[] @relation("UpdatedSubmissions")
-  importJobs              ImportJob[]
-  importTemplates         ImportTemplate[]
-  exportTemplates         ExportTemplate[]
-  invitationsSent         Invitation[] @relation("InvitationsSent")
-  indicatorsCreated       Indicator[]  @relation("IndicatorsCreated")
-  salesInvoicesCreated    SalesInvoice[] @relation("SalesInvoicesCreated")
-  salesInvoicesApproved   SalesInvoice[] @relation("SalesInvoicesApproved")
-  salesInvoicesIssued     SalesInvoice[] @relation("SalesInvoicesIssued")
-  salesInvoicesCancelled  SalesInvoice[] @relation("SalesInvoicesCancelled")
-  salesInvoicePaymentsReceived SalesInvoicePayment[] @relation("SalesInvoicePaymentsReceived")
-  finishedGoodsCreated    FinishedGoodProduct[] @relation("FinishedGoodsCreated")
-  finishedGoodsUpdated    FinishedGoodProduct[] @relation("FinishedGoodsUpdated")
-  finishedGoodStockTransactionsCreated FinishedGoodStockTransaction[] @relation("FinishedGoodStockTransactionsCreated")
-}
-
-model Organization {
-  id          Int      @id @default(autoincrement())
-  name        String
-  createdAt   DateTime @default(now())
-  users       User[]
-  projects    Project[]
-  invitations Invitation[]
-}
-
-model Project {
-  id             Int            @id @default(autoincrement())
-  organizationId Int
-  organization   Organization   @relation(fields: [organizationId], references: [id])
-  name           String
-  description    String?
-  status         ProjectStatus  @default(DRAFT)
-  startDate      DateTime?
-  endDate        DateTime?
-  sectors        String[]       @default([])
-  location       String?
-  donor          String?
-  budgetAmount   Float?
-  budgetSpent    Float?
-  budgetCurrency String?
-  createdAt      DateTime       @default(now())
-  nodes          LogframeNode[]
-  indicators     Indicator[]
-}
-
-model LogframeNode {
-  id          Int          @id @default(autoincrement())
-  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  projectId   Int
-  type        NodeType
-  title       String
-  description String?
-  assumptions String?
-  risks       String?
-  parent      LogframeNode? @relation("LogframeHierarchy", fields: [parentId], references: [id])
-  parentId    Int?
-  children    LogframeNode[] @relation("LogframeHierarchy")
-  sortOrder   Int           @default(0)
-  createdAt   DateTime      @default(now())
-  indicators  Indicator[]
-
-  @@index([projectId])
-  @@index([parentId])
-}
-
-model Indicator {
-  id             Int               @id @default(autoincrement())
-  project        Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  projectId      Int
-  logframeNode   LogframeNode      @relation(fields: [logframeNodeId], references: [id], onDelete: Cascade)
-  logframeNodeId Int
-  name           String
-  unit           String
-  baselineValue  Float?            // For numeric types
-  targetValue    Float?            // For numeric types
-  baselineCategory String?         // For CATEGORICAL type
-  targetCategory String?           // For CATEGORICAL type
-  dataType       IndicatorDataType
-  minValue       Float?
-  maxValue       Float?
-  anomalyConfig  Json?
-  validationConfig Json?           // Canonical validation rules
-  categories     Json?             // For CATEGORICAL type: array of category definitions
-  categoryConfig Json?             // For CATEGORICAL type: configuration (allowMultiple, maxSelections, etc.)
-  createdAt      DateTime          @default(now())
-  submissions    Submission[]
-  importTemplates ImportTemplate[]
-  importJobs     ImportJob[]
-  exportTemplates ExportTemplate[]
-  // Reminder fields for data entry
-  reminderEnabled      Boolean   @default(false)
-  reminderDaysBeforeDue Int?    // Days before due date to send reminder
-  reminderDaysAfterDue  Int?    // Days after due date to send overdue reminder
-  reminderRecipients    Json?   // Array of user IDs or emails to notify
-  createdByUser        User      @relation("IndicatorsCreated", fields: [createdByUserId], references: [id])
-  createdByUserId      Int
-
-  @@index([projectId])
-  @@index([logframeNodeId])
-  @@index([createdByUserId])
-}
-
-model Submission {
-  id              Int      @id @default(autoincrement())
-  indicator       Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
-  indicatorId     Int
-  reportedAt      DateTime
-  value           String
-  categoryValue   String?          // For CATEGORICAL type
-  disaggregationKey String?        // For disaggregated data
-  evidence        String?
-  createdByUser   User     @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
-  createdByUserId Int
-  sourceImportJob ImportJob? @relation(fields: [sourceImportJobId], references: [id], onDelete: SetNull)
-  sourceImportJobId Int?           // Tracks which import created this record
-  createdAt       DateTime @default(now())
-  isAnomaly        Boolean        @default(false)
-  anomalyReason    String?
-  anomalyStatus    AnomalyStatus?
-  anomalyScore     Float?
-  anomalyThreshold Float?
-  anomalyMethod    String?
-  anomalyMeta      Json?
-  anomalyReviewedBy Int?
-  anomalyReviewedAt DateTime?
-  reviewer         User?          @relation("AnomalyReviews", fields: [anomalyReviewedBy], references: [id])
-  deletedAt        DateTime?
-  deletedByUserId  Int?
-  deletedByUser    User?          @relation("DeletedSubmissions", fields: [deletedByUserId], references: [id])
-  updatedAt        DateTime       @updatedAt
-  updatedByUserId  Int?
-  updatedByUser    User?          @relation("UpdatedSubmissions", fields: [updatedByUserId], references: [id])
-
-  @@unique([indicatorId, reportedAt, disaggregationKey])
-  @@index([indicatorId])
-  @@index([anomalyReviewedBy])
-  @@index([sourceImportJobId])
-  @@index([deletedAt])
-  @@index([deletedByUserId])
-  @@index([updatedByUserId])
-}
-
-model ImportTemplate {
-  id              Int       @id @default(autoincrement())
-  indicator       Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
-  indicatorId     Int
-  name            String
-  description     String?
-  isDefault       Boolean   @default(false)
-  columnMapping   Json
-  createdBy       User      @relation(fields: [createdByUserId], references: [id])
-  createdByUserId Int
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  importJobs      ImportJob[]
-
-  @@index([indicatorId])
-  @@index([createdByUserId])
-}
-
-model ImportJob {
-  id              Int           @id @default(autoincrement())
-  importType      ImportType
-  indicator       Indicator?    @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
-  indicatorId     Int?
-  template        ImportTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  templateId      Int?
-  user            User          @relation(fields: [userId], references: [id])
-  userId          Int
-  fileName        String
-  fileSize        Int
-  totalRows       Int
-  processedRows   Int           @default(0)
-  successfulRows  Int           @default(0)
-  failedRows      Int           @default(0)
-  warningRows     Int           @default(0)
-  status          ImportStatus  @default(PENDING)
-  importMode      ImportMode    @default(CREATE_ONLY)
-  createdAt       DateTime      @default(now())
-  completedAt     DateTime?
-  stagingRows     ImportJobRow[]
-  submissions     Submission[]
-
-  @@index([indicatorId])
-  @@index([userId])
-  @@index([status])
-}
-
-model ImportJobRow {
-  id               Int       @id @default(autoincrement())
-  job              ImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  jobId            Int
-  rowNumber        Int
-  rawData          Json
-  normalizedData   Json?
-  validationStatus RowStatus @default(PENDING)
-  errors           Json?
-  warnings         Json?
-  createdAt        DateTime  @default(now())
-
-  @@unique([jobId, rowNumber])
-  @@index([jobId])
-  @@index([validationStatus])
-}
-
-model ExportTemplate {
-  id              Int       @id @default(autoincrement())
-  indicator       Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
-  indicatorId     Int
-  name            String
-  description     String?
-  isDefault       Boolean   @default(false)
-  columnConfig    Json
-  filterConfig    Json?
-  formatConfig    Json?
-  createdBy       User      @relation(fields: [createdByUserId], references: [id])
-  createdByUserId Int
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  @@index([indicatorId])
-  @@index([createdByUserId])
-}
-
-// Inventory models added by feature: Supplier + Raw Material Management
-
 enum SupplierStatus {
   ACTIVE
   INACTIVE
@@ -367,197 +898,24 @@ enum SalesPaymentStatus {
 enum SalesStockTransactionType {
   SALE_OUT
   SALE_RETURN
+  ADJUSTMENT
 }
 
-model Supplier {
-  id            String          @id @default(cuid())
-  name          String
-  contactName   String?
-  phone         String?
-  email         String?
-  address       String?
-  panVatNumber  String?
-  status        SupplierStatus  @default(ACTIVE)
-  notes         String?
-  externalRef   String?
-  balance       Decimal         @default(0)
-  createdBy     Int?
-  updatedBy     Int?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt()
-  deletedAt     DateTime?
-  purchases     Purchase[]
+enum CustomerLedgerEntryType {
+  OPENING_BALANCE
+  SALES_INVOICE
+  PAYMENT_RECEIVED
 }
 
-model Customer {
-  id            String       @id @default(cuid())
-  customerName  String
-  phone         String?
-  address       String?
-  panVatNumber  String?
-  customerType  String?
-  email         String?
-  notes         String?
-  createdBy     Int?
-  updatedBy     Int?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt()
-  deletedAt     DateTime?
-  salesInvoices SalesInvoice[]
-  salesOrders   SalesOrder[]
+enum SupplierLedgerEntryType {
+  OPENING_BALANCE
+  PURCHASE_INVOICE
+  PAYMENT_MADE
 }
 
-model RawMaterialCategory {
-  id            String       @id @default(cuid())
-  categoryName  String       @unique
-  description   String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt()
-  deletedAt     DateTime?
-  rawMaterials  RawMaterial[]
-}
-
-model RawMaterial {
-  id              String   @id @default(cuid())
-  sku             String?  @unique
-  name            String
-  description     String?
-  defaultUnit     String
-  unitConversions Json?
-  active          Boolean  @default(true)
-  costPrice       Decimal?
-  reorderLevel    Float?
-  categoryId      String?
-  category        RawMaterialCategory? @relation(fields: [categoryId], references: [id])
-  averageUnitCost Decimal? @default(0)
-  notes           String?
-  updatedBy       Int?
-  deletedAt       DateTime?
-  createdBy       Int?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt()
-  purchaseItems   PurchaseItem[]
-  stockTransactions StockTransaction[]
-  lowStockAlerts  LowStockAlert[]
-  bomItems        BOMItem[]
-  productionIssueLines ProductionIssueLine[]
-  @@index([sku, name])
-}
-
-model FinishedGoodProduct {
-  id             String   @id @default(cuid())
-  sku            String?  @unique
-  productCode    String?  @unique
-  name           String
-  description    String?
-  category       String?
-  unit           String   @default("pcs")
-  sellingPrice   Decimal  @default(0)
-  costPrice      Decimal  @default(0)
-  reorderLevel   Float?   @default(0)
-  active         Boolean  @default(true)
-  notes          String?
-  createdBy      Int?
-  createdByUser  User?    @relation("FinishedGoodsCreated", fields: [createdBy], references: [id])
-  updatedBy      Int?
-  updatedByUser  User?    @relation("FinishedGoodsUpdated", fields: [updatedBy], references: [id])
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt()
-  deletedAt      DateTime?
-  stockTransactions FinishedGoodStockTransaction[]
-  invoiceItems   SalesInvoiceItem[]
-  salesOrderItems SalesOrderItem[]
-  productionOrders ProductionOrder[] @relation("ProductionFinishedGood")
-  productionCompletionLines ProductionCompletionLine[] @relation("ProductionCompletionFinishedGood")
-}
-
-model Purchase {
-  id            String   @id @default(cuid())
-  supplierId    String
-  supplier      Supplier @relation(fields: [supplierId], references: [id])
-  invoiceNumber String?
-  invoiceDate   DateTime
-  currency      String   @default("NPR")
-  totalAmount   Decimal  @default(0)
-  createdBy     Int?
-  createdAt     DateTime @default(now())
-  status        String   @default("received")
-  notes         String?
-  items         PurchaseItem[]
-}
-
-model PurchaseItem {
-  id            String   @id @default(cuid())
-  purchaseId    String
-  purchase      Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
-  rawMaterialId String
-  rawMaterial   RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
-  quantity      Float
-  unit          String
-  unitPrice     Decimal
-  lineTotal     Decimal
-}
-
-model StockTransaction {
-  id            String   @id @default(cuid())
-  rawMaterialId String
-  rawMaterial   RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
-  change        Float
-  unit          String
-  transactionType String  @default("ADJUSTMENT")
-  balanceAfter    Float?
-  unitCost        Decimal?
-  reason        String
-  referenceId   String?
-  createdBy     Int?
-  createdAt     DateTime @default(now())
-}
-
-model FinishedGoodStockTransaction {
-  id              String   @id @default(cuid())
-  productId       String
-  product         FinishedGoodProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
-  change          Float
-  unit            String
-  transactionType SalesStockTransactionType @default(SALE_OUT)
-  balanceAfter    Float?
-  unitCost        Decimal?
-  reason          String
-  referenceId     String?
-  createdBy       Int?
-  createdByUser   User?    @relation("FinishedGoodStockTransactionsCreated", fields: [createdBy], references: [id])
-  createdAt       DateTime @default(now())
-}
-
-model LowStockAlert {
-  id             String   @id @default(cuid())
-  rawMaterialId  String
-  rawMaterial    RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
-  triggeredAt    DateTime @default(now())
-  acknowledged   Boolean  @default(false)
-  acknowledgedBy Int?
-}
-
-// Bill of Materials: groups of BOMItems linking garments/styles to raw materials
-model BillOfMaterials {
-  id          String   @id @default(cuid())
-  name        String
-  garmentStyle String
-  createdBy   Int?
-  createdAt   DateTime @default(now())
-  items       BOMItem[]
-  productionOrders ProductionOrder[] @relation("ProductionBom")
-}
-
-model BOMItem {
-  id               String  @id @default(cuid())
-  bomId            String
-  bom              BillOfMaterials @relation(fields: [bomId], references: [id], onDelete: Cascade)
-  rawMaterialId    String
-  rawMaterial      RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
-  consumption      Float
-  unit             String
-  yield            Float?
+enum ArticleCategoryStatus {
+  ACTIVE
+  INACTIVE
 }
 
 enum ProductionOrderStatus {
@@ -568,63 +926,6 @@ enum ProductionOrderStatus {
   CANCELLED
 }
 
-model ProductionOrder {
-  id                String                @id @default(cuid())
-  orderNumber       String?               @unique
-  bomId             String
-  bom               BillOfMaterials       @relation("ProductionBom", fields: [bomId], references: [id])
-  finishedGoodId    String
-  finishedGood      FinishedGoodProduct   @relation("ProductionFinishedGood", fields: [finishedGoodId], references: [id])
-  finishedGoodName  String
-  quantityPlanned   Float
-  quantityProduced  Float                 @default(0)
-  status            ProductionOrderStatus @default(DRAFT)
-  issuedAt          DateTime?
-  startedAt         DateTime?
-  completedAt       DateTime?
-  cancelledAt       DateTime?
-  notes             String?
-  createdBy         Int?
-  updatedBy         Int?
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt()
-  issueLines        ProductionIssueLine[]
-  completionLines   ProductionCompletionLine[]
-
-  @@index([bomId])
-  @@index([finishedGoodId])
-  @@index([status])
-}
-
-model ProductionIssueLine {
-  id                String          @id @default(cuid())
-  productionOrderId String
-  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
-  rawMaterialId     String
-  rawMaterial       RawMaterial     @relation(fields: [rawMaterialId], references: [id])
-  quantity          Float
-  unit              String
-  bomConsumption    Float
-  createdAt         DateTime        @default(now())
-
-  @@index([productionOrderId])
-  @@index([rawMaterialId])
-}
-
-model ProductionCompletionLine {
-  id                String          @id @default(cuid())
-  productionOrderId String
-  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
-  finishedGoodId    String
-  finishedGood      FinishedGoodProduct @relation("ProductionCompletionFinishedGood", fields: [finishedGoodId], references: [id])
-  quantity          Float
-  unit              String
-  createdAt         DateTime        @default(now())
-
-  @@index([productionOrderId])
-  @@index([finishedGoodId])
-}
-
 enum SalesOrderStatus {
   DRAFT
   CONFIRMED
@@ -632,150 +933,9 @@ enum SalesOrderStatus {
   CANCELLED
 }
 
-model SalesOrder {
-  id             String            @id @default(cuid())
-  orderNumber    String?           @unique
-  customerId     String
-  customer       Customer          @relation(fields: [customerId], references: [id])
-  status         SalesOrderStatus  @default(DRAFT)
-  orderDate      DateTime          @default(now())
-  requiredBy     DateTime?
-  notes          String?
-  subtotal       Decimal           @default(0)
-  discountAmount Decimal           @default(0)
-  taxAmount      Decimal           @default(0)
-  grandTotal     Decimal           @default(0)
-  createdBy      Int?
-  updatedBy      Int?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt()
-  items          SalesOrderItem[]
-  invoices       SalesInvoice[]
-
-  @@index([customerId])
-  @@index([status])
-}
-
-model SalesOrderItem {
-  id             String     @id @default(cuid())
-  salesOrderId   String
-  salesOrder     SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
-  productId      String
-  product        FinishedGoodProduct @relation(fields: [productId], references: [id])
-  productCode    String?
-  productName    String
-  quantity       Float
-  unitPrice      Decimal
-  discountAmount Decimal   @default(0)
-  taxAmount      Decimal   @default(0)
-  lineTotal      Decimal
-  createdAt      DateTime  @default(now())
-
-  @@index([salesOrderId])
-  @@index([productId])
-}
-
-model SalesInvoice {
-  id                 String              @id @default(cuid())
-  invoiceNumber      String?             @unique
-  fiscalYear         String?
-  customerId         String
-  customer           Customer            @relation(fields: [customerId], references: [id])
-  salesOrderId       String?
-  salesOrder         SalesOrder?         @relation(fields: [salesOrderId], references: [id])
-  invoiceDate        DateTime
-  dueDate            DateTime?
-  subtotal           Decimal             @default(0)
-  discountAmount     Decimal             @default(0)
-  taxableAmount      Decimal             @default(0)
-  nonTaxableAmount   Decimal             @default(0)
-  taxAmount          Decimal             @default(0)
-  grandTotal         Decimal             @default(0)
-  paidAmount         Decimal             @default(0)
-  dueAmount          Decimal             @default(0)
-  paymentStatus      SalesPaymentStatus  @default(UNPAID)
-  invoiceStatus      SalesInvoiceStatus   @default(DRAFT)
-  printedCount       Int                 @default(0)
-  syncStatus         String?
-  syncReference      String?
-  cancellationReason String?
-  remarks            String?
-  createdBy          Int?
-  createdByUser      User?               @relation("SalesInvoicesCreated", fields: [createdBy], references: [id])
-  approvedBy         Int?
-  approvedByUser     User?               @relation("SalesInvoicesApproved", fields: [approvedBy], references: [id])
-  issuedBy           Int?
-  issuedByUser       User?               @relation("SalesInvoicesIssued", fields: [issuedBy], references: [id])
-  cancelledBy        Int?
-  cancelledByUser    User?               @relation("SalesInvoicesCancelled", fields: [cancelledBy], references: [id])
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt()
-  approvedAt         DateTime?
-  issuedAt           DateTime?
-  cancelledAt        DateTime?
-  items              SalesInvoiceItem[]
-  payments           SalesInvoicePayment[]
-}
-
-model SalesInvoiceItem {
-  id             String              @id @default(cuid())
-  invoiceId      String
-  invoice        SalesInvoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  productId      String
-  product        FinishedGoodProduct @relation(fields: [productId], references: [id])
-  productCode    String?
-  productName    String
-  quantity       Float
-  unitPrice      Decimal
-  discountAmount Decimal             @default(0)
-  taxableAmount  Decimal             @default(0)
-  taxAmount      Decimal             @default(0)
-  lineTotal      Decimal
-  costPrice      Decimal             @default(0)
-  profitAmount   Decimal             @default(0)
-  warehouseId    String?
-  createdAt      DateTime            @default(now())
-}
-
-model SalesInvoicePayment {
-  id              String       @id @default(cuid())
-  invoiceId       String
-  invoice         SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  paymentDate     DateTime
-  amount          Decimal
-  paymentMethod   String
-  note            String?
-  receivedBy      Int?
-  receivedByUser  User?        @relation("SalesInvoicePaymentsReceived", fields: [receivedBy], references: [id])
-  createdAt       DateTime     @default(now())
-}
-
 enum ExpenseStatus {
   DRAFT
   APPROVED
   PAID
   VOID
-}
-
-model Expense {
-  id             String        @id @default(cuid())
-  expenseNumber  String?       @unique
-  expenseDate    DateTime      @default(now())
-  category       String
-  vendor         String?
-  description    String
-  amount         Decimal       @default(0)
-  currency       String        @default("USD")
-  status         ExpenseStatus @default(DRAFT)
-  paymentDate    DateTime?
-  notes          String?
-  createdBy      Int?
-  updatedBy      Int?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt()
-  deletedAt      DateTime?
-
-  @@index([expenseDate])
-  @@index([category])
-  @@index([status])
 }

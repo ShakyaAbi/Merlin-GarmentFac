@@ -9,7 +9,7 @@ import { salesOrderApi, SalesOrder } from '../../services/salesOrderApi'
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'NPR',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number(value ?? 0))
@@ -162,6 +162,23 @@ export default function SalesOrderDetailPage() {
                 </tr>
               ))}
             </InventoryDataTable>
+          </InventorySectionCard>
+
+          <InventorySectionCard title="Sales Impact" description="Sales orders do not move stock until they are invoiced.">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3 text-sm">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-slate-500">Reserved value</div>
+                <div className="mt-1 text-lg font-semibold text-slate-900">{money(order.grandTotal)}</div>
+              </div>
+              <div className="rounded-2xl bg-emerald-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-emerald-500">Confirmed</div>
+                <div className="mt-1 text-lg font-semibold text-emerald-700">{order.status === 'CONFIRMED' ? 'Yes' : 'No'}</div>
+              </div>
+              <div className="rounded-2xl bg-amber-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-amber-500">Fulfilled</div>
+                <div className="mt-1 text-lg font-semibold text-amber-700">{order.status === 'FULFILLED' ? 'Yes' : 'No'}</div>
+              </div>
+            </div>
           </InventorySectionCard>
         </div>
       ) : (

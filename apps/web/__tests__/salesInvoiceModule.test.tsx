@@ -12,6 +12,7 @@ jest.mock("../services/salesInvoiceApi", () => ({
     listCustomers: jest.fn(),
     listProducts: jest.fn(),
     list: jest.fn(),
+    previewNextInvoiceNumber: jest.fn(),
     get: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
@@ -76,7 +77,7 @@ describe("sales invoice screens", () => {
       {
         id: "fg-1",
         productCode: "FG-001",
-        name: "Finished Good One",
+        name: "Article One",
         unit: "pcs",
         sellingPrice: 1200,
       },
@@ -96,6 +97,23 @@ describe("sales invoice screens", () => {
     expect(await screen.findByText("Save Draft")).toBeTruthy();
     expect(await screen.findByText("Save & Issue")).toBeTruthy();
     expect(await screen.findByText("Finished-Goods Catalog")).toBeTruthy();
+  });
+
+  it("prefills the next sales invoice number from the backend", async () => {
+    mockedApi.listCustomers.mockResolvedValue([]);
+    mockedApi.listProducts.mockResolvedValue([]);
+    mockedApi.previewNextInvoiceNumber.mockResolvedValue("SI-2026-00042");
+
+    render(
+      <MemoryRouter initialEntries={["/sales-invoices/create"]}>
+        <Routes>
+          <Route path="/sales-invoices/create" element={<SalesInvoiceCreatePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByDisplayValue("SI-2026-00042")).toBeTruthy();
+    expect(mockedApi.previewNextInvoiceNumber).toHaveBeenCalledWith("2026-06-13");
   });
 
   it("renders the invoice detail workflow", async () => {

@@ -14,6 +14,7 @@ type CustomerForm = {
   panVatNumber: string
   customerType: string
   notes: string
+  openingBalance: string
 }
 
 const emptyForm: CustomerForm = {
@@ -24,10 +25,11 @@ const emptyForm: CustomerForm = {
   panVatNumber: '',
   customerType: '',
   notes: '',
+  openingBalance: '',
 }
 
 const money = (value: number | string | null | undefined) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value ?? 0))
+  new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR' }).format(Number(value ?? 0))
 
 export default function CustomersPage() {
   const navigate = useNavigate()
@@ -37,6 +39,7 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState<CustomerForm>(emptyForm)
+  const [nextCustomerNumber, setNextCustomerNumber] = useState('')
 
   const loadCustomers = async () => {
     setLoading(true)
@@ -52,6 +55,7 @@ export default function CustomersPage() {
   }
 
   useEffect(() => {
+    api.get('/customers/next-number').then((data: any) => setNextCustomerNumber(data?.customerNumber || '')).catch(() => setNextCustomerNumber(''))
     void loadCustomers()
   }, [])
 
@@ -66,12 +70,8 @@ export default function CustomersPage() {
   }, [customers, search])
 
   const stats = useMemo(() => {
-    const totalSales = customers.reduce((sum, customer) => sum + (customer.salesInvoices?.length || 0), 0)
-    const openBalance = customers.reduce(
-      (sum, customer) =>
-        sum + (customer.salesInvoices || []).reduce((lineSum: number, invoice: any) => lineSum + Number(invoice.dueAmount ?? 0), 0),
-      0,
-    )
+    const totalSales = customers.reduce((sum, customer) => sum + Number(customer.summary?.totalInvoiced ?? 0), 0)
+    const openBalance = customers.reduce((sum, customer) => sum + Number(customer.summary?.outstandingAmount ?? 0), 0)
     return { total: customers.length, totalSales, openBalance }
   }, [customers])
 
@@ -93,6 +93,7 @@ export default function CustomersPage() {
         panVatNumber: form.panVatNumber.trim() || undefined,
         customerType: form.customerType.trim() || undefined,
         notes: form.notes.trim() || undefined,
+        openingBalance: form.openingBalance ? Number(form.openingBalance) : 0,
       })
       setForm(emptyForm)
       await loadCustomers()
@@ -125,6 +126,10 @@ export default function CustomersPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <InventorySectionCard title="New Customer" description="Create a customer record once and reuse it in sales documents.">
           <div className="space-y-4">
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Customer Number</span>
+              <input value={nextCustomerNumber} readOnly className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2" placeholder="CUS-00001" />
+            </label>
             <label className="block text-sm">
               <span className="mb-1 block text-slate-600">Customer Name</span>
               <input
@@ -193,6 +198,15 @@ export default function CustomersPage() {
                 placeholder="Optional internal notes"
               />
             </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Opening Balance (customer receivable)</span>
+              <input
+                value={form.openingBalance}
+                onChange={(e) => setForm({ ...form, openingBalance: e.target.value })}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                placeholder="0.00"
+              />
+            </label>
             {error ? (
               <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
                 {error}
@@ -240,15 +254,15 @@ export default function CustomersPage() {
                   { label: 'Actions' },
                 ]}
               >
-                {filteredCustomers.map((customer) => {
-                  const invoices = Array.isArray(customer.salesInvoices) ? customer.salesInvoices : []
-                  const openBalance = invoices.reduce((sum: number, invoice: any) => sum + Number(invoice.dueAmount ?? 0), 0)
-                  return (
-                    <tr key={customer.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/70">
-                      <td className="px-3 py-4 align-top">
-                        <div className="font-semibold text-slate-900">{customer.customerName}</div>
-                        <div className="text-xs text-slate-500">{customer.email || 'No email'}</div>
-                      </td>
+                  {filteredCustomers.map((customer) => {
+                    const invoices = Array.isArray(customer.salesInvoices) ? customer.salesInvoices : []
+                    const openBalance = Number(customer.summary?.outstandingAmount ?? 0)
+                    return (
+                      <tr key={customer.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/70">
+                        <td className="px-3 py-4 align-top">
+                          <div className="font-semibold text-slate-900">{customer.customerName}</div>
+                          <div className="text-xs text-slate-500">{customer.customerNumber || 'No number'}</div>
+                        </td>
                       <td className="px-3 py-4 align-top text-slate-600">
                         <div>{customer.phone || '-'}</div>
                         <div className="text-xs">{customer.address || '-'}</div>

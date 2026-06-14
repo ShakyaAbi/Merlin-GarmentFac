@@ -760,7 +760,7 @@ async function main() {
   console.log("Seeding inventory demo data...")
   await seedInventory({ prisma, createdByUserId: adminUser.id });
 
-  // Seed the sales demo data and finished-goods stock activity
+  // Seed the sales demo data and article stock activity
   console.log("Seeding sales invoice demo data...")
   await seedSalesInvoices({ prisma, createdByUserId: adminUser.id });
 
@@ -777,10 +777,9 @@ async function main() {
 async function seedOperationalDocs(prisma: PrismaClient, userId: number) {
   const customers = await prisma.customer.findMany({ orderBy: { createdAt: 'asc' } })
   const finishedGoods = await prisma.finishedGoodProduct.findMany({ where: { deletedAt: null }, orderBy: { createdAt: 'asc' } })
-  const boms = await prisma.billOfMaterials.findMany({ include: { items: { include: { rawMaterial: true } } } })
   const materials = await prisma.rawMaterial.findMany({ where: { deletedAt: null }, orderBy: { createdAt: 'asc' } })
 
-  if (customers.length === 0 || finishedGoods.length === 0 || boms.length === 0 || materials.length === 0) {
+  if (customers.length === 0 || finishedGoods.length === 0 || materials.length === 0) {
     console.log('Skipping operational doc seed because prerequisite inventory records are missing.')
     return
   }
@@ -904,7 +903,6 @@ async function seedOperationalDocs(prisma: PrismaClient, userId: number) {
   const productionSeeds = [
     {
       orderNumber: 'PROD-2526-0001',
-      bomId: boms[0].id,
       finishedGoodId: finishedGoods[0].id,
       quantityPlanned: 18,
       quantityProduced: 18,
@@ -913,7 +911,6 @@ async function seedOperationalDocs(prisma: PrismaClient, userId: number) {
     },
     {
       orderNumber: 'PROD-2526-0002',
-      bomId: boms[1]?.id || boms[0].id,
       finishedGoodId: finishedGoods[1].id,
       quantityPlanned: 12,
       quantityProduced: 12,
@@ -922,7 +919,6 @@ async function seedOperationalDocs(prisma: PrismaClient, userId: number) {
     },
     {
       orderNumber: 'PROD-2526-0003',
-      bomId: boms[0].id,
       finishedGoodId: finishedGoods[2]?.id || finishedGoods[0].id,
       quantityPlanned: 8,
       quantityProduced: 0,
@@ -937,9 +933,8 @@ async function seedOperationalDocs(prisma: PrismaClient, userId: number) {
     const created = await prisma.productionOrder.create({
       data: {
         orderNumber: production.orderNumber,
-        bomId: production.bomId,
         finishedGoodId: production.finishedGoodId,
-        finishedGoodName: finishedGoods.find((fg) => fg.id === production.finishedGoodId)?.name || 'Finished good',
+        finishedGoodName: finishedGoods.find((fg) => fg.id === production.finishedGoodId)?.name || 'Article',
         quantityPlanned: production.quantityPlanned,
         quantityProduced: production.quantityProduced,
         status: production.status,
@@ -953,12 +948,9 @@ async function seedOperationalDocs(prisma: PrismaClient, userId: number) {
     })
 
     if (production.status !== 'DRAFT') {
-      const bom = await prisma.billOfMaterials.findUnique({
-        where: { id: production.bomId },
-        include: { items: { include: { rawMaterial: true } } },
-      })
-      if (bom) {
-        for (const item of bom.items) {
+      const finishedGood = await prisma.finishedGoodProduct.findUnique({ where: { id: production.finishedGoodId } })
+      const bomItems = Array.isArray((finishedGood as any)?.bomData?.items) ? (finishedGood as any).bomData.items : []
+      for (const item of bomItems) {
           const requiredQty = Number(item.consumption ?? 0) * production.quantityPlanned
           const currentStock = await prisma.stockTransaction.aggregate({
             _sum: { change: true },
@@ -986,7 +978,6 @@ async function seedOperationalDocs(prisma: PrismaClient, userId: number) {
               bomConsumption: Number(item.consumption ?? 0),
             },
           })
-        }
       }
 
       const fg = await prisma.finishedGoodProduct.findUnique({ where: { id: production.finishedGoodId } })

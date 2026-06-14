@@ -14,6 +14,7 @@ const productSelect = {
   reorderLevel: true,
   active: true,
   notes: true,
+  bomData: true as any,
   createdBy: true,
   updatedBy: true,
   createdAt: true,

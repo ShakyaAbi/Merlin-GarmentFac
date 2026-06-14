@@ -7,7 +7,7 @@ import { InventoryDataTable } from '../../components/inventory/InventoryDataTabl
 import { Button } from '../../components/ui/Button'
 
 const money = (value: number | string | null | undefined) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
+  new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
 
 const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString() : '-')
 
@@ -54,11 +54,11 @@ export default function OperationsDashboardPage() {
     const moneyData = summary?.money || {}
     return [
       { label: 'Raw materials', value: counts.materials || 0 },
-      { label: 'Finished goods', value: counts.finishedGoods || 0, tone: 'success' as const },
+      { label: 'Articles', value: counts.finishedGoods || 0, tone: 'success' as const },
       { label: 'Suppliers', value: counts.suppliers || 0 },
       { label: 'Customers', value: counts.customers || 0 },
       { label: 'Low stock materials', value: counts.lowStockMaterials || 0, tone: 'warning' as const },
-      { label: 'Low stock finished goods', value: counts.lowStockFinishedGoods || 0, tone: 'warning' as const },
+      { label: 'Low stock articles', value: counts.lowStockFinishedGoods || 0, tone: 'warning' as const },
       { label: 'Sales value', value: money(moneyData.salesTotal) },
       { label: 'Open balance', value: money(moneyData.dueTotal), tone: 'warning' as const },
       { label: 'Purchase value', value: money(moneyData.purchaseValue) },
@@ -194,7 +194,7 @@ export default function OperationsDashboardPage() {
                 caption="Recent production orders"
                 columns={[
                   { label: 'Order' },
-                  { label: 'Finished Good' },
+                  { label: 'Article' },
                   { label: 'Planned Qty' },
                   { label: 'Status' },
                 ]}
@@ -225,7 +225,7 @@ export default function OperationsDashboardPage() {
             </div>
           </InventorySectionCard>
 
-          <InventorySectionCard title="Low Stock Finished Goods" description="Products that need replenishment from production.">
+          <InventorySectionCard title="Low Stock Articles" description="Products that need replenishment from production.">
             <div className="space-y-3">
               {lowStockFinishedGoods.map((item) => (
                 <div key={item.id} className="rounded-xl bg-amber-50 px-3 py-2 text-sm">
@@ -233,7 +233,7 @@ export default function OperationsDashboardPage() {
                   <div className="text-slate-500">Stock {Number(item.currentStock ?? 0)} | Reorder {item.reorderLevel ?? 'N/A'}</div>
                 </div>
               ))}
-              {lowStockFinishedGoods.length === 0 ? <div className="text-sm text-slate-500">No low-stock finished goods.</div> : null}
+              {lowStockFinishedGoods.length === 0 ? <div className="text-sm text-slate-500">No low-stock articles.</div> : null}
             </div>
           </InventorySectionCard>
 
@@ -279,7 +279,7 @@ export default function OperationsDashboardPage() {
                 Materials
               </Button>
               <Button type="button" variant="outline" onClick={() => window.location.hash = '#/inventory/finished-goods'}>
-                Finished Goods
+                Articles
               </Button>
               <Button type="button" variant="outline" onClick={() => window.location.hash = '#/inventory/purchases'}>
                 Purchases

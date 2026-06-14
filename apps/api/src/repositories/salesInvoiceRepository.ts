@@ -1,5 +1,7 @@
 import { Prisma, SalesPaymentStatus, SalesInvoiceStatus, SalesStockTransactionType } from '@prisma/client'
 import { prisma } from '../prisma'
+import { appendCustomerLedgerEntry } from '../services/ledgerService'
+import { allocateDocumentNumber } from '../services/sequenceService'
 import { AppError } from '../utils/errors'
 
 const userSelect = {
@@ -28,6 +30,15 @@ const invoiceInclude = {
   issuedByUser: { select: userSelect },
   cancelledByUser: { select: userSelect },
 } as const
+
+function parseSalesInvoiceSequence(invoiceNumber?: string | null) {
+  const match = invoiceNumber?.match(/^SI-(\d{4})-(\d{4,})$/)
+  if (!match) return null
+  return {
+    year: Number(match[1]),
+    sequence: Number(match[2]),
+  }
+}
 
 type Tx = Prisma.TransactionClient
 
@@ -98,6 +109,10 @@ export async function listInvoices(opts: {
 
 export async function getInvoice(id: string) {
   return loadInvoice(prisma, id)
+}
+
+export async function previewNextInvoiceNumber(invoiceDate: Date) {
+  return allocateDocumentNumber('sales_invoice', { fiscalYear: String(invoiceDate.getFullYear()) })
 }
 
 export async function createDraftInvoice(
@@ -193,14 +208,8 @@ export async function issueInvoice(id: string, userId?: number) {
     }
 
     const invoiceYear = invoice.invoiceDate.getFullYear()
-    const fiscalYear = invoice.fiscalYear || `FY${invoiceYear}`
-    const invoiceNumber = invoice.invoiceNumber || `SI-${invoiceYear}-${String(
-      (await tx.salesInvoice.count({
-        where: {
-          invoiceNumber: { startsWith: `SI-${invoiceYear}-` },
-        },
-      })) + 1,
-    ).padStart(5, '0')}`
+    const fiscalYear = invoice.fiscalYear || String(invoiceYear)
+    const invoiceNumber = invoice.invoiceNumber || (await allocateDocumentNumber('sales_invoice', { fiscalYear, tx }))
     const issuedAt = new Date()
     const paidAmount = new Prisma.Decimal(invoice.paidAmount || 0)
     const grandTotal = new Prisma.Decimal(invoice.grandTotal || 0)
@@ -241,6 +250,20 @@ export async function issueInvoice(id: string, userId?: number) {
       },
     })
 
+    await appendCustomerLedgerEntry({
+      tx,
+      customerId: invoice.customerId,
+      entryType: 'SALES_INVOICE',
+      entryDate: issuedAt,
+      referenceType: 'sales_invoice',
+      referenceId: invoice.id,
+      documentNumber: invoiceNumber,
+      description: `Sales invoice ${invoiceNumber}`,
+      debit: grandTotal,
+      credit: 0,
+      createdBy: userId ?? null,
+    })
+
     return getInvoiceOrThrow(tx, id)
   })
 }
@@ -272,8 +295,14 @@ export async function recordPayment(
       throw new AppError(400, 'PAYMENT_EXCEEDS_DUE', 'Payment amount exceeds the remaining due amount')
     }
 
+    const paymentNumber = await allocateDocumentNumber('payment', {
+      fiscalYear: invoice.fiscalYear || String(invoice.invoiceDate.getFullYear()),
+      tx,
+    })
+
     await tx.salesInvoicePayment.create({
       data: {
+        paymentNumber,
         invoiceId: id,
         paymentDate: payment.paymentDate || new Date(),
         amount,
@@ -293,6 +322,20 @@ export async function recordPayment(
         dueAmount,
         paymentStatus: mapPaymentStatus(updatedPaidAmount, grandTotal),
       },
+    })
+
+    await appendCustomerLedgerEntry({
+      tx,
+      customerId: invoice.customerId,
+      entryType: 'PAYMENT_RECEIVED',
+      entryDate: payment.paymentDate || new Date(),
+      referenceType: 'sales_invoice_payment',
+      referenceId: id,
+      documentNumber: paymentNumber,
+      description: `Payment received for ${invoice.invoiceNumber || invoice.id}`,
+      debit: 0,
+      credit: amount,
+      createdBy: userId ?? null,
     })
 
     return getInvoiceOrThrow(tx, id)

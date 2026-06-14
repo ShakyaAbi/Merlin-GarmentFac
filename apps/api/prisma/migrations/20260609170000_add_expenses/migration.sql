@@ -10,7 +10,7 @@ CREATE TABLE "Expense" (
     "vendor" TEXT,
     "description" TEXT NOT NULL,
     "amount" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "currency" TEXT NOT NULL DEFAULT 'USD',
+    "currency" TEXT NOT NULL DEFAULT 'NPR',
     "status" "ExpenseStatus" NOT NULL DEFAULT 'DRAFT',
     "paymentDate" TIMESTAMP(3),
     "notes" TEXT,

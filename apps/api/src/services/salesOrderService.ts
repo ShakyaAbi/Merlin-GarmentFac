@@ -25,7 +25,7 @@ async function validateProducts(items: any[]) {
   const productMap = new Map(products.map((product) => [product.id, product]))
   if (productMap.size !== productIds.length) {
     const missing = productIds.filter((id) => !productMap.has(id))
-    throw new AppError(400, 'INVALID_PRODUCT', `Unknown finished-good product(s): ${missing.join(', ')}`)
+    throw new AppError(400, 'INVALID_PRODUCT', `Unknown article product(s): ${missing.join(', ')}`)
   }
   return productMap
 }

@@ -168,7 +168,7 @@ export async function main() {
     },
     {
       name: "Monthly Revenue Collection",
-      unit: "USD",
+      unit: "NPR",
       baselineValue: 5000,
       targetValue: 10000,
       anomalyConfig: {

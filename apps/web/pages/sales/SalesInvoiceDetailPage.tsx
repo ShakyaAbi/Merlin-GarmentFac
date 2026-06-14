@@ -1,18 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Ban, Download, ReceiptText, Send, WalletCards } from 'lucide-react'
-import { salesInvoiceApi, SalesInvoice } from '../../services/salesInvoiceApi'
+import { salesInvoiceApi } from '../../services/salesInvoiceApi'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
 import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { InvoiceItemTable, InvoiceDraftItem } from '../../components/sales/InvoiceItemTable'
 import { InvoiceTotalsCard } from '../../components/sales/InvoiceTotalsCard'
 import { Button } from '../../components/ui/Button'
+import { InvoicePaperDocument } from '../../components/invoices/InvoicePaperDocument'
+import { buildSalesInvoicePaperDocumentProps } from '../../components/invoices/invoicePaperDocumentHelpers'
+import { calculateInvoiceTotals } from '../../components/invoices/invoiceTotals'
+
+type SalesInvoice = Awaited<ReturnType<typeof salesInvoiceApi.get>>
 
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'NPR',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number(value ?? 0))
@@ -98,20 +103,25 @@ export default function SalesInvoiceDetailPage() {
 
   const summary = useMemo(() => {
     const items = invoice?.items || []
-    const subtotal = items.reduce((sum, item) => sum + Number(item.quantity ?? 0) * Number(item.unitPrice ?? 0), 0)
-    const discountAmount = items.reduce((sum, item) => sum + Number(item.discountAmount ?? 0), 0)
-    const taxAmount = items.reduce((sum, item) => sum + Number(item.taxAmount ?? 0), 0)
-    const taxableAmount = Math.max(subtotal - discountAmount, 0)
-    const grandTotal = Number(invoice?.grandTotal ?? taxableAmount + taxAmount)
+    const totals = calculateInvoiceTotals({
+      lines: items.map((item) => ({
+        id: item.id,
+        quantity: item.quantity,
+        rate: item.unitPrice,
+        amount: Number(item.quantity ?? 0) * Number(item.unitPrice ?? 0),
+        discountAmount: item.discountAmount,
+      })),
+    })
+    const grandTotal = Number(invoice?.grandTotal ?? totals.grandTotal)
     const paidAmount = Number(invoice?.paidAmount ?? 0)
     const dueAmount = Number(invoice?.dueAmount ?? Math.max(grandTotal - paidAmount, 0))
 
     return {
-      subtotal,
-      discountAmount,
-      taxableAmount,
+      subtotal: totals.subtotal,
+      discountAmount: totals.discountAmount,
+      taxableAmount: totals.taxableAmount,
       nonTaxableAmount: Number(invoice?.nonTaxableAmount ?? 0),
-      taxAmount,
+      taxAmount: totals.taxAmount,
       grandTotal,
       paidAmount,
       dueAmount,
@@ -123,6 +133,8 @@ export default function SalesInvoiceDetailPage() {
   }, [invoice])
 
   const draftItems = useMemo(() => toDraftItems(invoice), [invoice])
+  const customerName = invoice?.customer?.customerName || invoice?.customerName || 'Walk-in customer'
+  const paperDocument = useMemo(() => buildSalesInvoicePaperDocumentProps(invoice, customerName), [invoice, customerName])
 
   const mutateInvoice = async (label: string, action: () => Promise<SalesInvoice>) => {
     if (!invoice) return
@@ -173,8 +185,6 @@ export default function SalesInvoiceDetailPage() {
     await mutateInvoice('cancel', () => salesInvoiceApi.cancel(invoice!.id, { reason: cancelReason.trim() }))
   }
 
-  const customerName = invoice?.customer?.customerName || invoice?.customerName || 'Walk-in customer'
-
   if (loading) {
     return (
       <div className="py-12 text-center text-sm text-slate-500" role="status" aria-live="polite">
@@ -216,7 +226,7 @@ export default function SalesInvoiceDetailPage() {
         </div>
       ) : null}
 
-      <InventoryStatGrid
+          <InventoryStatGrid
         stats={[
           { label: 'Grand total', value: money(summary.grandTotal) },
           { label: 'Paid amount', value: money(summary.paidAmount), tone: 'success' },
@@ -229,7 +239,7 @@ export default function SalesInvoiceDetailPage() {
         <div className="space-y-6">
           <InventorySectionCard
             title="Invoice Workflow"
-            description="Drafts can be edited before issue; issue is the stock-moving step for finished goods."
+            description="Drafts can be edited before issue; issue is the stock-moving step for articles."
             action={
               <div className="flex flex-wrap gap-2">
                 <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusClass(invoice.invoiceStatus)}`}>
@@ -302,6 +312,32 @@ export default function SalesInvoiceDetailPage() {
               </div>
             }
           />
+
+          <InventorySectionCard title="Debit / Credit" description="Sales invoices debit the customer and payments credit the customer.">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3 text-sm">
+              <div className="rounded-2xl bg-rose-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-rose-500">Debit</div>
+                <div className="mt-1 text-lg font-semibold text-rose-700">{money(summary.grandTotal)}</div>
+                <div className="text-xs text-rose-600">Invoice amount charged to customer</div>
+              </div>
+              <div className="rounded-2xl bg-emerald-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-emerald-500">Credit</div>
+                <div className="mt-1 text-lg font-semibold text-emerald-700">{money(summary.paidAmount)}</div>
+                <div className="text-xs text-emerald-600">Payments received against invoice</div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-slate-500">Due</div>
+                <div className="mt-1 text-lg font-semibold text-slate-900">{money(summary.dueAmount)}</div>
+                <div className="text-xs text-slate-600">Outstanding customer balance</div>
+              </div>
+            </div>
+          </InventorySectionCard>
+
+          <InventorySectionCard title="Paper Invoice" description="Shared paper-style invoice layout for sales and purchase documents.">
+            {paperDocument ? (
+              <InvoicePaperDocument {...paperDocument} />
+            ) : null}
+          </InventorySectionCard>
 
           <InventorySectionCard title="Payment History" description="Payments are recorded independently from the invoice issue step.">
             {invoice.payments && invoice.payments.length > 0 ? (

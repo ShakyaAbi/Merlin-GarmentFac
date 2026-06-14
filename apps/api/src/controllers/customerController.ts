@@ -13,10 +13,22 @@ export const list = async (req: Request, res: Response) => {
   res.json(data)
 }
 
+export const nextNumber = async (_req: Request, res: Response) => {
+  const data = await svc.previewNextCustomerNumber()
+  res.json({ customerNumber: data })
+}
+
 export const get = async (req: Request, res: Response) => {
   const customer = await svc.getCustomer(req.params.id)
   if (!customer) return res.status(404).send('Not found')
   res.json(customer)
+}
+
+export const ledger = async (req: Request, res: Response) => {
+  const customer = await svc.getCustomer(req.params.id)
+  if (!customer) return res.status(404).send('Not found')
+  const entries = await svc.getCustomerLedger(req.params.id)
+  res.json({ entries, summary: customer.summary, customerId: customer.id, customerNumber: (customer as any).customerNumber || null })
 }
 
 export const create = async (req: Request, res: Response) => {

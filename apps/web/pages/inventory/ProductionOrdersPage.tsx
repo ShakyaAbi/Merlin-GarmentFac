@@ -9,25 +9,22 @@ import { Button } from '../../components/ui/Button'
 export default function ProductionOrdersPage() {
   const navigate = useNavigate()
   const [orders, setOrders] = useState<any[]>([])
-  const [boms, setBoms] = useState<any[]>([])
   const [finishedGoods, setFinishedGoods] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [form, setForm] = useState({ bomId: '', finishedGoodId: '', quantityPlanned: '1', notes: '' })
+  const [form, setForm] = useState({ finishedGoodId: '', quantityPlanned: '1', notes: '' })
 
   const load = async () => {
     setLoading(true)
     setError(null)
     try {
-      const [orderData, bomData, fgData] = await Promise.all([
+      const [orderData, fgData] = await Promise.all([
         api.get('/production'),
-        api.get('/inventory/boms').catch(() => []),
         api.get('/inventory/finished-goods'),
       ])
       setOrders(Array.isArray(orderData) ? orderData : [])
-      setBoms(Array.isArray(bomData) ? bomData : [])
       setFinishedGoods(Array.isArray((fgData as any)?.items) ? (fgData as any).items : Array.isArray(fgData) ? fgData : [])
     } catch (err: any) {
       setError(err?.message || 'Failed to load production orders.')
@@ -49,20 +46,19 @@ export default function ProductionOrdersPage() {
   }, [orders, search])
 
   const createOrder = async () => {
-    if (!form.bomId || !form.finishedGoodId) {
-      setError('BOM and finished good are required.')
+    if (!form.finishedGoodId) {
+      setError('Article is required.')
       return
     }
     setSaving(true)
     setError(null)
     try {
       await api.post('/production', {
-        bomId: form.bomId,
         finishedGoodId: form.finishedGoodId,
         quantityPlanned: Number(form.quantityPlanned || 1),
         notes: form.notes || undefined,
       })
-      setForm({ bomId: '', finishedGoodId: '', quantityPlanned: '1', notes: '' })
+      setForm({ finishedGoodId: '', quantityPlanned: '1', notes: '' })
       await load()
     } catch (err: any) {
       setError(err?.message || 'Failed to create production order.')
@@ -93,24 +89,17 @@ export default function ProductionOrdersPage() {
     <InventoryPageShell
       eyebrow="Production"
       title="Production Orders"
-      description="Issue raw materials when production starts and add finished goods only on completion."
+      description="Issue raw materials when production starts and add articles only on completion."
       actions={[{ label: 'Materials', variant: 'outline', to: '/inventory/materials' }]}
     >
       {error ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <InventorySectionCard title="New Production Order" description="Single finished-good output per order.">
+        <InventorySectionCard title="New Production Order" description="Single article output per order.">
           <div className="space-y-3">
             <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">BOM</span>
-              <select value={form.bomId} onChange={(e) => setForm({ ...form, bomId: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2">
-                <option value="">Select BOM</option>
-                {boms.map((bom) => <option key={bom.id} value={bom.id}>{bom.garmentStyle || bom.name}</option>)}
-              </select>
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">Finished Good</span>
+              <span className="mb-1 block text-slate-600">Article</span>
               <select value={form.finishedGoodId} onChange={(e) => setForm({ ...form, finishedGoodId: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2">
-                <option value="">Select finished good</option>
+                <option value="">Select article</option>
                 {finishedGoods.map((fg) => <option key={fg.id} value={fg.id}>{fg.name}</option>)}
               </select>
             </label>
@@ -126,7 +115,7 @@ export default function ProductionOrdersPage() {
           </div>
         </InventorySectionCard>
 
-        <InventorySectionCard title="Production Register" description="Issue material first, then complete to add finished goods.">
+        <InventorySectionCard title="Production Register" description="Issue material first, then complete to add articles.">
           <div className="mb-4">
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search production orders" className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm md:w-72" />
           </div>
@@ -135,7 +124,7 @@ export default function ProductionOrdersPage() {
           ) : filteredOrders.length === 0 ? (
             <div className="py-10 text-center text-sm text-slate-500">No production orders yet.</div>
           ) : (
-            <InventoryDataTable caption="Production orders" columns={[{ label: 'Order' }, { label: 'Finished Good' }, { label: 'Qty' }, { label: 'Status' }, { label: 'Actions' }]}>
+          <InventoryDataTable caption="Production orders" columns={[{ label: 'Order' }, { label: 'Article' }, { label: 'Qty' }, { label: 'Status' }, { label: 'Actions' }]}>
               {filteredOrders.map((order) => (
                 <tr key={order.id} className="border-b border-slate-100 last:border-b-0">
                   <td className="px-3 py-4 font-semibold text-slate-900">

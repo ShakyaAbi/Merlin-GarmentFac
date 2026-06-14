@@ -48,6 +48,7 @@ describe('purchasesController', () => {
 
     const res = await request(app).post('/api/v1/inventory/purchases').set('Authorization', `Bearer ${token}`).send({
       supplierId: supplierRes.body.id,
+      invoiceNumber: 'INV-1',
       items: [{ rawMaterialId: materialRes.body.id, quantity: -10, unit: 'meter', unitPrice: '10.00' }]
     })
 

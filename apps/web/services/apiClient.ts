@@ -35,11 +35,20 @@ export const request = async <T>(
     delete headers["Content-Type"];
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: options.method || "GET",
-    headers,
-    body: isFormData ? options.body : (options.body ? JSON.stringify(options.body) : undefined),
-  });
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: options.method || "GET",
+      headers,
+      body: isFormData ? options.body : (options.body ? JSON.stringify(options.body) : undefined),
+    });
+  } catch (error) {
+    throw new ApiError(
+      `Unable to reach the API server at ${API_BASE}. Make sure the backend is running.`,
+      0,
+      { cause: error instanceof Error ? error.message : String(error) },
+    );
+  }
 
   if (!res.ok) {
     if (res.status === 401) {

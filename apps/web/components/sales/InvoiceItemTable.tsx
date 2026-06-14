@@ -16,6 +16,8 @@ export interface InvoiceDraftItem {
 type Props = {
   items: InvoiceDraftItem[];
   readOnly?: boolean;
+  taxEditable?: boolean;
+  showWarehouse?: boolean;
   onAddItem?: () => void;
   onRemoveItem?: (id: string) => void;
   onChangeItem?: (id: string, patch: Partial<InvoiceDraftItem>) => void;
@@ -38,6 +40,8 @@ const lineTotal = (item: InvoiceDraftItem) => {
 export function InvoiceItemTable({
   items,
   readOnly = false,
+  taxEditable = true,
+  showWarehouse = true,
   onAddItem,
   onRemoveItem,
   onChangeItem,
@@ -48,7 +52,7 @@ export function InvoiceItemTable({
         <div>
           <h3 className="text-lg font-semibold text-slate-900">Invoice Items</h3>
           <p className="text-sm text-slate-500">
-            Add finished-goods lines, quantities, and pricing for this invoice.
+            Add article lines, quantities, and pricing for this invoice.
           </p>
         </div>
         {!readOnly && onAddItem ? (
@@ -65,11 +69,11 @@ export function InvoiceItemTable({
             <tr>
               <th className="px-4 py-3 font-semibold">Product Code</th>
               <th className="px-4 py-3 font-semibold">Product Name</th>
-              <th className="px-4 py-3 font-semibold">Warehouse</th>
+              {showWarehouse ? <th className="px-4 py-3 font-semibold">Warehouse</th> : null}
               <th className="px-4 py-3 font-semibold">Qty</th>
               <th className="px-4 py-3 font-semibold">Unit Price</th>
               <th className="px-4 py-3 font-semibold">Discount</th>
-              <th className="px-4 py-3 font-semibold">Tax</th>
+              <th className="px-4 py-3 font-semibold">VAT 13%</th>
               <th className="px-4 py-3 font-semibold">Line Total</th>
               {!readOnly ? <th className="px-4 py-3 font-semibold">Actions</th> : null}
             </tr>
@@ -77,10 +81,7 @@ export function InvoiceItemTable({
           <tbody className="divide-y divide-slate-100">
             {items.length === 0 ? (
               <tr>
-                <td
-                  colSpan={readOnly ? 8 : 9}
-                  className="px-6 py-12 text-center text-sm text-slate-500"
-                >
+                <td colSpan={readOnly ? (showWarehouse ? 8 : 7) : showWarehouse ? 9 : 8} className="px-6 py-12 text-center text-sm text-slate-500">
                   No item lines yet.
                 </td>
               </tr>
@@ -119,18 +120,20 @@ export function InvoiceItemTable({
                         />
                       )}
                     </td>
-                    <td className="px-4 py-4 align-top">
-                      {readOnly ? (
-                        <span className="text-slate-700">{item.warehouseId || "-"}</span>
-                      ) : (
-                        <input
-                          value={item.warehouseId}
-                          onChange={(event) => onChangeItem?.(item.id, { warehouseId: event.target.value })}
-                          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                          placeholder="Main FG warehouse"
-                        />
-                      )}
-                    </td>
+                    {showWarehouse ? (
+                      <td className="px-4 py-4 align-top">
+                        {readOnly ? (
+                          <span className="text-slate-700">{item.warehouseId || "-"}</span>
+                        ) : (
+                          <input
+                            value={item.warehouseId}
+                            onChange={(event) => onChangeItem?.(item.id, { warehouseId: event.target.value })}
+                            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                            placeholder="Main FG warehouse"
+                          />
+                        )}
+                      </td>
+                    ) : null}
                     <td className="px-4 py-4 align-top">
                       {readOnly ? (
                         <span className="font-medium text-slate-900">{Number(item.quantity || 0)}</span>
@@ -177,14 +180,20 @@ export function InvoiceItemTable({
                       {readOnly ? (
                         <span className="font-medium text-slate-900">{money(Number(item.taxAmount || 0))}</span>
                       ) : (
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={item.taxAmount}
-                          onChange={(event) => onChangeItem?.(item.id, { taxAmount: event.target.value })}
-                          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                        />
+                        taxEditable ? (
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.taxAmount}
+                            onChange={(event) => onChangeItem?.(item.id, { taxAmount: event.target.value })}
+                            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                          />
+                        ) : (
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-900">
+                            {money(Number(item.taxAmount || 0))}
+                          </div>
+                        )
                       )}
                     </td>
                     <td className="px-4 py-4 align-top">

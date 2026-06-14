@@ -1,0 +1,1 @@
+"""Garment Factory module package."""

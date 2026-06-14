@@ -80,7 +80,7 @@ export default function MaterialsPage() {
       description="Manage fabric, trims, accessories, and stock levels."
       backTo={{ to: '/inventory/purchases', label: 'Back to Purchases' }}
       actions={[
-        { label: 'Create BOM', variant: 'outline', onClick: () => navigate('/inventory/boms/create') },
+        { label: 'Create Article', variant: 'outline', to: '/inventory/finished-goods/create' },
         { label: 'Record Entry', variant: 'secondary', to: '/inventory/materials/entry' },
         { label: 'Create Material', onClick: () => navigate('/inventory/materials/create') },
       ]}
@@ -156,8 +156,8 @@ export default function MaterialsPage() {
               <Button type="button" variant="outline" onClick={() => navigate('/inventory/materials/create')}>
                 New Material
               </Button>
-              <Button type="button" variant="outline" onClick={() => navigate('/inventory/boms/create')}>
-                New BOM
+              <Button type="button" variant="outline" onClick={() => navigate('/inventory/finished-goods/create')}>
+                New Article
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate('/inventory/suppliers')}>
                 Suppliers

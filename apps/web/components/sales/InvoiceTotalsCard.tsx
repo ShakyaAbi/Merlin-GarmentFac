@@ -6,11 +6,8 @@ export interface InvoiceTotalsSummary {
   subtotal: number;
   discountAmount: number;
   taxableAmount: number;
-  nonTaxableAmount: number;
   taxAmount: number;
   grandTotal: number;
-  paidAmount: number;
-  dueAmount: number;
   paymentStatus?: SalesPaymentStatus | string;
   invoiceStatus?: SalesInvoiceStatus | string;
   printedCount?: number;
@@ -59,11 +56,8 @@ export function InvoiceTotalsCard({
     { label: "Subtotal", value: money(summary.subtotal) },
     { label: "Discount", value: money(summary.discountAmount) },
     { label: "Taxable amount", value: money(summary.taxableAmount) },
-    { label: "Non-taxable amount", value: money(summary.nonTaxableAmount) },
-    { label: "Tax", value: money(summary.taxAmount) },
+    { label: "VAT 13%", value: money(summary.taxAmount) },
     { label: "Grand total", value: money(summary.grandTotal), emphasis: true },
-    { label: "Paid", value: money(summary.paidAmount) },
-    { label: "Due", value: money(summary.dueAmount) },
   ];
 
   return (

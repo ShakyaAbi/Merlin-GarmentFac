@@ -8,6 +8,7 @@ export const createCustomerSchema = z.object({
   customerType: z.string().trim().optional(),
   email: z.string().trim().email().optional().or(z.literal('')),
   notes: z.string().trim().optional(),
+  openingBalance: z.coerce.number().min(0).optional(),
 })
 
 export const updateCustomerSchema = createCustomerSchema.partial()

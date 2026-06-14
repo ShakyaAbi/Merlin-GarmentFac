@@ -11,7 +11,7 @@ import { Button } from '../../components/ui/Button'
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'NPR',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number(value ?? 0))
@@ -137,7 +137,7 @@ export default function SalesInvoiceListPage() {
     <InventoryPageShell
       eyebrow="Sales"
       title="Sales Invoices"
-      description="Invoice finished goods, track collections, and keep the sales workflow native to Merlin."
+      description="Invoice articles, track collections, and keep the sales workflow native to Merlin."
       actions={[
         { label: 'Export', variant: 'outline', onClick: handleExport },
         { label: 'New Invoice', to: '/sales-invoices/create' },
@@ -154,7 +154,7 @@ export default function SalesInvoiceListPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <InventorySectionCard
           title="Invoice Register"
-          description="Search by invoice number, customer, remark, or finished-goods line item."
+          description="Search by invoice number, customer, remark, or article line item."
         >
           <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
@@ -280,10 +280,10 @@ export default function SalesInvoiceListPage() {
         </InventorySectionCard>
 
         <div className="space-y-6">
-          <InventorySectionCard title="Workflow" description="The sales invoice flow is centered on finished goods, not raw material purchases.">
+          <InventorySectionCard title="Workflow" description="The sales invoice flow is centered on articles, not raw material purchases.">
             <div className="space-y-3 text-sm text-slate-600">
               <p>Draft invoices can be created and edited before issue.</p>
-              <p>Issued invoices are the point at which finished-goods stock is consumed.</p>
+              <p>Issued invoices are the point at which article stock is consumed.</p>
               <p>Payments update the payment state without changing the invoice item structure.</p>
             </div>
           </InventorySectionCard>

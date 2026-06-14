@@ -3,12 +3,13 @@ import * as svc from '../../services/inventory/finishedGoodsService'
 import { recordAudit } from '../../utils/auditLog'
 import { AppError } from '../../utils/errors'
 import { createFinishedGoodSchema, updateFinishedGoodSchema } from '../../validators/finishedGoodsValidators'
+import { adjustStockSchema } from '../../validators/inventoryValidators'
 
 export const create = async (req: Request, res: Response) => {
   const user = (req as any).user?.id as number | undefined
   const parsed = createFinishedGoodSchema.safeParse(req.body)
   if (!parsed.success) {
-    throw new AppError(400, 'INVALID_INPUT', 'Invalid finished-good payload', { errors: parsed.error.errors })
+    throw new AppError(400, 'INVALID_INPUT', 'Invalid article payload', { errors: parsed.error.errors })
   }
 
   const created = await svc.createFinishedGood(parsed.data, user)
@@ -26,6 +27,11 @@ export const list = async (req: Request, res: Response) => {
   res.json(data)
 }
 
+export const nextNumber = async (_req: Request, res: Response) => {
+  const articleNumber = await svc.previewNextArticleNumber()
+  res.json({ articleNumber })
+}
+
 export const get = async (req: Request, res: Response) => {
   const data = await svc.getFinishedGood(req.params.id)
   if (!data) return res.status(404).send('Not found')
@@ -36,7 +42,7 @@ export const update = async (req: Request, res: Response) => {
   const user = (req as any).user?.id as number | undefined
   const parsed = updateFinishedGoodSchema.safeParse(req.body)
   if (!parsed.success) {
-    throw new AppError(400, 'INVALID_INPUT', 'Invalid finished-good payload', { errors: parsed.error.errors })
+    throw new AppError(400, 'INVALID_INPUT', 'Invalid article payload', { errors: parsed.error.errors })
   }
 
   const updated = await svc.updateFinishedGood(req.params.id, parsed.data, user)
@@ -50,4 +56,21 @@ export const transactions = async (req: Request, res: Response) => {
     pageSize: Number(req.query.pageSize) || 20,
   })
   res.json(data)
+}
+
+export const adjustStock = async (req: Request, res: Response) => {
+  const user = (req as any).user?.id
+  const parsed = adjustStockSchema.safeParse(req.body)
+  if (!parsed.success) throw new AppError(400, 'INVALID_INPUT', 'Invalid article stock adjustment payload', { errors: parsed.error.errors })
+  const { change, reason, unit, referenceId } = parsed.data
+  const tx = await svc.adjustFinishedGoodStock({
+    productId: req.params.id,
+    change,
+    unit,
+    reason,
+    referenceId,
+    createdBy: user,
+  })
+  try { await recordAudit({ action: 'finished_good.adjust_stock', userId: user, after: tx }) } catch (e) {}
+  res.status(201).json(tx)
 }

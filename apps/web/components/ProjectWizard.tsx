@@ -266,7 +266,7 @@ export const ProjectWizard: React.FC<ProjectWizardProps> = ({ onClose }) => {
                   value={formData.budgetCurrency || ''}
                   onChange={e => updateField('budgetCurrency', e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-900"
-                  placeholder="e.g. USD, NPR"
+                  placeholder="e.g. NPR"
                 />
               </div>
             </div>

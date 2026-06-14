@@ -19,12 +19,9 @@ import {
   AlertCircle,
   Clock,
   Users,
-  Mail,
-  Plus,
   Layers,
   FileText,
   FileSpreadsheet,
-  ArrowRightLeft,
   BarChart3,
 } from "lucide-react";
 import { AnomalyNotification, CurrentUser } from "../types";
@@ -64,12 +61,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const routeLabelMap: Record<string, string> = {
     projects: "Home",
-    "data-entry": "Data Entry",
     indicators: "Indicators",
     settings: "Settings",
     "sales-invoices": "Sales Invoices",
     "sales-orders": "Sales Orders",
     customers: "Customers",
+    suppliers: "Suppliers",
+    purchases: "Purchase Invoices",
     reports: "Reports",
   };
 
@@ -86,8 +84,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       let label = routeLabelMap[segment] || segment.replace(/-/g, " ");
       if (segment === "create" && previousSegment === "sales-invoices") label = "Create Invoice";
-      if (segment === "list" && previousSegment === "projects") label = "Projects";
-
       if (isNumeric && previousSegment === "projects") label = "Project";
       if (isNumeric && previousSegment === "indicators") label = "Indicator";
       if (!routeLabelMap[segment] && !isNumeric) {
@@ -135,7 +131,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     buying: true,
     selling: true,
     stock: true,
-    projects: false,
     support: false,
     settings: false,
   });
@@ -154,8 +149,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       collapsible: true,
       items: [
         { icon: Home, label: 'Home', path: '/projects' },
-        { icon: FolderKanban, label: 'Projects', path: '/projects/list' },
-        { icon: ClipboardCheck, label: 'Data Entry', path: '/data-entry' },
         { icon: BarChart3, label: 'Reports', path: '/reports' },
       ],
     },
@@ -166,7 +159,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       items: [
         { icon: FileText, label: 'Expenses', path: '/expenses' },
         { icon: FileText, label: 'Payments', path: '/payments' },
-        { icon: FileSpreadsheet, label: 'Financial Reports', path: '/reports' },
+        { icon: FileSpreadsheet, label: 'Reports', path: '/reports' },
       ],
     },
     {
@@ -174,7 +167,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       label: 'Buying',
       collapsible: true,
       items: [
-        { icon: ClipboardCheck, label: 'Purchases', path: '/inventory/purchases' },
+        { icon: ClipboardCheck, label: 'Purchase Invoices', path: '/inventory/purchases' },
         { icon: Command, label: 'Suppliers', path: '/inventory/suppliers' },
       ],
     },
@@ -193,20 +186,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       label: 'Stock',
       collapsible: true,
       items: [
-        { icon: FolderKanban, label: 'Materials', path: '/inventory/materials' },
-        { icon: Layers, label: 'Finished Goods', path: '/inventory/finished-goods' },
-        { icon: Layers, label: 'Production', path: '/inventory/production' },
-        { icon: Layers, label: 'BOMs', path: '/inventory/boms/create' },
+        { icon: FolderKanban, label: 'Raw Materials', path: '/inventory/materials' },
+        { icon: Layers, label: 'Articles', path: '/inventory/finished-goods' },
+        { icon: Layers, label: 'Production Orders', path: '/inventory/production' },
         { icon: AlertCircle, label: 'Alerts', path: '/inventory/alerts' },
-      ],
-    },
-    {
-      key: 'projects',
-      label: 'Projects',
-      collapsible: true,
-      items: [
-        { icon: FolderKanban, label: 'Project List', path: '/projects/list' },
-        { icon: Plus, label: 'New Project', path: '/projects/list' },
       ],
     },
     {

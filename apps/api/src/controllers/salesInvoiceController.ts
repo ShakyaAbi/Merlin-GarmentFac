@@ -47,6 +47,16 @@ export const listProducts = async (req: Request, res: Response) => {
   res.json(data)
 }
 
+export const nextNumber = async (req: Request, res: Response) => {
+  const invoiceDate = req.query.invoiceDate ? new Date(req.query.invoiceDate as string) : new Date()
+  if (Number.isNaN(invoiceDate.getTime())) {
+    throw new AppError(400, 'INVALID_INPUT', 'Invalid invoice date')
+  }
+
+  const invoiceNumber = await svc.previewNextInvoiceNumber(invoiceDate)
+  res.json({ invoiceNumber })
+}
+
 export const get = async (req: Request, res: Response) => {
   const invoice = await svc.getInvoice(req.params.id)
   if (!invoice) return res.status(404).send('Not found')

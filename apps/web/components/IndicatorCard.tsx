@@ -90,7 +90,7 @@ export const IndicatorCard: React.FC<IndicatorCardProps> = ({
 
   const formatValue = (val: number | string) => {
     if (indicator.type === IndicatorType.PERCENTAGE) return `${val}%`;
-    if (indicator.type === IndicatorType.CURRENCY) return `$${val}`;
+    if (indicator.type === IndicatorType.CURRENCY) return `NPR ${val}`;
     return val;
   };
 

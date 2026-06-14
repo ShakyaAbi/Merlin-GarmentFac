@@ -10,7 +10,7 @@ const mapIndicatorType = (dataType?: string, unit?: string): IndicatorType => {
     case "CATEGORICAL":
       return IndicatorType.CATEGORICAL;
     case "NUMBER":
-      return unit === "USD" || unit === "usd"
+      return unit === "NPR" || unit === "npr"
         ? IndicatorType.CURRENCY
         : IndicatorType.NUMBER;
     case "TEXT":

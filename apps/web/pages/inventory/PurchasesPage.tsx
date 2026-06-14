@@ -39,12 +39,12 @@ type PurchaseLedgerRow = {
   matchCount: number
 }
 
-const money = (value: number | string | null | undefined, currency = 'USD') => {
+const money = (value: number | string | null | undefined, currency = 'NPR') => {
   const amount = Number(value ?? 0)
   try {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: currency || 'USD',
+      currency: currency || 'NPR',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(Number.isFinite(amount) ? amount : 0)
@@ -147,7 +147,7 @@ export default function PurchasesPage() {
             supplier: row.supplier || (supplierName ? { id: row.supplierId, name: supplierName } : null),
             invoiceNumber: row.invoiceNumber || null,
             invoiceDate: row.invoiceDate || null,
-            currency: row.currency || 'USD',
+            currency: row.currency || 'NPR',
             totalAmount: row.totalAmount ?? 0,
             createdAt: row.createdAt,
             status: row.status || null,
@@ -218,11 +218,11 @@ export default function PurchasesPage() {
   return (
     <InventoryPageShell
       eyebrow="Inventory"
-      title="Purchases"
-      description="Document register and procurement dashboard for raw-material purchases."
+      title="Purchase Invoices"
+      description="Purchase-invoice register and procurement dashboard for raw-material stock receipts."
       actions={[
-        { label: 'Create Purchase', to: '/inventory/purchases/create' },
-        { label: 'Materials', variant: 'outline', to: '/inventory/materials' },
+        { label: 'Create Purchase Invoice', to: '/inventory/purchases/create' },
+        { label: 'Raw Materials', variant: 'outline', to: '/inventory/materials' },
       ]}
     >
       {error ? (
@@ -236,7 +236,7 @@ export default function PurchasesPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <InventorySectionCard
           title="Purchase Register"
-          description="Search by purchase number, supplier, notes, or material name."
+          description="Search by purchase-invoice number, supplier, notes, or material name."
           action={
             <div className="flex flex-wrap items-center gap-2">
               <Button type="button" variant="outline" size="sm" onClick={() => loadDashboard('refresh')} isLoading={refreshing}>
@@ -249,7 +249,7 @@ export default function PurchasesPage() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search purchase register"
+              placeholder="Search purchase invoices"
               className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 lg:max-w-md"
             />
             <select
@@ -274,13 +274,13 @@ export default function PurchasesPage() {
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 py-12 text-center text-sm text-slate-500">
               {search.trim() || materialFilter !== 'ALL'
                 ? 'No purchases match the current filters.'
-                : 'No purchase documents yet. Start with a new purchase.'}
+                : 'No purchase invoices yet. Start with a new purchase invoice.'}
             </div>
           ) : (
             <InventoryDataTable
-              caption="Purchase register"
+              caption="Purchase invoice register"
               columns={[
-                { label: 'Purchase', className: 'px-3' },
+                { label: 'Purchase Invoice', className: 'px-3' },
                 { label: 'Supplier', className: 'px-3' },
                 { label: 'Date', className: 'px-3' },
                 { label: 'Total', className: 'px-3' },
@@ -300,7 +300,7 @@ export default function PurchasesPage() {
                     <div className="text-xs text-slate-500">{purchase.notes || 'No notes'}</div>
                   </td>
                   <td className="px-3 py-4 align-top text-slate-600">{formatDate(purchase.invoiceDate || purchase.createdAt)}</td>
-                  <td className="px-3 py-4 align-top font-semibold text-slate-900">{money(purchase.totalAmount, purchase.currency || 'USD')}</td>
+                  <td className="px-3 py-4 align-top font-semibold text-slate-900">{money(purchase.totalAmount, purchase.currency || 'NPR')}</td>
                   <td className="px-3 py-4 align-top">
                     <div className="space-y-1">
                       <div className="font-medium text-slate-900">{purchase.primaryMaterialName}</div>
@@ -345,10 +345,10 @@ export default function PurchasesPage() {
         </InventorySectionCard>
 
         <div className="space-y-6">
-          <InventorySectionCard title="Procurement Workflow" description="Track procurement from materials back to supplier purchases.">
+          <InventorySectionCard title="Procurement Workflow" description="Track procurement from raw materials back to supplier purchase invoices.">
             <div className="space-y-3 text-sm text-slate-600">
-              <p>Create a new purchase directly from this dashboard or from a material detail page.</p>
-              <p>The register is assembled from Merlin's existing per-material purchase history helpers, so the API contract stays unchanged.</p>
+              <p>Create a new purchase invoice directly from this dashboard or from a material detail page.</p>
+              <p>The register is assembled from Merlin's per-material purchase-history helpers, so the API contract stays unchanged.</p>
               <p>Use the material filter to focus on a single procurement lane when reconciling costs or reordering stock.</p>
             </div>
           </InventorySectionCard>
@@ -373,7 +373,7 @@ export default function PurchasesPage() {
           <InventorySectionCard title="Quick Actions">
             <div className="flex flex-col gap-2">
               <Button type="button" onClick={() => navigate('/inventory/purchases/create')}>
-                Create Purchase
+                Create Purchase Invoice
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate('/inventory/suppliers')}>
                 Suppliers
@@ -381,8 +381,8 @@ export default function PurchasesPage() {
               <Button type="button" variant="outline" onClick={() => navigate('/inventory/materials')}>
                 Materials
               </Button>
-              <Button type="button" variant="outline" onClick={() => navigate('/inventory/boms/create')}>
-                Create BOM
+              <Button type="button" variant="outline" onClick={() => navigate('/inventory/finished-goods/create')}>
+                Create Article
               </Button>
             </div>
           </InventorySectionCard>

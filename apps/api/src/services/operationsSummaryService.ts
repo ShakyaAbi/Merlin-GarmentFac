@@ -11,7 +11,7 @@ function money(value: any) {
 
 function costFromBomItems(order: any) {
   const plannedQty = toNumber(order.quantityPlanned)
-  const bomItems = Array.isArray(order.bom?.items) ? order.bom.items : []
+  const bomItems = Array.isArray(order.finishedGood?.bomData?.items) ? order.finishedGood.bomData.items : []
   return bomItems.reduce((sum: number, item: any) => {
     const unitCost = toNumber(item.rawMaterial?.costPrice ?? item.rawMaterial?.averageUnitCost ?? 0)
     const consumption = toNumber(item.consumption)
@@ -115,7 +115,6 @@ export async function getOperationsSummary(opts: { from?: string; to?: string } 
     }),
     prisma.productionOrder.findMany({
       include: {
-        bom: { include: { items: { include: { rawMaterial: true } } } },
         finishedGood: true,
       },
       where: Object.keys(productionDateWhere).length > 0 ? { createdAt: productionDateWhere } : undefined,
