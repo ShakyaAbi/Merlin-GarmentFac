@@ -6,14 +6,12 @@
   ],
   "scripts": {
     "dev:web": "npm --workspace apps/web run dev",
-    "dev:ml": "node scripts/run-ml-dev.cjs --reload",
-    "dev:api": "concurrently -n \"api,ml\" -c \"bgBlue.bold,bgGreen.bold\" \"npm --workspace apps/api run dev\" \"npm run dev:ml\"",
-    "dev": "concurrently -n \"api,web,ml\" -c \"bgBlue.bold,bgMagenta.bold,bgGreen.bold\" \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm --workspace apps/api run dev",
+    "dev": "concurrently -n \"api,web\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run dev:api\" \"npm run dev:web\"",
     "build:web": "npm --workspace apps/web run build",
     "build:api": "npm --workspace apps/api run build",
     "build": "npm run build:web && npm run build:api",
-    "test:api": "npm --workspace apps/api run test",
-    "test:startup": "node --test scripts/run-ml-dev.test.cjs"
+    "test:api": "npm --workspace apps/api run test"
   },
   "devDependencies": {
     "@types/papaparse": "^5.5.2",

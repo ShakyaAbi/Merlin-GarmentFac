@@ -4,12 +4,10 @@ Merlin Lite is a monorepo with three services:
 
 - `apps/web/` - React + Vite frontend
 - `apps/api/` - Express + TypeScript + Prisma backend
-- `apps/ml/` - FastAPI ML scoring service
 
 ## Prerequisites
 
 - Node.js 18+
-- Python 3.10+ for the ML service
 - PostgreSQL for the API
 
 ## Project Structure
@@ -19,7 +17,6 @@ Merlin Lite is a monorepo with three services:
 - `apps/api/src/` contains the API routes, controllers, services, jobs, and middleware.
 - `apps/api/prisma/` contains the Prisma schema and seed data.
 - `apps/api/openapi/` contains the API documentation source.
-- `apps/ml/app.py` contains the ML service.
 
 ## Quick Start
 
@@ -80,15 +77,14 @@ This starts:
 
 - the API on port `4000`
 - the web app on port `5173`
-- the ML service on port `8000`
 
 ## Common Commands
 
 Run from the repo root:
 
-- `npm run dev` - start web, API, and ML together
+- `npm run dev` - start web and API together
 - `npm run dev:web` - start only the web app
-- `npm run dev:api` - start the API and ML service
+- `npm run dev:api` - start only the API
 - `npm run build` - build the web and API apps
 - `npm run test:api` - run the API test suite
 
@@ -100,12 +96,6 @@ Run from the repo root:
 - The API expects PostgreSQL and a valid `DATABASE_URL`
 
 For more API-specific setup, see [`apps/api/README.md`](apps/api/README.md).
-
-## ML Service
-
-The ML service runs separately in `apps/ml/`.
-
-For its local setup and endpoints, see [`apps/ml/README.md`](apps/ml/README.md).
 
 ## Frontend Notes
 

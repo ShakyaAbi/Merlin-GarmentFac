@@ -41,6 +41,9 @@ ML service:
 - `ML_SERVICE_TIMEOUT_MS` (default `5000`)
 - `ML_SERVICE_API_KEY` (optional)
 
+The root `npm run dev` workflow no longer starts the ML service. Run it only if
+you explicitly need ML-backed anomaly scoring.
+
 Run the backfill job to rescore recent submissions:
 ```bash
 npm run anomaly:backfill
