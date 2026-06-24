@@ -12,6 +12,7 @@ export const createFinishedGoodSchema = z.object({
   reorderLevel: z.coerce.number().nonnegative().optional(),
   active: z.coerce.boolean().optional(),
   notes: z.string().trim().optional(),
+  imageUrl: z.string().trim().url().optional().nullable(),
   bomData: z.object({
     name: z.string().trim().optional(),
     garmentStyle: z.string().trim().optional(),

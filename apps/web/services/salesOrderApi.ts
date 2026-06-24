@@ -10,6 +10,14 @@ export type SalesOrderCustomer = {
   customerType?: string | null
 }
 
+export type SalesOrderMaterialRequirement = {
+  materialId?: string | null
+  materialName: string
+  sku?: string | null
+  unit?: string | null
+  quantityPerUnit: number
+}
+
 export type SalesOrderProduct = {
   id: string
   name: string
@@ -17,6 +25,9 @@ export type SalesOrderProduct = {
   sku?: string | null
   unit?: string | null
   sellingPrice?: number | string | null
+  currentStock?: number | null
+  bomItemCount?: number | null
+  materialRequirements?: SalesOrderMaterialRequirement[]
 }
 
 export type SalesOrderItem = {
@@ -80,5 +91,5 @@ export const salesOrderApi = {
   cancel: (id: string, reason?: string) => request<SalesOrder>(`/sales-orders/${id}/cancel`, { method: 'POST', body: { reason } }),
   invoice: (id: string) => request(`/sales-orders/${id}/invoice`, { method: 'POST' }),
   listCustomers: () => request<SalesOrderCustomer[]>('/customers'),
-  listProducts: () => request<SalesOrderProduct[]>('/inventory/finished-goods'),
+  listProducts: () => request<SalesOrderProduct[]>('/sales-orders/products'),
 }

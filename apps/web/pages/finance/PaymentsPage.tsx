@@ -7,6 +7,7 @@ import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { InventoryDataTable } from '../../components/inventory/InventoryDataTable'
 import { Button } from '../../components/ui/Button'
 import { salesInvoiceApi, SalesInvoice, SalesPaymentStatus } from '../../services/salesInvoiceApi'
+import { formatNepaliDate } from '../../utils/nepaliDate'
 
 type PaymentRow = {
   id: string
@@ -132,7 +133,7 @@ export default function PaymentsPage() {
               <tr key={payment.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/70">
                 <td className="px-3 py-4 align-top font-semibold text-slate-900">{payment.invoiceNumber || payment.invoiceId}</td>
                 <td className="px-3 py-4 align-top text-slate-700">{payment.customerName}</td>
-                <td className="px-3 py-4 align-top text-slate-600">{payment.paymentDate ? new Date(payment.paymentDate).toLocaleDateString() : '-'}</td>
+                <td className="px-3 py-4 align-top text-slate-600">{formatNepaliDate(payment.paymentDate)}</td>
                 <td className="px-3 py-4 align-top font-semibold text-slate-900">{money(payment.amount)}</td>
                 <td className="px-3 py-4 align-top text-slate-700">{payment.paymentMethod || '-'}</td>
                 <td className="px-3 py-4 align-top">

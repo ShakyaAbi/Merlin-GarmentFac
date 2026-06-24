@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "../services/api";
 import { CategoryDefinition } from "../types";
 import { BarChart3, AlertCircle } from "lucide-react";
+import { formatNepaliDate } from "../utils/nepaliDate";
 
 interface CategoryStat {
   categoryId: string;
@@ -36,14 +37,7 @@ interface DisaggregationComparisonProps {
 
 const formatDate = (value: string | null) => {
   if (!value) return "Never";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    timeZone: "UTC",
-  });
+  return formatNepaliDate(value, "Never");
 };
 
 export const DisaggregationComparison: React.FC<

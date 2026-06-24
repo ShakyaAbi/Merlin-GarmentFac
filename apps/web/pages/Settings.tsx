@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { CurrentUser } from '../types';
 import { api } from '../services/api';
 import { User, Lock, Mail, Shield, Calendar, Server, KeyRound, Database } from 'lucide-react';
+import { formatNepaliDate } from '../utils/nepaliDate';
 
 export const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'system'>('profile');
@@ -27,12 +28,7 @@ export const Settings: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  const formatDate = (value?: string) => {
-    if (!value) return '—';
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return '—';
-    return parsed.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
-  };
+  const formatDate = (value?: string) => formatNepaliDate(value, '-');
 
   if (loading) return <div className="p-8 text-center text-slate-500">Loading settings...</div>;
 

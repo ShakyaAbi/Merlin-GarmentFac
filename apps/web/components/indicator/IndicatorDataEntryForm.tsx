@@ -10,6 +10,7 @@ import {
 import { Indicator, IndicatorType, CategoryDefinition } from "../../types";
 import { Button } from "../ui/Button";
 import { isNumericInputType, formatCategoryValue } from "../../services/indicatorUtils";
+import { formatNepaliDate } from "../../utils/nepaliDate";
 
 interface IndicatorDataEntryFormProps {
   indicator: Indicator;
@@ -102,15 +103,12 @@ export const IndicatorDataEntryForm: React.FC<IndicatorDataEntryFormProps> = ({
                       ? "Today"
                       : offset === 1
                         ? "Yesterday"
-                        : target.toLocaleDateString(undefined, {
-                            weekday: "short",
-                            day: "numeric",
-                          });
+                        : formatNepaliDate(target);
                 } else if (indicator.frequency === "Weekly") {
                   const diff = d.getDate() - d.getDay() - offset * 7;
                   const target = new Date(d.getFullYear(), d.getMonth(), diff);
                   dateStr = target.toISOString().split("T")[0];
-                  label = `Wk ${target.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+                  label = `Wk ${formatNepaliDate(target)}`;
                 } else if (indicator.frequency === "Monthly") {
                   const target = new Date(
                     d.getFullYear(),
@@ -118,9 +116,7 @@ export const IndicatorDataEntryForm: React.FC<IndicatorDataEntryFormProps> = ({
                     0,
                   );
                   dateStr = target.toISOString().split("T")[0];
-                  label = target.toLocaleString("default", {
-                    month: "short",
-                  });
+                  label = formatNepaliDate(target);
                 }
 
                 if (!dateStr) return null;

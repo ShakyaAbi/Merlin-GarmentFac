@@ -23,6 +23,7 @@ import {
   formatCategoryValue,
   inferAnomalyReason,
 } from "../../services/indicatorUtils";
+import { formatNepaliDateTime } from "../../utils/nepaliDate";
 
 interface SubmissionHistoryTableProps {
   indicator: Indicator;
@@ -560,8 +561,8 @@ export const SubmissionHistoryTable: React.FC<SubmissionHistoryTableProps> = ({
                           {row.deletedAt ? (
                             <span
                               className="text-xs text-gray-500 italic max-w-[220px] truncate block"
-                              title={`Deleted on ${new Date(row.deletedAt).toLocaleString()}${row.deletedByUserId ? ` by User ${row.deletedByUserId}` : ""}`}>
-                              Deleted on {new Date(row.deletedAt).toLocaleString()}
+                              title={`Deleted on ${formatNepaliDateTime(row.deletedAt)}${row.deletedByUserId ? ` by User ${row.deletedByUserId}` : ""}`}>
+                              Deleted on {formatNepaliDateTime(row.deletedAt)}
                               {row.deletedByUserId ? ` by User ${row.deletedByUserId}` : ""}
                             </span>
                           ) : (

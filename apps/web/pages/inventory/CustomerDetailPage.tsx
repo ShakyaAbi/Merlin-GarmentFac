@@ -1,10 +1,34 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { api } from '../../services/api'
 import { partyLedgerApi } from '../../services/partyLedgerApi'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
 import { InventoryDataTable } from '../../components/inventory/InventoryDataTable'
+import { Button } from '../../components/ui/Button'
+import { formatNepaliDate } from '../../utils/nepaliDate'
+
+type CustomerForm = {
+  customerName: string
+  phone: string
+  email: string
+  customerType: string
+  panVatNumber: string
+  address: string
+  notes: string
+  openingBalance: string
+}
+
+const emptyForm: CustomerForm = {
+  customerName: '',
+  phone: '',
+  email: '',
+  customerType: '',
+  panVatNumber: '',
+  address: '',
+  notes: '',
+  openingBalance: '',
+}
 
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
@@ -16,6 +40,9 @@ export default function CustomerDetailPage() {
   const [ledgerSummary, setLedgerSummary] = useState<any | null>(null)
   const [invoiceSearch, setInvoiceSearch] = useState('')
   const [ledgerSearch, setLedgerSearch] = useState('')
+  const [isEditing, setIsEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<CustomerForm>(emptyForm)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -28,6 +55,16 @@ export default function CustomerDetailPage() {
         setCustomer(customerData)
         setLedgerEntries(Array.isArray(ledgerData?.entries) ? ledgerData.entries : [])
         setLedgerSummary(ledgerData?.summary || null)
+        setForm({
+          customerName: customerData?.customerName || '',
+          phone: customerData?.phone || '',
+          email: customerData?.email || '',
+          customerType: customerData?.customerType || '',
+          panVatNumber: customerData?.panVatNumber || '',
+          address: customerData?.address || '',
+          notes: customerData?.notes || '',
+          openingBalance: String(customerData?.openingBalance ?? ''),
+        })
       })
       .catch((err: any) => setError(err?.message || 'Failed to load customer.'))
       .finally(() => setLoading(false))
@@ -41,7 +78,7 @@ export default function CustomerDetailPage() {
     return invoices.filter((invoice: any) => {
       const haystack = [
         invoice.invoiceNumber,
-        invoice.invoiceDate ? new Date(invoice.invoiceDate).toLocaleDateString() : '',
+        formatNepaliDate(invoice.invoiceDate, ''),
         invoice.invoiceStatus,
         invoice.paymentStatus,
         invoice.grandTotal,
@@ -69,12 +106,65 @@ export default function CustomerDetailPage() {
     )
   }, [ledgerEntries, ledgerSearch])
 
+  const cancelEdit = () => {
+    setIsEditing(false)
+    if (!customer) return
+    setForm({
+      customerName: customer.customerName || '',
+      phone: customer.phone || '',
+      email: customer.email || '',
+      customerType: customer.customerType || '',
+      panVatNumber: customer.panVatNumber || '',
+      address: customer.address || '',
+      notes: customer.notes || '',
+      openingBalance: String(customer.openingBalance ?? ''),
+    })
+  }
+
+  const saveCustomer = async () => {
+    if (!id) return
+    if (!form.customerName.trim()) {
+      setError('Customer name is required.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      await api.put(`/customers/${id}`, {
+        customerName: form.customerName.trim(),
+        phone: form.phone.trim() || undefined,
+        email: form.email.trim() || undefined,
+        customerType: form.customerType.trim() || undefined,
+        panVatNumber: form.panVatNumber.trim() || undefined,
+        address: form.address.trim() || undefined,
+        notes: form.notes.trim() || undefined,
+        openingBalance: form.openingBalance === '' ? undefined : Number(form.openingBalance),
+      })
+      setIsEditing(false)
+      await Promise.all([api.get(`/customers/${id}`), partyLedgerApi.getCustomerLedger(id)])
+        .then(([customerData, ledgerData]) => {
+          setCustomer(customerData)
+          setLedgerEntries(Array.isArray(ledgerData?.entries) ? ledgerData.entries : [])
+          setLedgerSummary(ledgerData?.summary || null)
+        })
+    } catch (err: any) {
+      setError(err?.message || 'Failed to update customer.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <InventoryPageShell
       eyebrow="Sales Master"
       title={customer?.customerName || 'Customer Ledger'}
       description="Customer profile, sales history, payment history, and running ledger balance."
       backTo={{ to: '/inventory/customers', label: 'Back to customers' }}
+      actions={customer ? [
+        isEditing
+          ? { label: 'Cancel', variant: 'outline', onClick: cancelEdit }
+          : { label: 'Edit Customer', onClick: () => setIsEditing(true) },
+      ] : undefined}
     >
       {error ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
 
@@ -103,15 +193,57 @@ export default function CustomerDetailPage() {
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
             <InventorySectionCard title="Customer Details" description="Core customer master data used in sales documents.">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Customer Number</div><div className="font-medium text-slate-900">{customerNumber}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Phone</div><div className="font-medium text-slate-900">{customer.phone || '-'}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Email</div><div className="font-medium text-slate-900">{customer.email || '-'}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Type</div><div className="font-medium text-slate-900">{customer.customerType || '-'}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">PAN / VAT</div><div className="font-medium text-slate-900">{customer.panVatNumber || '-'}</div></div>
-                <div className="md:col-span-2"><div className="text-xs uppercase tracking-wide text-slate-500">Address</div><div className="font-medium text-slate-900">{customer.address || '-'}</div></div>
-                <div className="md:col-span-2"><div className="text-xs uppercase tracking-wide text-slate-500">Notes</div><div className="font-medium text-slate-900">{customer.notes || '-'}</div></div>
-              </div>
+              {!isEditing ? (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Customer Number</div><div className="font-medium text-slate-900">{customerNumber}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Phone</div><div className="font-medium text-slate-900">{customer.phone || '-'}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Email</div><div className="font-medium text-slate-900">{customer.email || '-'}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Type</div><div className="font-medium text-slate-900">{customer.customerType || '-'}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">PAN / VAT</div><div className="font-medium text-slate-900">{customer.panVatNumber || '-'}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Opening Balance</div><div className="font-medium text-slate-900">{money(customer.openingBalance)}</div></div>
+                  <div className="md:col-span-2"><div className="text-xs uppercase tracking-wide text-slate-500">Address</div><div className="font-medium text-slate-900">{customer.address || '-'}</div></div>
+                  <div className="md:col-span-2"><div className="text-xs uppercase tracking-wide text-slate-500">Notes</div><div className="font-medium text-slate-900">{customer.notes || '-'}</div></div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <label className="space-y-1 text-sm font-medium text-slate-700">
+                    <span>Customer Name</span>
+                    <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={form.customerName} onChange={(e) => setForm((current) => ({ ...current, customerName: e.target.value }))} />
+                  </label>
+                  <label className="space-y-1 text-sm font-medium text-slate-700">
+                    <span>Phone</span>
+                    <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={form.phone} onChange={(e) => setForm((current) => ({ ...current, phone: e.target.value }))} />
+                  </label>
+                  <label className="space-y-1 text-sm font-medium text-slate-700">
+                    <span>Email</span>
+                    <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={form.email} onChange={(e) => setForm((current) => ({ ...current, email: e.target.value }))} />
+                  </label>
+                  <label className="space-y-1 text-sm font-medium text-slate-700">
+                    <span>Type</span>
+                    <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={form.customerType} onChange={(e) => setForm((current) => ({ ...current, customerType: e.target.value }))} />
+                  </label>
+                  <label className="space-y-1 text-sm font-medium text-slate-700">
+                    <span>PAN / VAT</span>
+                    <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={form.panVatNumber} onChange={(e) => setForm((current) => ({ ...current, panVatNumber: e.target.value }))} />
+                  </label>
+                  <label className="space-y-1 text-sm font-medium text-slate-700">
+                    <span>Opening Balance</span>
+                    <input className="w-full rounded-xl border border-slate-300 px-3 py-2" type="number" min="0" step="0.01" value={form.openingBalance} onChange={(e) => setForm((current) => ({ ...current, openingBalance: e.target.value }))} />
+                  </label>
+                  <label className="space-y-1 text-sm font-medium text-slate-700 md:col-span-2">
+                    <span>Address</span>
+                    <textarea className="w-full rounded-xl border border-slate-300 px-3 py-2" rows={3} value={form.address} onChange={(e) => setForm((current) => ({ ...current, address: e.target.value }))} />
+                  </label>
+                  <label className="space-y-1 text-sm font-medium text-slate-700 md:col-span-2">
+                    <span>Notes</span>
+                    <textarea className="w-full rounded-xl border border-slate-300 px-3 py-2" rows={3} value={form.notes} onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value }))} />
+                  </label>
+                  <div className="md:col-span-2 flex gap-2">
+                    <Button type="button" onClick={saveCustomer} isLoading={saving}>Save Changes</Button>
+                    <Button type="button" variant="outline" onClick={cancelEdit}>Cancel</Button>
+                  </div>
+                </div>
+              )}
             </InventorySectionCard>
 
             <InventorySectionCard title="Account Snapshot" description="How much business and exposure this customer has in Merlin.">
@@ -121,8 +253,8 @@ export default function CustomerDetailPage() {
                 <div className="flex items-center justify-between"><span>Total paid</span><span className="font-medium text-slate-900">{money(totalPaid)}</span></div>
                 <div className="flex items-center justify-between"><span>Outstanding amount</span><span className="font-medium text-slate-900">{money(openBalance)}</span></div>
                 <div className="flex items-center justify-between"><span>Running balance</span><span className="font-medium text-slate-900">{money(currentBalance)}</span></div>
-                <div className="flex items-center justify-between"><span>Last invoice</span><span className="font-medium text-slate-900">{ledgerSummary?.lastInvoiceDate ? new Date(ledgerSummary.lastInvoiceDate).toLocaleDateString() : '-'}</span></div>
-                <div className="flex items-center justify-between"><span>Last payment</span><span className="font-medium text-slate-900">{ledgerSummary?.lastPaymentDate ? new Date(ledgerSummary.lastPaymentDate).toLocaleDateString() : '-'}</span></div>
+                <div className="flex items-center justify-between"><span>Last invoice</span><span className="font-medium text-slate-900">{formatNepaliDate(ledgerSummary?.lastInvoiceDate)}</span></div>
+                <div className="flex items-center justify-between"><span>Last payment</span><span className="font-medium text-slate-900">{formatNepaliDate(ledgerSummary?.lastPaymentDate)}</span></div>
               </div>
             </InventorySectionCard>
           </div>
@@ -148,8 +280,12 @@ export default function CustomerDetailPage() {
               >
                 {filteredInvoices.map((invoice: any) => (
                   <tr key={invoice.id} className="border-b border-slate-100 last:border-b-0">
-                    <td className="px-3 py-4 font-semibold text-slate-900">{invoice.invoiceNumber || invoice.id}</td>
-                    <td className="px-3 py-4 text-slate-600">{invoice.invoiceDate ? new Date(invoice.invoiceDate).toLocaleDateString() : '-'}</td>
+                    <td className="px-3 py-4 font-semibold text-slate-900">
+                      <Link to={`/sales-invoices/${invoice.id}`} className="text-blue-700 hover:text-blue-800">
+                        {invoice.invoiceNumber || invoice.id}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-4 text-slate-600">{formatNepaliDate(invoice.invoiceDate)}</td>
                     <td className="px-3 py-4 text-rose-700">{money(invoice.grandTotal)}</td>
                     <td className="px-3 py-4 text-emerald-700">{money(0)}</td>
                     <td className="px-3 py-4 text-slate-700">{money(invoice.dueAmount)}</td>
@@ -179,7 +315,7 @@ export default function CustomerDetailPage() {
               >
                 {filteredLedgerEntries.map((entry: any) => (
                   <tr key={entry.id} className="border-b border-slate-100 last:border-b-0">
-                    <td className="px-3 py-4 text-slate-600">{entry.entryDate ? new Date(entry.entryDate).toLocaleDateString() : '-'}</td>
+                    <td className="px-3 py-4 text-slate-600">{formatNepaliDate(entry.entryDate)}</td>
                     <td className="px-3 py-4 text-slate-700">{String(entry.entryType || '').replaceAll('_', ' ')}</td>
                     <td className="px-3 py-4 font-semibold text-slate-900">{entry.documentNumber || '-'}</td>
                     <td className="px-3 py-4 text-rose-700">{money(entry.debit)}</td>

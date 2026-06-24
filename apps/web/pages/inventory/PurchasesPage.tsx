@@ -6,6 +6,8 @@ import { InventoryPageShell } from '../../components/inventory/InventoryPageShel
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
 import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { InventoryDataTable } from '../../components/inventory/InventoryDataTable'
+import { formatNepaliDate } from '../../utils/nepaliDate'
+import { filterPurchases } from '../../utils/purchaseFilters'
 
 type MaterialOption = {
   id: string
@@ -53,9 +55,16 @@ const money = (value: number | string | null | undefined, currency = 'NPR') => {
   }
 }
 
-const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString() : '-')
+const formatDate = (value?: string | null) => formatNepaliDate(value)
 
 const addUnique = (items: string[], value: string) => (items.includes(value) ? items : [...items, value])
+
+const toDateInputValue = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 const statusClass = (status?: string | null) => {
   switch (status) {
@@ -83,6 +92,8 @@ export default function PurchasesPage() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [materialFilter, setMaterialFilter] = useState('ALL')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
 
   const loadDashboard = async (mode: 'initial' | 'refresh' = 'initial') => {
     if (mode === 'refresh') setRefreshing(true)
@@ -182,24 +193,29 @@ export default function PurchasesPage() {
   )
 
   const filteredPurchases = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    return purchases.filter((purchase) => {
-      const matchesMaterial = materialFilter === 'ALL' ? true : purchase.materialIds.includes(materialFilter)
-      const haystack = [
-        purchase.invoiceNumber,
-        purchase.supplierName,
-        purchase.supplier?.name,
-        purchase.notes,
-        purchase.materialNames.join(' '),
-        purchase.status,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
+    return filterPurchases(purchases, { search, materialFilter, fromDate, toDate })
+  }, [fromDate, materialFilter, purchases, search, toDate])
 
-      return matchesMaterial && (query ? haystack.includes(query) : true)
-    })
-  }, [materialFilter, purchases, search])
+  const hasActiveFilters = search.trim() || materialFilter !== 'ALL' || fromDate || toDate
+
+  const applyTodayFilter = () => {
+    const today = toDateInputValue(new Date())
+    setFromDate(today)
+    setToDate(today)
+  }
+
+  const applyThisMonthFilter = () => {
+    const now = new Date()
+    setFromDate(toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1)))
+    setToDate(toDateInputValue(new Date(now.getFullYear(), now.getMonth() + 1, 0)))
+  }
+
+  const clearFilters = () => {
+    setSearch('')
+    setMaterialFilter('ALL')
+    setFromDate('')
+    setToDate('')
+  }
 
   const stats = useMemo(() => {
     const registerValue = filteredPurchases.length
@@ -245,25 +261,63 @@ export default function PurchasesPage() {
             </div>
           }
         >
-          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search purchase invoices"
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 lg:max-w-md"
-            />
-            <select
-              value={materialFilter}
-              onChange={(event) => setMaterialFilter(event.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 lg:max-w-xs"
-            >
-              <option value="ALL">All materials</option>
-              {purchaseMaterials.map((material) => (
-                <option key={material.id} value={material.id}>
-                  {material.name}
-                </option>
-              ))}
-            </select>
+          <div className="mb-4 space-y-3">
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(220px,1fr)_minmax(220px,280px)_150px_150px]">
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search purchase invoices"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <select
+                value={materialFilter}
+                onChange={(event) => setMaterialFilter(event.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="ALL">All materials</option>
+                {purchaseMaterials.map((material) => (
+                  <option key={material.id} value={material.id}>
+                    {material.name}
+                  </option>
+                ))}
+              </select>
+              <label className="block">
+                <span className="sr-only">From date</span>
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(event) => setFromDate(event.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="From date"
+                />
+              </label>
+              <label className="block">
+                <span className="sr-only">To date</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(event) => setToDate(event.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="To date"
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={applyTodayFilter}>
+                Today
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={applyThisMonthFilter}>
+                This Month
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={clearFilters}>
+                Clear
+              </Button>
+              {fromDate || toDate ? (
+                <span className="text-xs text-slate-500">
+                  Date range: {fromDate ? formatDate(fromDate) : 'Any'} to {toDate ? formatDate(toDate) : 'Any'}
+                </span>
+              ) : null}
+            </div>
           </div>
 
           {loading ? (
@@ -272,7 +326,7 @@ export default function PurchasesPage() {
             </div>
           ) : filteredPurchases.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 py-12 text-center text-sm text-slate-500">
-              {search.trim() || materialFilter !== 'ALL'
+              {hasActiveFilters
                 ? 'No purchases match the current filters.'
                 : 'No purchase invoices yet. Start with a new purchase invoice.'}
             </div>

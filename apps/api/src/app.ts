@@ -10,6 +10,7 @@ import { config } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 import { rateLimiter } from './middleware/rateLimiter';
+import { getUploadRoot } from './utils/uploadPaths';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -31,7 +32,11 @@ if (fs.existsSync(openapiPath)) {
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapiDoc));
 app.use('/api/v1', routes);
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+app.use('/uploads', express.static(getUploadRoot(), {
+  setHeaders: (res) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  },
+}));
 
 app.use((_req, res) => {
   res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found' } });

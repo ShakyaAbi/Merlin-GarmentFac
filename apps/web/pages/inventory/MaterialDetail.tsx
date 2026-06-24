@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api } from '../../services/api'
 import { Modal } from '../../components/ui/Modal'
@@ -7,10 +7,12 @@ import { MaterialCsvActions } from '../../components/inventory/MaterialCsvAction
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
 import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
+import { formatNepaliDate, formatNepaliDateTime } from '../../utils/nepaliDate'
 
 export default function MaterialDetail() {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
+  const navigate = useNavigate()
   const [material, setMaterial] = useState<any>(null)
   const [transactions, setTransactions] = useState<any[]>([])
   const [purchases, setPurchases] = useState<any[]>([])
@@ -47,7 +49,14 @@ export default function MaterialDetail() {
         setBoms(bomData || [])
       } catch (err: any) {
         if (!alive) return
-        setError(err?.message || 'Failed to load material details.')
+        const message = err?.message || 'Failed to load material details.'
+        if (String(message).toLowerCase().includes('route not found') || String(message).toLowerCase().includes('not found')) {
+          if (id?.startsWith('fg_')) {
+            navigate(`/inventory/finished-goods/${id}`, { replace: true })
+            return
+          }
+        }
+        setError(message)
       }
     }
 
@@ -167,11 +176,6 @@ export default function MaterialDetail() {
             to: `/inventory/purchases/create?material=${material.id}`,
             variant: 'primary',
           },
-          {
-            label: 'Record Entry',
-            to: `/inventory/materials/entry?material=${material.id}`,
-            variant: 'secondary',
-          },
           { label: 'Adjust Stock', variant: 'outline', onClick: () => setShowAdjust(true) },
           { label: 'Edit Material', variant: 'outline', onClick: () => setShowEdit(true) },
         ]}
@@ -204,7 +208,7 @@ export default function MaterialDetail() {
                     tickLine={false}
                     axisLine={{ stroke: '#cbd5e1' }}
                     minTickGap={24}
-                    tickFormatter={(value) => new Date(value).toLocaleDateString()}
+                    tickFormatter={(value) => formatNepaliDate(String(value))}
                   />
                   <YAxis
                     tick={{ fontSize: 11, fill: '#64748b' }}
@@ -218,7 +222,7 @@ export default function MaterialDetail() {
                       const point = payload[0].payload
                       return (
                         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg">
-                          <div className="text-xs text-slate-500">{new Date(String(label)).toLocaleString()}</div>
+                          <div className="text-xs text-slate-500">{formatNepaliDateTime(String(label))}</div>
                           <div className="mt-1 text-sm font-semibold text-slate-900">
                             {point.stock} {material.defaultUnit || 'units'}
                           </div>
@@ -298,7 +302,7 @@ export default function MaterialDetail() {
                               />
                             </td>
                             <th className="px-6 py-4 font-medium text-slate-900 whitespace-nowrap" scope="row">
-                              {new Date(t.createdAt).toLocaleDateString()}
+                              {formatNepaliDate(t.createdAt)}
                             </th>
                             <td className="px-6 py-4 font-mono text-slate-700">
                               <div className="flex items-center gap-1">
@@ -425,7 +429,7 @@ export default function MaterialDetail() {
               <ul className="space-y-2 text-sm text-slate-600">
                 {prices.map((p: any) => (
                   <li key={p.purchaseId}>
-                    {new Date(p.date).toLocaleDateString()} - {p.unitPrice} ({p.quantity})
+                    {formatNepaliDate(p.date)} - {p.unitPrice} ({p.quantity})
                   </li>
                 ))}
                 {prices.length === 0 ? <li className="text-slate-500">No price history yet.</li> : null}
@@ -436,7 +440,7 @@ export default function MaterialDetail() {
               <ul className="space-y-2 text-sm text-slate-600">
                 {purchases.map((p: any) => (
                   <li key={p.id}>
-                    {new Date(p.createdAt).toLocaleDateString()} - {p.supplier?.name || 'Unknown supplier'} - {p.totalAmount}
+                    {formatNepaliDate(p.createdAt)} - {p.supplier?.name || 'Unknown supplier'} - {p.totalAmount}
                   </li>
                 ))}
                 {purchases.length === 0 ? <li className="text-slate-500">No purchases yet.</li> : null}
@@ -475,7 +479,13 @@ export default function MaterialDetail() {
                   {boms.map((b: any) => (
                     <tr key={b.id} className="hover:bg-slate-50">
                       <th className="px-6 py-4 font-medium text-slate-900" scope="row">
-                        {b.garmentStyle}
+                        {b.finishedGoodId ? (
+                          <Link to={`/inventory/finished-goods/${b.finishedGoodId}`} className="text-blue-700 hover:text-blue-800">
+                            {b.garmentStyle}
+                          </Link>
+                        ) : (
+                          b.garmentStyle
+                        )}
                       </th>
                       <td className="px-6 py-4">{b.consumption}</td>
                       <td className="px-6 py-4">{b.unit}</td>

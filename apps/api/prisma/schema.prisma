@@ -375,6 +375,7 @@ model FinishedGoodProduct {
   reorderLevel              Float?                         @default(0)
   active                    Boolean                        @default(true)
   notes                     String?
+  imageUrl                  String?
   bomData                   Json?
   createdBy                 Int?
   updatedBy                 Int?
@@ -479,8 +480,10 @@ model ProductionOrder {
   createdAt        DateTime                   @default(now())
   updatedAt        DateTime                   @updatedAt
   completionLines  ProductionCompletionLine[]
+  costLedgerEntries ManufacturingCostLedgerEntry[]
   issueLines       ProductionIssueLine[]
   finishedGood     FinishedGoodProduct        @relation("ProductionFinishedGood", fields: [finishedGoodId], references: [id])
+
   @@index([finishedGoodId])
   @@index([status])
 }
@@ -650,6 +653,7 @@ model Expense {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?
+  costLedgerEntries ManufacturingCostLedgerEntry[]
 
   @@index([expenseDate])
   @@index([category])
@@ -661,6 +665,31 @@ model DocumentSequence {
   nextNumber Int      @default(1)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model ManufacturingCostLedgerEntry {
+  id                  String           @id @default(cuid())
+  periodStart         DateTime
+  periodEnd           DateTime
+  productionOrderId   String?
+  expenseId           String?
+  expenseBucket       String
+  allocationBasis     String           @default("PRODUCTION_BASE_COST")
+  baseCost            Decimal          @default(0)
+  allocatedOverhead   Decimal          @default(0)
+  fullyAbsorbedCost   Decimal          @default(0)
+  overheadRate        Decimal          @default(0)
+  currency            String           @default("NPR")
+  source              String           @default("OPERATIONS_SUMMARY")
+  createdBy           Int?
+  createdAt           DateTime         @default(now())
+  productionOrder   ProductionOrder? @relation(fields: [productionOrderId], references: [id], onDelete: SetNull)
+  expense           Expense?         @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+
+  @@index([periodStart, periodEnd])
+  @@index([productionOrderId])
+  @@index([expenseId])
+  @@index([expenseBucket])
 }
 
 model CustomerLedgerEntry {
@@ -899,6 +928,7 @@ enum SalesStockTransactionType {
   SALE_OUT
   SALE_RETURN
   ADJUSTMENT
+  PRODUCTION_RECEIPT
 }
 
 enum CustomerLedgerEntryType {

@@ -23,7 +23,6 @@ import PurchaseDetailPage from './pages/inventory/PurchaseDetailPage'
 import AlertsPage from './pages/inventory/AlertsPage'
 import MaterialDetail from './pages/inventory/MaterialDetail'
 import CreateArticlePage from './pages/inventory/CreateArticlePage'
-import MaterialEntryPage from './pages/inventory/MaterialEntryPage'
 import CustomersPage from './pages/inventory/CustomersPage'
 import CustomerDetailPage from './pages/inventory/CustomerDetailPage'
 import FinishedGoodsPage from './pages/inventory/FinishedGoodsPage'
@@ -60,13 +59,14 @@ const App: React.FC = () => {
             <Route path="/inventory/suppliers/:id" element={<SupplierDetailPage />} />
             <Route path="/inventory/customers" element={<CustomersPage />} />
             <Route path="/inventory/customers/:id" element={<CustomerDetailPage />} />
+            <Route path="/inventory" element={<Navigate to="/inventory/materials" replace />} />
             <Route path="/inventory/materials" element={<MaterialsPage />} />
             <Route path="/inventory/finished-goods" element={<FinishedGoodsPage />} />
             <Route path="/inventory/finished-goods/:id" element={<FinishedGoodDetailPage />} />
             <Route path="/inventory/production" element={<ProductionOrdersPage />} />
             <Route path="/inventory/production/:id" element={<ProductionOrderDetailPage />} />
             <Route path="/inventory/materials/create" element={<CreateMaterialPage />} />
-            <Route path="/inventory/materials/entry" element={<MaterialEntryPage />} />
+            <Route path="/inventory/materials/entry" element={<Navigate to="/inventory/materials" replace />} />
             <Route path="/inventory/purchases" element={<PurchasesPage />} />
             <Route path="/inventory/purchases/create" element={<PurchaseCreate />} />
             <Route path="/inventory/purchases/:id" element={<PurchaseDetailPage />} />
@@ -86,6 +86,7 @@ const App: React.FC = () => {
             <Route path="/reports" element={<OperationsDashboardPage />} />
             <Route path="/data-entry" element={<DataEntry />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/invitations" element={<AdminInvitations />} />
             <Route path="/indicators" element={<Navigate to="/projects" replace />} />

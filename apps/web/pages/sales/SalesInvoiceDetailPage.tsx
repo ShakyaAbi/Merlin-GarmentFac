@@ -11,6 +11,7 @@ import { Button } from '../../components/ui/Button'
 import { InvoicePaperDocument } from '../../components/invoices/InvoicePaperDocument'
 import { buildSalesInvoicePaperDocumentProps } from '../../components/invoices/invoicePaperDocumentHelpers'
 import { calculateInvoiceTotals } from '../../components/invoices/invoiceTotals'
+import { formatNepaliDate, formatNepaliDateTime } from '../../utils/nepaliDate'
 
 type SalesInvoice = Awaited<ReturnType<typeof salesInvoiceApi.get>>
 
@@ -22,7 +23,7 @@ const money = (value: number | string | null | undefined) =>
     maximumFractionDigits: 2,
   }).format(Number(value ?? 0))
 
-const formatDateTime = (value?: string | null) => (value ? new Date(value).toLocaleString() : '-')
+const formatDateTime = (value?: string | null) => formatNepaliDateTime(value)
 
 const statusClass = (status?: string | null) => {
   switch (status) {
@@ -79,6 +80,9 @@ export default function SalesInvoiceDetailPage() {
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('Cash')
   const [paymentNote, setPaymentNote] = useState('')
+  const [chequeNumber, setChequeNumber] = useState('')
+  const [chequeDate, setChequeDate] = useState('')
+  const [bankName, setBankName] = useState('')
   const [cancelReason, setCancelReason] = useState('')
 
   const loadInvoice = async () => {
@@ -167,14 +171,25 @@ export default function SalesInvoiceDetailPage() {
   const handleIssue = async () => mutateInvoice('issue', () => salesInvoiceApi.issue(invoice!.id))
 
   const handlePayment = async () => {
+    const method = paymentMethod.trim() || 'Cash'
+    const details: string[] = []
+    if (method.toLowerCase().includes('cheque') || method.toLowerCase().includes('check')) {
+      if (chequeNumber.trim()) details.push(`Cheque #: ${chequeNumber.trim()}`)
+      if (bankName.trim()) details.push(`Bank: ${bankName.trim()}`)
+      if (chequeDate) details.push(`Cheque date: ${formatNepaliDate(chequeDate)}`)
+    }
+    const note = [paymentNote.trim(), ...details].filter(Boolean).join(' | ')
     await mutateInvoice('payment', () =>
       salesInvoiceApi.payment(invoice!.id, {
         amount: paymentAmount,
-        paymentMethod,
-        note: paymentNote,
+        paymentMethod: method,
+        note: note || undefined,
       }),
     )
     setPaymentNote('')
+    setChequeNumber('')
+    setChequeDate('')
+    setBankName('')
   }
 
   const handleCancel = async () => {
@@ -339,7 +354,7 @@ export default function SalesInvoiceDetailPage() {
             ) : null}
           </InventorySectionCard>
 
-          <InventorySectionCard title="Payment History" description="Payments are recorded independently from the invoice issue step.">
+          <InventorySectionCard title="Payment Activity" description="Payments stay inside the invoice, with cash/cheque/bank details tracked as activity.">
             {invoice.payments && invoice.payments.length > 0 ? (
               <div className="space-y-3">
                 {invoice.payments.map((payment) => (
@@ -351,9 +366,20 @@ export default function SalesInvoiceDetailPage() {
                           {formatDateTime(payment.paymentDate || payment.createdAt || payment.paidAt)}
                         </div>
                       </div>
-                      <div className="text-xs font-medium text-slate-600">
-                        {payment.paymentMethod || payment.method || 'Payment method unknown'}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600">
+                          {payment.paymentMethod || payment.method || 'Payment method unknown'}
+                        </span>
+                        {payment.chequeNumber ? (
+                          <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">
+                            Cheque #{payment.chequeNumber}
+                          </span>
+                        ) : null}
                       </div>
+                    </div>
+                    <div className="mt-2 grid grid-cols-1 gap-2 text-sm text-slate-600 md:grid-cols-2">
+                      <div>Amount: {money(payment.amount)}</div>
+                      <div>Date: {formatDateTime(payment.paymentDate || payment.createdAt || payment.paidAt)}</div>
                     </div>
                     {payment.note || payment.notes ? (
                       <div className="mt-2 text-sm text-slate-600">{payment.note || payment.notes}</div>
@@ -362,7 +388,7 @@ export default function SalesInvoiceDetailPage() {
                 ))}
               </div>
             ) : (
-              <div className="py-6 text-sm text-slate-500">No payments have been recorded yet.</div>
+              <div className="py-6 text-sm text-slate-500">No payment activity has been recorded yet.</div>
             )}
           </InventorySectionCard>
         </div>
@@ -383,13 +409,50 @@ export default function SalesInvoiceDetailPage() {
               </label>
               <label className="block text-sm">
                 <span className="mb-1 block text-slate-600">Method</span>
-                <input
+                <select
                   value={paymentMethod}
                   onChange={(event) => setPaymentMethod(event.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                  placeholder="Cash, bank transfer, card"
-                />
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Card">Card</option>
+                  <option value="Mobile Banking">Mobile Banking</option>
+                  <option value="Other">Other</option>
+                </select>
               </label>
+              {paymentMethod.toLowerCase().includes('cheque') || paymentMethod.toLowerCase().includes('check') ? (
+                <div className="grid grid-cols-1 gap-3">
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-slate-600">Cheque number</span>
+                    <input
+                      value={chequeNumber}
+                      onChange={(event) => setChequeNumber(event.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                      placeholder="Cheque number"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-slate-600">Cheque date</span>
+                    <input
+                      type="date"
+                      value={chequeDate}
+                      onChange={(event) => setChequeDate(event.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-slate-600">Bank name</span>
+                    <input
+                      value={bankName}
+                      onChange={(event) => setBankName(event.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                      placeholder="Bank name"
+                    />
+                  </label>
+                </div>
+              ) : null}
               <label className="block text-sm">
                 <span className="mb-1 block text-slate-600">Note</span>
                 <textarea

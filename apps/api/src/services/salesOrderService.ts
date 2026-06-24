@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../prisma'
 import { AppError } from '../utils/errors'
 import * as salesInvoiceSvc from './salesInvoiceService'
+import { getSalesCatalogProductsByIds, listSalesCatalogProducts } from './salesCatalogService'
 
 function toDate(value?: string | Date | null) {
   if (!value) return null
@@ -20,14 +21,8 @@ async function loadOrder(tx: any, id: string) {
 }
 
 async function validateProducts(items: any[]) {
-  const productIds = [...new Set(items.map((item: { productId: string }) => item.productId))]
-  const products = await prisma.finishedGoodProduct.findMany({ where: { id: { in: productIds }, deletedAt: null } })
-  const productMap = new Map(products.map((product) => [product.id, product]))
-  if (productMap.size !== productIds.length) {
-    const missing = productIds.filter((id) => !productMap.has(id))
-    throw new AppError(400, 'INVALID_PRODUCT', `Unknown article product(s): ${missing.join(', ')}`)
-  }
-  return productMap
+  const productIds = items.map((item: { productId: string }) => item.productId)
+  return getSalesCatalogProductsByIds(productIds)
 }
 
 type SalesOrderInputLine = {
@@ -54,6 +49,10 @@ export async function listSalesOrders(opts: { search?: string; status?: string; 
     orderBy: { createdAt: 'desc' },
     include: { customer: true, items: { include: { product: true } }, invoices: true },
   } as any)
+}
+
+export async function listProducts(opts: { search?: string } = {}) {
+  return listSalesCatalogProducts(opts)
 }
 
 export async function getSalesOrder(id: string) {

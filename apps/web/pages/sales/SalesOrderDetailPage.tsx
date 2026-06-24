@@ -5,6 +5,7 @@ import { InventorySectionCard } from '../../components/inventory/InventorySectio
 import { InventoryDataTable } from '../../components/inventory/InventoryDataTable'
 import { Button } from '../../components/ui/Button'
 import { salesOrderApi, SalesOrder } from '../../services/salesOrderApi'
+import { formatNepaliDate } from '../../utils/nepaliDate'
 
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-US', {
@@ -101,11 +102,11 @@ export default function SalesOrderDetailPage() {
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                   <div className="text-xs uppercase tracking-wide text-slate-500">Order date</div>
-                  <div className="font-medium text-slate-900">{order.orderDate ? new Date(order.orderDate).toLocaleDateString() : '-'}</div>
+                  <div className="font-medium text-slate-900">{formatNepaliDate(order.orderDate)}</div>
                 </div>
                 <div>
                   <div className="text-xs uppercase tracking-wide text-slate-500">Required by</div>
-                  <div className="font-medium text-slate-900">{order.requiredBy ? new Date(order.requiredBy).toLocaleDateString() : '-'}</div>
+                  <div className="font-medium text-slate-900">{formatNepaliDate(order.requiredBy)}</div>
                 </div>
                 <div>
                   <div className="text-xs uppercase tracking-wide text-slate-500">Subtotal</div>

@@ -7,6 +7,7 @@ import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { InventoryDataTable } from '../../components/inventory/InventoryDataTable'
 import { Button } from '../../components/ui/Button'
 import { expenseApi, Expense, ExpenseStatus } from '../../services/expenseApi'
+import { formatNepaliDate } from '../../utils/nepaliDate'
 
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
@@ -121,7 +122,7 @@ export default function ExpensesPage() {
             >
               {expenses.map((expense) => (
                 <tr key={expense.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/70">
-                  <td className="px-3 py-4 align-top">{expense.expenseDate ? new Date(expense.expenseDate).toLocaleDateString() : '-'}</td>
+                  <td className="px-3 py-4 align-top">{formatNepaliDate(expense.expenseDate)}</td>
                   <td className="px-3 py-4 align-top font-medium text-slate-900">{expense.category}</td>
                   <td className="px-3 py-4 align-top text-slate-600">{expense.vendor || '-'}</td>
                   <td className="px-3 py-4 align-top text-slate-700">{expense.description}</td>

@@ -1,0 +1,6 @@
+DO $$
+BEGIN
+  ALTER TYPE "SalesStockTransactionType" ADD VALUE IF NOT EXISTS 'PRODUCTION_RECEIPT';
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;

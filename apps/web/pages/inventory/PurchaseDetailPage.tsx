@@ -7,11 +7,12 @@ import { InventoryDataTable } from '../../components/inventory/InventoryDataTabl
 import { InvoicePaperDocument } from '../../components/invoices/InvoicePaperDocument'
 import { buildPurchaseInvoicePaperDocumentProps } from '../../components/invoices/invoicePaperDocumentHelpers'
 import { calculateInvoiceTotals } from '../../components/invoices/invoiceTotals'
+import { formatNepaliDateTime } from '../../utils/nepaliDate'
 
 const money = (value: number | string | null | undefined, currency = 'NPR') =>
   new Intl.NumberFormat('en-NP', { style: 'currency', currency: currency || 'NPR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
 
-const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleString() : '-')
+const formatDate = (value?: string | null) => formatNepaliDateTime(value)
 
 export default function PurchaseDetailPage() {
   const { id } = useParams()

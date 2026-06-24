@@ -9,6 +9,7 @@ import {
   ActivityLog,
 } from "../types";
 import { api } from "../services/api";
+import { formatNepaliDate } from "../utils/nepaliDate";
 import { Button } from "../components/ui/Button";
 import { LogframeTree } from "../components/LogframeTree";
 import { Modal } from "../components/ui/Modal";
@@ -449,16 +450,7 @@ export const ProjectDetail: React.FC = () => {
     return Math.max(0, Math.min(100, percent));
   };
 
-  const formatDate = (value?: string) => {
-    if (!value) return "—";
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return "—";
-    return parsed.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-    });
-  };
+  const formatDate = (value?: string) => formatNepaliDate(value, "-");
 
   const nodeTypeById = useMemo(() => {
     const map = new Map<string, NodeType>();
@@ -1294,7 +1286,7 @@ export const ProjectDetail: React.FC = () => {
                                 {alert.title}
                               </h4>
                               <span className="text-[10px] text-slate-400 font-medium">
-                                {new Date(alert.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                {formatNepaliDate(alert.date)}
                               </span>
                             </div>
                             <p className="text-sm text-slate-500 mt-1 line-clamp-2">

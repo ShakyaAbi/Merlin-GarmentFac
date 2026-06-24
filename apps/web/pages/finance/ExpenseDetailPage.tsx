@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
 import { expenseApi, Expense } from '../../services/expenseApi'
+import { formatNepaliDate } from '../../utils/nepaliDate'
 
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
@@ -27,7 +28,7 @@ export default function ExpenseDetailPage() {
       ) : expense ? (
         <InventorySectionCard title="Expense details">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div><div className="text-xs uppercase text-slate-500">Date</div><div className="font-medium">{expense.expenseDate ? new Date(expense.expenseDate).toLocaleDateString() : '-'}</div></div>
+            <div><div className="text-xs uppercase text-slate-500">Date</div><div className="font-medium">{formatNepaliDate(expense.expenseDate)}</div></div>
             <div><div className="text-xs uppercase text-slate-500">Status</div><div className="font-medium">{expense.status}</div></div>
             <div><div className="text-xs uppercase text-slate-500">Category</div><div className="font-medium">{expense.category}</div></div>
             <div><div className="text-xs uppercase text-slate-500">Vendor</div><div className="font-medium">{expense.vendor || '-'}</div></div>

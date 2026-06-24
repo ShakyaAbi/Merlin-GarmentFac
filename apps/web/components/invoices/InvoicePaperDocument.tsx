@@ -1,6 +1,7 @@
 import React from 'react'
 import { amountInWords } from './amountInWords'
 import { calculateInvoiceTotals } from './invoiceTotals'
+import { formatNepaliDate } from '../../utils/nepaliDate'
 
 export type InvoicePaperLine = {
   id: string
@@ -49,7 +50,7 @@ const money = (value: number) =>
     maximumFractionDigits: 2,
   }).format(Number.isFinite(value) ? value : 0)
 
-const formatDate = (value?: string) => (value ? new Date(value).toLocaleDateString('en-GB') : '-')
+const formatDate = (value?: string) => formatNepaliDate(value)
 
 export function InvoicePaperDocument({
   companyName,

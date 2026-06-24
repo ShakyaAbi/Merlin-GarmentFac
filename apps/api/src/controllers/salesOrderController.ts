@@ -13,6 +13,13 @@ export const list = async (req: Request, res: Response) => {
   res.json(data)
 }
 
+export const listProducts = async (req: Request, res: Response) => {
+  const data = await svc.listProducts({
+    search: req.query.search as string | undefined,
+  })
+  res.json(data)
+}
+
 export const get = async (req: Request, res: Response) => {
   const data = await svc.getSalesOrder(req.params.id)
   if (!data) return res.status(404).send('Not found')

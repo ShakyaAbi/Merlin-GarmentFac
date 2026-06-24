@@ -58,6 +58,12 @@ export const purchases = async (req: Request, res: Response) => {
   res.json(data)
 }
 
+// Lists finished-good BOM rows that use a material
+export const boms = async (req: Request, res: Response) => {
+  const data = await svc.listBomUsagesForMaterial(req.params.id)
+  res.json(data)
+}
+
 // Updates a material
 export const update = async (req: Request, res: Response) => {
   const user = (req as any).user?.id

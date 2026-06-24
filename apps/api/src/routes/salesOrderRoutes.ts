@@ -9,6 +9,7 @@ import * as salesOrders from '../controllers/salesOrderController'
 const router = Router()
 
 router.get('/', authenticate, salesOrders.list)
+router.get('/products', authenticate, salesOrders.listProducts)
 router.get('/:id', authenticate, salesOrders.get)
 router.post('/', authenticate, requireRoles(Role.ADMIN, Role.MANAGER, Role.DATA_ENTRY), validate({ body: createSalesOrderSchema }), salesOrders.create)
 router.patch('/:id', authenticate, requireRoles(Role.ADMIN, Role.MANAGER, Role.DATA_ENTRY), validate({ body: updateSalesOrderSchema }), salesOrders.update)

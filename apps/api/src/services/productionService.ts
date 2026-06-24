@@ -70,6 +70,43 @@ export async function createProductionOrder(payload: { finishedGoodId: string; q
   })
 }
 
+export async function updateProductionOrder(id: string, payload: { finishedGoodId: string; quantityPlanned: number; notes?: string }, userId?: number) {
+  return prisma.$transaction(async (tx) => {
+    const order = await loadProductionOrder(tx as any, id)
+    if (!order) throw new AppError(404, 'NOT_FOUND', 'Production order not found')
+    if (order.status !== 'DRAFT') {
+      throw new AppError(409, 'INVALID_STATUS', 'Only draft production batches can be edited')
+    }
+
+    const fg = await loadFinishedGood(tx as any, payload.finishedGoodId)
+    await (tx as any).productionOrder.update({
+      where: { id },
+      data: {
+        finishedGoodId: fg.id,
+        finishedGoodName: fg.name,
+        quantityPlanned: payload.quantityPlanned,
+        notes: payload.notes || null,
+        updatedBy: userId ?? null,
+      },
+    })
+
+    return loadProductionOrder(tx as any, id)
+  })
+}
+
+export async function deleteProductionOrder(id: string) {
+  return prisma.$transaction(async (tx) => {
+    const order = await loadProductionOrder(tx as any, id)
+    if (!order) throw new AppError(404, 'NOT_FOUND', 'Production order not found')
+    if (order.status !== 'DRAFT') {
+      throw new AppError(409, 'INVALID_STATUS', 'Only draft production batches can be deleted')
+    }
+
+    await (tx as any).productionOrder.delete({ where: { id } })
+    return order
+  })
+}
+
 export async function issueProductionOrder(id: string, userId?: number, issueReason?: string) {
   return prisma.$transaction(async (tx) => {
     const order = await loadProductionOrder(tx as any, id)
@@ -161,7 +198,7 @@ export async function completeProductionOrder(id: string, payload: { quantityPro
         productId: fg.id,
         change: payload.quantityProduced,
         unit: fg.unit,
-        transactionType: 'PRODUCTION_IN',
+        transactionType: 'PRODUCTION_RECEIPT' as any,
         balanceAfter: nextBalance,
         unitCost: new Prisma.Decimal(fg.costPrice || 0),
         reason: payload.completionNote || `production.complete:${order.id}`,

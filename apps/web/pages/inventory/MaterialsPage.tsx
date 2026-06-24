@@ -76,20 +76,19 @@ export default function MaterialsPage() {
   return (
     <InventoryPageShell
       eyebrow="Inventory"
-      title="Materials"
-      description="Manage fabric, trims, accessories, and stock levels."
+      title="Raw Materials"
+      description="Manage fabric, trims, accessories, and raw input stock used to make articles."
       backTo={{ to: '/inventory/purchases', label: 'Back to Purchases' }}
       actions={[
-        { label: 'Create Article', variant: 'outline', to: '/inventory/finished-goods/create' },
-        { label: 'Record Entry', variant: 'secondary', to: '/inventory/materials/entry' },
         { label: 'Create Material', onClick: () => navigate('/inventory/materials/create') },
+        { label: 'View Articles', variant: 'outline', to: '/inventory/finished-goods' },
       ]}
     >
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         <div className="space-y-8 lg:col-span-2">
           <InventorySectionCard
-            title="Material Catalog"
-            description="Search and open a material to manage BOM links and stock."
+            title="Raw Material Catalog"
+            description="Search raw materials used in purchases, production, and article material bills."
           >
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <label className="sr-only" htmlFor="material-search">
@@ -113,7 +112,6 @@ export default function MaterialsPage() {
                   <MaterialCard
                     key={m.id}
                     material={m}
-                    onRecordEntry={(material) => navigate(`/inventory/materials/entry?material=${material.id}`)}
                     onEdit={(material) => navigate(`/inventory/materials/${material.id}?edit=1`)}
                   />
                 ))}
@@ -150,14 +148,11 @@ export default function MaterialsPage() {
 
           <InventorySectionCard title="Quick Actions">
             <div className="flex flex-col gap-2">
-              <Button type="button" variant="outline" onClick={() => navigate('/inventory/materials/entry')}>
-                Record Entry
-              </Button>
               <Button type="button" variant="outline" onClick={() => navigate('/inventory/materials/create')}>
                 New Material
               </Button>
-              <Button type="button" variant="outline" onClick={() => navigate('/inventory/finished-goods/create')}>
-                New Article
+              <Button type="button" variant="outline" onClick={() => navigate('/inventory/finished-goods')}>
+                View Articles
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate('/inventory/suppliers')}>
                 Suppliers
@@ -165,7 +160,7 @@ export default function MaterialsPage() {
             </div>
           </InventorySectionCard>
 
-          <InventorySectionCard title="CSV Tools" description="Import or export the material catalog.">
+          <InventorySectionCard title="CSV Tools" description="Import or export the raw material catalog.">
             <MaterialCsvActions
               title="material catalog"
               filters={{ search }}

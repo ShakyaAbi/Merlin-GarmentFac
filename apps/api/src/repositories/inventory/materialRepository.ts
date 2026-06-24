@@ -51,6 +51,40 @@ export const listStockTransactions = async (rawMaterialId: string, opts: any = {
   return prisma.stockTransaction.findMany({ where: { rawMaterialId }, orderBy: { createdAt: 'desc' }, skip, take })
 }
 
+export const listBomUsagesForMaterial = async (rawMaterialId: string) => {
+  const products = await prisma.finishedGoodProduct.findMany({
+    where: { deletedAt: null },
+    select: {
+      id: true,
+      name: true,
+      sku: true,
+      productCode: true,
+      bomData: true,
+    } as any,
+    orderBy: { name: 'asc' },
+  } as any)
+
+  return products.flatMap((product: any) => {
+    const items = Array.isArray(product?.bomData?.items) ? product.bomData.items : []
+    return items
+      .map((item: any, index: number) => ({ item, index }))
+      .filter(({ item }: any) => item?.rawMaterialId === rawMaterialId)
+      .map(({ item, index }: any) => ({
+        id: `${product.id}:${index}`,
+        finishedGoodId: product.id,
+        articleName: product.name,
+        sku: product.sku,
+        productCode: product.productCode,
+        garmentStyle: product.bomData?.garmentStyle || product.name,
+        rawMaterialId: item.rawMaterialId,
+        consumption: Number(item.consumption ?? 0),
+        unit: item.unit || '',
+        rate: Number(item.rate ?? 0),
+        yield: item.yield ?? null,
+      }))
+  })
+}
+
 // For compatibility we can forward to purchaseRepository for prices/purchases
 
 // Soft delete material (mark as deleted and inactive)

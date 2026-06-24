@@ -15,6 +15,9 @@ export type SalesInvoicePayment = {
   method?: string | null
   note?: string | null
   notes?: string | null
+  chequeNumber?: string | null
+  chequeDate?: string | null
+  bankName?: string | null
 }
 
 export type SalesInvoiceItem = {

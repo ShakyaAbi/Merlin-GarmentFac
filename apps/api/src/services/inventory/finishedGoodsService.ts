@@ -3,10 +3,61 @@ import { prisma } from '../../prisma'
 import { AppError } from '../../utils/errors'
 import { allocateDocumentNumber, previewDocumentNumber } from '../sequenceService'
 
+async function normalizeBomCosts(data: any) {
+  const items = Array.isArray(data?.bomData?.items) ? data.bomData.items : []
+  if (items.length === 0) {
+    return {
+      data,
+      materialCost: data.costPrice === undefined ? undefined : Number(data.costPrice ?? 0),
+    }
+  }
+
+  const materialIds = [...new Set(items.map((item: any) => item.rawMaterialId).filter(Boolean))]
+  const materials = materialIds.length
+    ? await prisma.rawMaterial.findMany({
+        where: { id: { in: materialIds } },
+        select: { id: true, name: true, defaultUnit: true, costPrice: true } as any,
+      } as any)
+    : []
+  const materialById = new Map(materials.map((material: any) => [material.id, material]))
+
+  const normalizedItems = items.map((item: any) => {
+    const material: any = materialById.get(item.rawMaterialId)
+    const materialCost = Number(material?.costPrice ?? 0)
+    const consumption = Number(item.consumption ?? 0)
+    return {
+      ...item,
+      rawMaterialName: material?.name || item.rawMaterialName,
+      unit: item.unit || material?.defaultUnit || '',
+      rate: materialCost,
+      consumption,
+    }
+  })
+
+  const materialCost = normalizedItems.reduce(
+    (sum: number, item: any) => sum + Number(item.consumption ?? 0) * Number(item.rate ?? 0),
+    0,
+  )
+
+  return {
+    data: {
+      ...data,
+      costPrice: materialCost,
+      bomData: {
+        ...data.bomData,
+        items: normalizedItems,
+      },
+    },
+    materialCost,
+  }
+}
+
 export async function createFinishedGood(data: any, userId?: number) {
   const articleNumber = await allocateDocumentNumber('article')
+  const normalized = await normalizeBomCosts(data)
   return repo.createFinishedGood({
-    ...data,
+    ...normalized.data,
+    costPrice: normalized.materialCost,
     sku: data.sku?.trim() || articleNumber,
     productCode: data.productCode?.trim() || articleNumber,
     createdBy: userId,
@@ -19,8 +70,10 @@ export async function previewNextArticleNumber() {
 }
 
 export async function updateFinishedGood(id: string, data: any, userId?: number) {
+  const normalized = await normalizeBomCosts(data)
   return repo.updateFinishedGood(id, {
-    ...data,
+    ...normalized.data,
+    costPrice: normalized.materialCost,
     updatedBy: userId,
   })
 }

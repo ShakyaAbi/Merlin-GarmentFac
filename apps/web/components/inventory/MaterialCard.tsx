@@ -15,10 +15,9 @@ type MaterialCardProps = {
     active?: boolean
   }
   onEdit?: (material: MaterialCardProps['material']) => void
-  onRecordEntry?: (material: MaterialCardProps['material']) => void
 }
 
-export function MaterialCard({ material, onEdit, onRecordEntry }: MaterialCardProps) {
+export function MaterialCard({ material, onEdit }: MaterialCardProps) {
   const currentStock = Number(material.currentStock ?? 0)
   const reorderLevel = material.reorderLevel ?? null
   const hasTarget = reorderLevel != null && Number.isFinite(Number(reorderLevel)) && Number(reorderLevel) > 0
@@ -88,15 +87,6 @@ export function MaterialCard({ material, onEdit, onRecordEntry }: MaterialCardPr
         >
           View
         </Link>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          className="px-4"
-          onClick={() => onRecordEntry?.(material)}
-        >
-          Entry
-        </Button>
         <Button type="button" variant="outline" size="sm" className="px-4" onClick={() => onEdit?.(material)}>
           Edit
         </Button>

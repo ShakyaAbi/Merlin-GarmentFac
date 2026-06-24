@@ -7,6 +7,8 @@ import { InventorySectionCard } from '../../components/inventory/InventorySectio
 import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { InventoryDataTable } from '../../components/inventory/InventoryDataTable'
 import { Button } from '../../components/ui/Button'
+import { formatNepaliDate } from '../../utils/nepaliDate'
+import { filterSalesInvoices } from '../../utils/salesInvoiceFilters'
 
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-US', {
@@ -16,7 +18,14 @@ const money = (value: number | string | null | undefined) =>
     maximumFractionDigits: 2,
   }).format(Number(value ?? 0))
 
-const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString() : '-')
+const formatDate = (value?: string | null) => formatNepaliDate(value)
+
+const toDateInputValue = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 const statusClass = (status?: string | null) => {
   switch (status) {
@@ -39,12 +48,6 @@ const statusClass = (status?: string | null) => {
   }
 }
 
-const matchesStatus = (value: string | null | undefined, filter: SalesInvoiceStatus | 'ALL') =>
-  filter === 'ALL' ? true : value === filter
-
-const matchesPayment = (value: string | null | undefined, filter: SalesPaymentStatus | 'ALL') =>
-  filter === 'ALL' ? true : value === filter
-
 export default function SalesInvoiceListPage() {
   const navigate = useNavigate()
   const [invoices, setInvoices] = useState<SalesInvoice[]>([])
@@ -53,6 +56,8 @@ export default function SalesInvoiceListPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<SalesInvoiceStatus | 'ALL'>('ALL')
   const [paymentFilter, setPaymentFilter] = useState<SalesPaymentStatus | 'ALL'>('ALL')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const [exporting, setExporting] = useState(false)
 
   const loadInvoices = async () => {
@@ -73,26 +78,30 @@ export default function SalesInvoiceListPage() {
   }, [])
 
   const filteredInvoices = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    return invoices.filter((invoice) => {
-      const customerName = invoice.customer?.customerName || invoice.customerName || ''
-      const haystack = [
-        invoice.invoiceNumber,
-        customerName,
-        invoice.remarks,
-        invoice.items?.map((item) => `${item.productCode || ''} ${item.productName || ''}`).join(' '),
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
+    return filterSalesInvoices(invoices, { search, statusFilter, paymentFilter, fromDate, toDate })
+  }, [fromDate, invoices, paymentFilter, search, statusFilter, toDate])
 
-      return (
-        matchesStatus(invoice.invoiceStatus, statusFilter) &&
-        matchesPayment(invoice.paymentStatus, paymentFilter) &&
-        (query ? haystack.includes(query) : true)
-      )
-    })
-  }, [invoices, paymentFilter, search, statusFilter])
+  const hasActiveFilters = search.trim() || statusFilter !== 'ALL' || paymentFilter !== 'ALL' || fromDate || toDate
+
+  const applyTodayFilter = () => {
+    const today = toDateInputValue(new Date())
+    setFromDate(today)
+    setToDate(today)
+  }
+
+  const applyThisMonthFilter = () => {
+    const now = new Date()
+    setFromDate(toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1)))
+    setToDate(toDateInputValue(new Date(now.getFullYear(), now.getMonth() + 1, 0)))
+  }
+
+  const clearFilters = () => {
+    setSearch('')
+    setStatusFilter('ALL')
+    setPaymentFilter('ALL')
+    setFromDate('')
+    setToDate('')
+  }
 
   const stats = useMemo(() => {
     const total = filteredInvoices.length
@@ -156,8 +165,8 @@ export default function SalesInvoiceListPage() {
           title="Invoice Register"
           description="Search by invoice number, customer, remark, or article line item."
         >
-          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="mb-4 space-y-3">
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(220px,1fr)_minmax(170px,220px)_minmax(170px,220px)_150px_150px]">
               <label className="relative flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
@@ -168,40 +177,68 @@ export default function SalesInvoiceListPage() {
                 />
               </label>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
-                  <Filter className="h-4 w-4 text-slate-400" />
-                  <select
-                    value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value as SalesInvoiceStatus | 'ALL')}
-                    className="bg-transparent outline-none"
-                  >
-                    {statusOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option === 'ALL' ? 'All statuses' : option.replace(/_/g, ' ')}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
+                <Filter className="h-4 w-4 shrink-0 text-slate-400" />
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value as SalesInvoiceStatus | 'ALL')}
+                  className="w-full bg-transparent outline-none"
+                >
+                  {statusOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option === 'ALL' ? 'All statuses' : option.replace(/_/g, ' ')}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-                <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
-                  <Filter className="h-4 w-4 text-slate-400" />
-                  <select
-                    value={paymentFilter}
-                    onChange={(event) => setPaymentFilter(event.target.value as SalesPaymentStatus | 'ALL')}
-                    className="bg-transparent outline-none"
-                  >
-                    {paymentOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option === 'ALL' ? 'All payment states' : option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+              <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
+                <Filter className="h-4 w-4 shrink-0 text-slate-400" />
+                <select
+                  value={paymentFilter}
+                  onChange={(event) => setPaymentFilter(event.target.value as SalesPaymentStatus | 'ALL')}
+                  className="w-full bg-transparent outline-none"
+                >
+                  {paymentOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option === 'ALL' ? 'All payment states' : option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="sr-only">From date</span>
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(event) => setFromDate(event.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="From date"
+                />
+              </label>
+              <label className="block">
+                <span className="sr-only">To date</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(event) => setToDate(event.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="To date"
+                />
+              </label>
             </div>
 
             <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={applyTodayFilter}>
+                Today
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={applyThisMonthFilter}>
+                This Month
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
+                Clear
+              </Button>
               <Button type="button" variant="outline" size="sm" onClick={loadInvoices}>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Refresh
@@ -210,6 +247,11 @@ export default function SalesInvoiceListPage() {
                 <FileDown className="mr-2 h-4 w-4" />
                 Export
               </Button>
+              {fromDate || toDate ? (
+                <span className="flex items-center text-xs text-slate-500">
+                  Date range: {fromDate ? formatDate(fromDate) : 'Any'} to {toDate ? formatDate(toDate) : 'Any'}
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -219,7 +261,7 @@ export default function SalesInvoiceListPage() {
             </div>
           ) : filteredInvoices.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 py-12 text-center text-sm text-slate-500">
-              No invoices match the current filters.
+              {hasActiveFilters ? 'No invoices match the current filters.' : 'No sales invoices yet. Start with a new invoice.'}
             </div>
           ) : (
             <InventoryDataTable

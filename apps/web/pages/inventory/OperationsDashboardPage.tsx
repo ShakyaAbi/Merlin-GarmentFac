@@ -5,11 +5,17 @@ import { InventorySectionCard } from '../../components/inventory/InventorySectio
 import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { InventoryDataTable } from '../../components/inventory/InventoryDataTable'
 import { Button } from '../../components/ui/Button'
+import { formatNepaliDate } from '../../utils/nepaliDate'
 
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
 
-const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString() : '-')
+const formatDate = (value?: string | null) => formatNepaliDate(value)
+
+type DashboardFilters = {
+  from?: string
+  to?: string
+}
 
 export default function OperationsDashboardPage() {
   const [loading, setLoading] = useState(true)
@@ -21,14 +27,16 @@ export default function OperationsDashboardPage() {
   const [appliedFromDate, setAppliedFromDate] = useState('')
   const [appliedToDate, setAppliedToDate] = useState('')
 
-  const loadDashboard = async (mode: 'initial' | 'refresh' = 'initial') => {
+  const loadDashboard = async (mode: 'initial' | 'refresh' = 'initial', filters?: DashboardFilters) => {
     if (mode === 'refresh') setRefreshing(true)
     else setLoading(true)
     setError(null)
     try {
+      const from = filters?.from ?? appliedFromDate
+      const to = filters?.to ?? appliedToDate
       const query = new URLSearchParams()
-      if (appliedFromDate) query.set('from', appliedFromDate)
-      if (appliedToDate) query.set('to', appliedToDate)
+      if (from) query.set('from', from)
+      if (to) query.set('to', to)
       const data = await api.get(`/operations/summary${query.toString() ? `?${query.toString()}` : ''}`)
       setSummary(data)
     } catch (err: any) {
@@ -46,7 +54,7 @@ export default function OperationsDashboardPage() {
   const applyReportingPeriod = () => {
     setAppliedFromDate(fromDate)
     setAppliedToDate(toDate)
-    void loadDashboard('refresh')
+    void loadDashboard('refresh', { from: fromDate, to: toDate })
   }
 
   const stats = useMemo(() => {
@@ -75,6 +83,7 @@ export default function OperationsDashboardPage() {
   const lowStockFinishedGoods = useMemo(() => (summary?.lists?.lowStockFinishedGoods || []).slice(0, 5), [summary])
   const recentInvoices = useMemo(() => (summary?.recent?.invoices || []).slice(0, 8), [summary])
   const recentPurchases = useMemo(() => (summary?.recent?.purchases || []).slice(0, 8), [summary])
+  const productionBatches = useMemo(() => (summary?.recent?.productionOrders || []).slice(0, 8), [summary])
 
   return (
     <InventoryPageShell
@@ -184,22 +193,22 @@ export default function OperationsDashboardPage() {
             )}
           </InventorySectionCard>
 
-          <InventorySectionCard title="Recent Production Orders" description="Planned and completed work visible from BOM-driven production.">
+          <InventorySectionCard title="Recent Production Batches" description="Planned and completed article batches visible from BOM-driven production.">
             {loading ? (
               <div className="py-10 text-center text-sm text-slate-500">Loading dashboard...</div>
-            ) : productionOrders.length === 0 ? (
-              <div className="py-10 text-center text-sm text-slate-500">No production orders yet.</div>
+            ) : productionBatches.length === 0 ? (
+              <div className="py-10 text-center text-sm text-slate-500">No production batches yet.</div>
             ) : (
               <InventoryDataTable
-                caption="Recent production orders"
+                caption="Recent production batches"
                 columns={[
-                  { label: 'Order' },
+                  { label: 'Batch' },
                   { label: 'Article' },
                   { label: 'Planned Qty' },
                   { label: 'Status' },
                 ]}
               >
-                {productionOrders.slice(0, 8).map((order: any, index: number) => (
+                {productionBatches.slice(0, 8).map((order: any, index: number) => (
                   <tr key={`${order.id || index}`} className="border-b border-slate-100 last:border-b-0">
                     <td className="px-3 py-4 font-semibold text-slate-900">{order.orderNumber || order.id}</td>
                     <td className="px-3 py-4 text-slate-700">{order.finishedGoodName || order.finishedGood?.name || '-'}</td>
@@ -252,10 +261,10 @@ export default function OperationsDashboardPage() {
             </div>
           </InventorySectionCard>
 
-          <InventorySectionCard title="Absorbed Production Cost" description="Overhead allocated across production orders by base manufacturing cost.">
+          <InventorySectionCard title="Absorbed Production Cost" description="Overhead allocated across production batches by base manufacturing cost.">
             <div className="space-y-3">
               {(summary?.lists?.productionOrderAllocations || []).length === 0 ? (
-                <div className="text-sm text-slate-500">No production orders available for allocation.</div>
+                <div className="text-sm text-slate-500">No production batches available for allocation.</div>
               ) : (
                 (summary?.lists?.productionOrderAllocations || []).map((order: any) => (
                   <div key={order.id} className="rounded-xl bg-slate-50 px-3 py-2 text-sm">

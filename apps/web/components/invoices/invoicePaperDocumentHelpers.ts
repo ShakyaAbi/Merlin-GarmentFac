@@ -1,4 +1,5 @@
 import type { InvoicePaperDocumentProps, InvoicePaperLine } from './InvoicePaperDocument'
+import { formatNepaliDateTime } from '../../utils/nepaliDate'
 
 type InvoiceParty = {
   label: string
@@ -58,8 +59,8 @@ export function buildSalesInvoicePaperDocumentProps(invoice: any, customerName: 
       email: invoice.customer?.email || '',
     },
     meta: buildMeta([
-      { label: 'Invoice Date', value: invoice.invoiceDate || invoice.createdAt ? new Date(invoice.invoiceDate || invoice.createdAt).toLocaleString() : '-' },
-      { label: 'Due Date', value: invoice.dueDate ? new Date(invoice.dueDate).toLocaleString() : '-' },
+      { label: 'Invoice Date', value: formatNepaliDateTime(invoice.invoiceDate || invoice.createdAt) },
+      { label: 'Due Date', value: formatNepaliDateTime(invoice.dueDate) },
       { label: 'Fiscal Year', value: invoice.fiscalYear || '-' },
       { label: 'Payment Status', value: invoice.paymentStatus || 'UNKNOWN' },
     ]),
@@ -97,7 +98,7 @@ export function buildPurchaseInvoicePaperDocumentProps(purchase: any): InvoicePa
       email: purchase.supplier?.email || '',
     },
     meta: buildMeta([
-      { label: 'Invoice Date', value: purchase.invoiceDate ? new Date(purchase.invoiceDate).toLocaleString() : '-' },
+      { label: 'Invoice Date', value: formatNepaliDateTime(purchase.invoiceDate) },
       { label: 'Status', value: purchase.status || '-' },
       { label: 'Currency', value: purchase.currency || 'NPR' },
     ]),

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, ShoppingCart, Plus } from 'lucide-react'
 import { salesInvoiceApi, SalesInvoiceCustomer, SalesInvoiceProduct, SalesInvoicePayload } from '../../services/salesInvoiceApi'
@@ -381,6 +381,7 @@ export default function SalesInvoiceCreatePage() {
           <InventorySectionCard title="Invoice Items" description="Use the catalog on the right to add article lines quickly.">
             <InvoiceItemTable
               items={items}
+              products={products}
               taxEditable={false}
               showWarehouse={false}
               onAddItem={addBlankItem}

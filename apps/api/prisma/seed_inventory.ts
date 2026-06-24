@@ -20,6 +20,7 @@ type SupplierSeed = {
   address: string
   notes: string
   externalRef: string
+  openingBalance: number
 }
 
 type MaterialSeed = {
@@ -68,6 +69,7 @@ type CustomerSeed = {
   address: string
   email: string
   notes: string
+  openingBalance: number
 }
 
 type FinishedGoodSeed = {
@@ -118,6 +120,7 @@ const suppliers: SupplierSeed[] = [
     address: 'Balaju Industrial Area, Kathmandu',
     notes: 'Primary bamboo knits supplier for the core apparel line.',
     externalRef: 'BGF-001',
+    openingBalance: 0,
   },
   {
     id: 'sup_himalayan_linen',
@@ -128,6 +131,7 @@ const suppliers: SupplierSeed[] = [
     address: 'Lalitpur Textile Park, Lalitpur',
     notes: 'Supplies linen woven and linen slub fabric.',
     externalRef: 'HLM-001',
+    openingBalance: 12500,
   },
   {
     id: 'sup_green_stitch',
@@ -138,6 +142,7 @@ const suppliers: SupplierSeed[] = [
     address: 'Industrial Estate, Bhaktapur',
     notes: 'Threads, buttons, labels, and small textile accessories.',
     externalRef: 'GST-001',
+    openingBalance: 4200,
   },
   {
     id: 'sup_leafpack',
@@ -148,6 +153,7 @@ const suppliers: SupplierSeed[] = [
     address: 'Thimi Packaging Hub, Bhaktapur',
     notes: 'Compostable packaging and retail presentation materials.',
     externalRef: 'LPK-001',
+    openingBalance: 1800,
   },
 ]
 
@@ -390,6 +396,7 @@ const customers: CustomerSeed[] = [
     address: 'Jhamsikhel, Lalitpur',
     email: 'orders@atelierone.example',
     notes: 'Primary wholesale boutique customer.',
+    openingBalance: 0,
   },
   {
     id: 'cust_river_market',
@@ -398,7 +405,15 @@ const customers: CustomerSeed[] = [
     address: 'Thamel, Kathmandu',
     email: 'purchasing@rivermarket.example',
     notes: 'Retail stockist for capsule drops.',
+    openingBalance: 8600,
   },
+]
+
+const articleCategories = [
+  { id: 'article_cat_tops', name: 'Tops', description: 'T-shirts, shirts, and overshirts.' },
+  { id: 'article_cat_bottoms', name: 'Bottoms', description: 'Pants and other lower-body articles.' },
+  { id: 'article_cat_wovens', name: 'Wovens', description: 'Structured woven garments.' },
+  { id: 'article_cat_accessories', name: 'Accessories', description: 'Small sellable add-ons and packaging-led articles.' },
 ]
 
 const finishedGoods: FinishedGoodSeed[] = [
@@ -472,6 +487,7 @@ const upsertSupplier = async (prisma: PrismaClient, supplier: SupplierSeed, user
       status: SupplierStatus.ACTIVE,
       notes: supplier.notes,
       externalRef: supplier.externalRef,
+      openingBalance: decimal(supplier.openingBalance),
       balance: decimal(0),
       createdBy: userId,
       updatedBy: userId,
@@ -485,6 +501,7 @@ const upsertSupplier = async (prisma: PrismaClient, supplier: SupplierSeed, user
       status: SupplierStatus.ACTIVE,
       notes: supplier.notes,
       externalRef: supplier.externalRef,
+      openingBalance: decimal(supplier.openingBalance),
       updatedBy: userId,
       deletedAt: null,
     },
@@ -665,6 +682,7 @@ const upsertCustomer = async (prisma: PrismaClient, customer: CustomerSeed, user
       address: customer.address,
       email: customer.email,
       notes: customer.notes,
+      openingBalance: decimal(customer.openingBalance),
       createdBy: userId,
       updatedBy: userId,
     },
@@ -674,10 +692,130 @@ const upsertCustomer = async (prisma: PrismaClient, customer: CustomerSeed, user
       address: customer.address,
       email: customer.email,
       notes: customer.notes,
+      openingBalance: decimal(customer.openingBalance),
       updatedBy: userId,
       deletedAt: null,
     },
   })
+
+const upsertArticleCategories = async (prisma: PrismaClient) =>
+  Promise.all(
+    articleCategories.map((category) =>
+      prisma.articleCategory.upsert({
+        where: { id: category.id },
+        create: {
+          id: category.id,
+          name: category.name,
+          description: category.description,
+          status: 'ACTIVE',
+        },
+        update: {
+          name: category.name,
+          description: category.description,
+          status: 'ACTIVE',
+          deletedAt: null,
+        },
+      }),
+    ),
+  )
+
+const seedSupplierLedgerEntry = async (
+  prisma: PrismaClient,
+  supplierId: string,
+  payload: {
+    entryType: 'OPENING_BALANCE' | 'PURCHASE_INVOICE' | 'PAYMENT_MADE'
+    entryDate: Date
+    referenceType: string
+    referenceId: string
+    documentNumber: string
+    description: string
+    debit: number
+    credit: number
+    createdBy?: number
+  },
+) => {
+  const existing = await prisma.supplierLedgerEntry.findFirst({
+    where: {
+      supplierId,
+      referenceId: payload.referenceId,
+      entryType: payload.entryType as any,
+    },
+  })
+  if (existing) return existing
+
+  const lastEntry = await prisma.supplierLedgerEntry.findFirst({
+    where: { supplierId },
+    orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }],
+  })
+  const currentBalance = Number(lastEntry?.runningBalance || 0)
+  const runningBalance = payload.entryType === 'PAYMENT_MADE'
+    ? currentBalance + payload.credit - payload.debit
+    : currentBalance + payload.debit - payload.credit
+
+  return prisma.supplierLedgerEntry.create({
+    data: {
+      supplierId,
+      entryType: payload.entryType as any,
+      entryDate: payload.entryDate,
+      referenceType: payload.referenceType,
+      referenceId: payload.referenceId,
+      documentNumber: payload.documentNumber,
+      description: payload.description,
+      debit: decimal(payload.debit),
+      credit: decimal(payload.credit),
+      runningBalance: decimal(runningBalance),
+      createdBy: payload.createdBy ?? undefined,
+    },
+  })
+}
+
+const seedCustomerLedgerEntry = async (
+  prisma: PrismaClient,
+  customerId: string,
+  payload: {
+    entryType: 'OPENING_BALANCE' | 'SALES_INVOICE' | 'PAYMENT_RECEIVED'
+    entryDate: Date
+    referenceType: string
+    referenceId: string
+    documentNumber: string
+    description: string
+    debit: number
+    credit: number
+    createdBy?: number
+  },
+) => {
+  const existing = await prisma.customerLedgerEntry.findFirst({
+    where: {
+      customerId,
+      referenceId: payload.referenceId,
+      entryType: payload.entryType as any,
+    },
+  })
+  if (existing) return existing
+
+  const lastEntry = await prisma.customerLedgerEntry.findFirst({
+    where: { customerId },
+    orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }],
+  })
+  const currentBalance = Number(lastEntry?.runningBalance || 0)
+  const runningBalance = currentBalance + payload.debit - payload.credit
+
+  return prisma.customerLedgerEntry.create({
+    data: {
+      customerId,
+      entryType: payload.entryType as any,
+      entryDate: payload.entryDate,
+      referenceType: payload.referenceType,
+      referenceId: payload.referenceId,
+      documentNumber: payload.documentNumber,
+      description: payload.description,
+      debit: decimal(payload.debit),
+      credit: decimal(payload.credit),
+      runningBalance: decimal(runningBalance),
+      createdBy: payload.createdBy ?? undefined,
+    },
+  })
+}
 
 const upsertFinishedGood = async (prisma: PrismaClient, product: FinishedGoodSeed, userId?: number) =>
   prisma.finishedGoodProduct.upsert({
@@ -749,6 +887,8 @@ const seedFinishedGoodOpeningStock = async (
 }
 
 export async function seedInventory({ prisma, createdByUserId }: SeedInventoryOptions) {
+  await upsertArticleCategories(prisma)
+
   const categoryRecords = await Promise.all(categories.map((category) => upsertCategory(prisma, category)))
   const categoryByKey = Object.fromEntries(categories.map((category, index) => [category.id, categoryRecords[index]]))
 
@@ -777,6 +917,202 @@ export async function seedInventory({ prisma, createdByUserId }: SeedInventoryOp
 
   for (const purchase of purchases) {
     await upsertPurchase(prisma, purchase, supplierByKey[purchase.supplierKey].id, materialByKey, createdByUserId)
+  }
+
+  for (const supplier of suppliers) {
+    const supplierRecord = supplierByKey[supplier.id]
+    const openingExists = await prisma.supplierLedgerEntry.findFirst({
+      where: {
+        supplierId: supplierRecord.id,
+        entryType: 'OPENING_BALANCE',
+      },
+    })
+    if (!openingExists && supplier.openingBalance !== 0) {
+      await prisma.supplierLedgerEntry.create({
+        data: {
+          supplierId: supplierRecord.id,
+          entryType: 'OPENING_BALANCE',
+          entryDate: new Date('2026-01-01T00:00:00.000Z'),
+          referenceType: 'OPENING_BALANCE',
+          referenceId: `supplier-opening-${supplier.id}`,
+          documentNumber: `SUP-OPEN-${supplier.id}`,
+          description: `${supplier.name} opening balance`,
+          debit: decimal(0),
+          credit: decimal(supplier.openingBalance),
+          runningBalance: decimal(supplier.openingBalance),
+          createdBy: createdByUserId,
+        },
+      })
+    }
+  }
+
+  for (const purchase of purchases) {
+    const supplierRecord = supplierByKey[purchase.supplierKey]
+    const existingLedger = await prisma.supplierLedgerEntry.findFirst({
+      where: {
+        supplierId: supplierRecord.id,
+        referenceId: purchase.id,
+        entryType: 'PURCHASE_INVOICE',
+      },
+    })
+    if (existingLedger) continue
+
+    const purchaseTotal = purchase.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
+    const lastLedger = await prisma.supplierLedgerEntry.findFirst({
+      where: { supplierId: supplierRecord.id },
+      orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }],
+    })
+    const startingBalance = Number(lastLedger?.runningBalance || supplierRecord.openingBalance || 0)
+    const purchaseBalance = startingBalance + purchaseTotal
+
+    await prisma.supplierLedgerEntry.create({
+      data: {
+        supplierId: supplierRecord.id,
+        entryType: 'PURCHASE_INVOICE',
+        entryDate: new Date(`${purchase.invoiceDate}T09:00:00.000Z`),
+        referenceType: 'PURCHASE',
+        referenceId: purchase.id,
+        documentNumber: purchase.invoiceNumber,
+        description: purchase.notes,
+        debit: decimal(0),
+        credit: decimal(purchaseTotal),
+        runningBalance: decimal(purchaseBalance),
+        createdBy: createdByUserId,
+      },
+    })
+  }
+
+  const supplierPaymentSeeds = [
+    { supplierKey: 'sup_green_stitch', amount: 7500, referenceId: 'supplier-payment-gst-001', documentNumber: 'PAY-2526-0001', date: '2026-02-15T09:00:00.000Z' },
+    { supplierKey: 'sup_himalayan_linen', amount: 12000, referenceId: 'supplier-payment-hlm-001', documentNumber: 'PAY-2526-0002', date: '2026-02-18T09:00:00.000Z' },
+  ]
+
+  for (const payment of supplierPaymentSeeds) {
+    const supplierRecord = supplierByKey[payment.supplierKey]
+    const existingLedger = await prisma.supplierLedgerEntry.findFirst({
+      where: {
+        supplierId: supplierRecord.id,
+        referenceId: payment.referenceId,
+        entryType: 'PAYMENT_MADE',
+      },
+    })
+    if (existingLedger) continue
+
+    const lastLedger = await prisma.supplierLedgerEntry.findFirst({
+      where: { supplierId: supplierRecord.id },
+      orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }],
+    })
+    const currentBalance = Number(lastLedger?.runningBalance || supplierRecord.openingBalance || 0)
+    const newBalance = Math.max(0, currentBalance - payment.amount)
+
+    await prisma.supplierLedgerEntry.create({
+      data: {
+        supplierId: supplierRecord.id,
+        entryType: 'PAYMENT_MADE',
+        entryDate: new Date(payment.date),
+        referenceType: 'PAYMENT',
+        referenceId: payment.referenceId,
+        documentNumber: payment.documentNumber,
+        description: `Seed payment to ${supplierRecord.name}`,
+        debit: decimal(payment.amount),
+        credit: decimal(0),
+        runningBalance: decimal(newBalance),
+        createdBy: createdByUserId,
+      },
+    })
+  }
+
+  for (const customer of customers) {
+    const customerRecord = customerRecords.find((entry) => entry.customerName === customer.customerName)
+    if (!customerRecord) continue
+
+    const openingExists = await prisma.customerLedgerEntry.findFirst({
+      where: {
+        customerId: customerRecord.id,
+        entryType: 'OPENING_BALANCE',
+      },
+    })
+    if (!openingExists && customer.openingBalance !== 0) {
+      await prisma.customerLedgerEntry.create({
+        data: {
+          customerId: customerRecord.id,
+          entryType: 'OPENING_BALANCE',
+          entryDate: new Date('2026-01-01T00:00:00.000Z'),
+          referenceType: 'OPENING_BALANCE',
+          referenceId: `customer-opening-${customer.id}`,
+          documentNumber: `CUS-OPEN-${customer.id}`,
+          description: `${customer.customerName} opening balance`,
+          debit: decimal(customer.openingBalance),
+          credit: decimal(0),
+          runningBalance: decimal(customer.openingBalance),
+          createdBy: createdByUserId,
+        },
+      })
+    }
+
+    const invoiceReference = `customer-demo-invoice-${customer.id}`
+    const invoiceExists = await prisma.customerLedgerEntry.findFirst({
+      where: {
+        customerId: customerRecord.id,
+        referenceId: invoiceReference,
+        entryType: 'SALES_INVOICE',
+      },
+    })
+    if (!invoiceExists) {
+      const invoiceAmount = customer.customerName === 'Atelier One' ? 24850 : 16320
+      const lastLedger = await prisma.customerLedgerEntry.findFirst({
+        where: { customerId: customerRecord.id },
+        orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }],
+      })
+      const currentBalance = Number(lastLedger?.runningBalance || customer.openingBalance || 0)
+      await prisma.customerLedgerEntry.create({
+        data: {
+          customerId: customerRecord.id,
+          entryType: 'SALES_INVOICE',
+          entryDate: new Date('2026-05-18T09:00:00.000Z'),
+          referenceType: 'SALES_INVOICE',
+          referenceId: invoiceReference,
+          documentNumber: customer.customerName === 'Atelier One' ? 'SI-2526-0001' : 'SI-2526-0002',
+          description: `Seed invoice for ${customer.customerName}`,
+          debit: decimal(invoiceAmount),
+          credit: decimal(0),
+          runningBalance: decimal(currentBalance + invoiceAmount),
+          createdBy: createdByUserId,
+        },
+      })
+    }
+
+    const paymentReference = `customer-demo-payment-${customer.id}`
+    const paymentExists = await prisma.customerLedgerEntry.findFirst({
+      where: {
+        customerId: customerRecord.id,
+        referenceId: paymentReference,
+        entryType: 'PAYMENT_RECEIVED',
+      },
+    })
+    if (!paymentExists) {
+      const paymentAmount = customer.customerName === 'Atelier One' ? 12000 : 5000
+      const lastLedger = await prisma.customerLedgerEntry.findFirst({
+        where: { customerId: customerRecord.id },
+        orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }],
+      })
+      const currentBalance = Number(lastLedger?.runningBalance || customer.openingBalance || 0)
+      await prisma.customerLedgerEntry.create({
+        data: {
+          customerId: customerRecord.id,
+          entryType: 'PAYMENT_RECEIVED',
+          entryDate: new Date('2026-05-25T13:30:00.000Z'),
+          referenceType: 'PAYMENT',
+          referenceId: paymentReference,
+          documentNumber: customer.customerName === 'Atelier One' ? 'PAY-2526-0001' : 'PAY-2526-0002',
+          description: `Seed payment from ${customer.customerName}`,
+          debit: decimal(0),
+          credit: decimal(paymentAmount),
+          runningBalance: decimal(Math.max(0, currentBalance - paymentAmount)),
+          createdBy: createdByUserId,
+        },
+      })
+    }
   }
 
   for (const product of finishedGoods) {
@@ -819,6 +1155,7 @@ export async function seedInventory({ prisma, createdByUserId }: SeedInventoryOp
     finishedGoods: finishedGoodRecords.length,
     boms: boms.length,
     purchases: purchases.length,
+    articleCategories: articleCategories.length,
   }
 }
 

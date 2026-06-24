@@ -4,6 +4,7 @@ import { recordAudit } from '../../utils/auditLog'
 import { AppError } from '../../utils/errors'
 import { createFinishedGoodSchema, updateFinishedGoodSchema } from '../../validators/finishedGoodsValidators'
 import { adjustStockSchema } from '../../validators/inventoryValidators'
+import path from 'path'
 
 export const create = async (req: Request, res: Response) => {
   const user = (req as any).user?.id as number | undefined
@@ -73,4 +74,17 @@ export const adjustStock = async (req: Request, res: Response) => {
   })
   try { await recordAudit({ action: 'finished_good.adjust_stock', userId: user, after: tx }) } catch (e) {}
   res.status(201).json(tx)
+}
+
+export const uploadImage = async (req: Request, res: Response) => {
+  const user = (req as any).user?.id as number | undefined
+  const file = (req as any).file as Express.Multer.File | undefined
+  if (!file) {
+    throw new AppError(400, 'INVALID_INPUT', 'Article image file is required')
+  }
+
+  const imageUrl = `${req.protocol}://${req.get('host')}/uploads/articles/${path.basename(file.path)}`
+  const updated = await svc.updateFinishedGood(req.params.id, { imageUrl }, user)
+  try { await recordAudit({ action: 'finished_good.upload_image', userId: user, after: updated }) } catch (e) {}
+  res.json(updated)
 }

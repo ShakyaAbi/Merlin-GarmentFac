@@ -62,8 +62,8 @@ export default function FinishedGoodsPage() {
     <InventoryPageShell
       eyebrow="Sales Master"
       title="Articles"
-      description="Manage sellable products used by sales invoices and inventory completion."
-      backTo={{ to: '/inventory/materials', label: 'Back to materials' }}
+      description="Manage sellable products built from raw material bills and used by sales invoices."
+      backTo={{ to: '/inventory/production', label: 'Back to production batches' }}
       actions={[
         { label: 'Create Article', variant: 'outline', to: '/inventory/finished-goods/create' },
         { label: 'New Invoice', variant: 'outline', to: '/sales-invoices/create' },
@@ -109,10 +109,19 @@ export default function FinishedGoodsPage() {
                 {filteredItems.map((item) => (
                   <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-4">
-                      <div>
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                          {item.imageUrl ? (
+                            <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="text-[10px] text-slate-400">No image</div>
+                          )}
+                        </div>
+                        <div>
                         <div className="text-xs uppercase tracking-wider text-slate-500">Article</div>
                         <div className="text-lg font-semibold text-slate-900">{item.name}</div>
                         <div className="text-xs text-slate-500">{item.productCode || item.sku || '-'}</div>
+                        </div>
                       </div>
                       <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${item.active ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
                         {item.active ? 'Active' : 'Inactive'}
@@ -210,10 +219,10 @@ export default function FinishedGoodsPage() {
                 Refresh List
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate('/inventory/materials')}>
-                Materials
+                Raw Materials
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate('/inventory/production')}>
-                Production Orders
+                Production Batches
               </Button>
             </div>
           </InventorySectionCard>

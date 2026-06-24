@@ -7,6 +7,7 @@ import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { InventoryDataTable } from '../../components/inventory/InventoryDataTable'
 import { Button } from '../../components/ui/Button'
 import { salesOrderApi, SalesOrder, SalesOrderCustomer, SalesOrderPayload, SalesOrderProduct, SalesOrderStatus } from '../../services/salesOrderApi'
+import { formatNepaliDate } from '../../utils/nepaliDate'
 
 const today = new Date().toISOString().slice(0, 10)
 
@@ -253,7 +254,7 @@ export default function SalesOrdersPage() {
                       <div className="font-medium text-slate-900">{order.customer?.customerName || 'Unknown customer'}</div>
                       <div className="text-xs text-slate-500">{order.notes || 'No notes'}</div>
                     </td>
-                    <td className="px-3 py-4 align-top text-slate-600">{order.orderDate ? new Date(order.orderDate).toLocaleDateString() : '-'}</td>
+                    <td className="px-3 py-4 align-top text-slate-600">{formatNepaliDate(order.orderDate)}</td>
                     <td className="px-3 py-4 align-top font-semibold text-slate-900">{money(order.grandTotal)}</td>
                     <td className="px-3 py-4 align-top">
                       <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusClass(order.status)}`}>
@@ -317,41 +318,67 @@ export default function SalesOrdersPage() {
               </div>
 
               <div className="space-y-3">
-                {lines.map((line, index) => (
-                  <div key={line.id} className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-[minmax(0,2fr)_120px_140px_96px]">
-                    <label className="block text-sm">
-                      <span className="mb-1 block text-slate-600">Finished good</span>
-                      <select value={line.productId} onChange={(event) => {
-                        const productId = event.target.value
-                        const product = products.find((item) => item.id === productId)
-                        updateLine(line.id, { productId, unitPrice: String(product?.sellingPrice ?? 0) })
-                      }} className="w-full rounded-xl border border-slate-300 px-3 py-2">
-                        <option value="">Select product</option>
-                        {products.map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {product.name} {product.productCode || product.sku ? ` - ${product.productCode || product.sku}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="block text-sm">
-                      <span className="mb-1 block text-slate-600">Qty</span>
-                      <input type="number" min="1" step="1" value={line.quantity} onChange={(event) => updateLine(line.id, { quantity: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2" />
-                    </label>
-                    <label className="block text-sm">
-                      <span className="mb-1 block text-slate-600">Unit price</span>
-                      <input type="number" min="0" step="0.01" value={line.unitPrice} onChange={(event) => updateLine(line.id, { unitPrice: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2" />
-                    </label>
-                    <div className="flex items-end">
-                      <Button type="button" variant="outline" size="sm" onClick={() => removeLine(line.id)} disabled={lines.length === 1}>
-                        Remove
-                      </Button>
+                {lines.map((line, index) => {
+                  const selectedProduct = products.find((product) => product.id === line.productId)
+                  const lineQuantity = Number(line.quantity || 0)
+                  const lineRequiredMaterials = selectedProduct?.materialRequirements?.map((requirement) => ({
+                    ...requirement,
+                    requiredQuantity: requirement.quantityPerUnit * lineQuantity,
+                  })) ?? []
+
+                  return (
+                    <div key={line.id} className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-[minmax(0,2fr)_120px_140px_96px]">
+                      <label className="block text-sm">
+                        <span className="mb-1 block text-slate-600">Finished good</span>
+                        <select value={line.productId} onChange={(event) => {
+                          const productId = event.target.value
+                          const product = products.find((item) => item.id === productId)
+                          updateLine(line.id, { productId, unitPrice: String(product?.sellingPrice ?? 0) })
+                        }} className="w-full rounded-xl border border-slate-300 px-3 py-2">
+                          <option value="">Select product</option>
+                          {products.map((product) => (
+                            <option key={product.id} value={product.id}>
+                              {product.name} {product.productCode || product.sku ? ` - ${product.productCode || product.sku}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block text-sm">
+                        <span className="mb-1 block text-slate-600">Qty</span>
+                        <input type="number" min="1" step="1" value={line.quantity} onChange={(event) => updateLine(line.id, { quantity: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2" />
+                      </label>
+                      <label className="block text-sm">
+                        <span className="mb-1 block text-slate-600">Unit price</span>
+                        <input type="number" min="0" step="0.01" value={line.unitPrice} onChange={(event) => updateLine(line.id, { unitPrice: event.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2" />
+                      </label>
+                      <div className="flex items-end">
+                        <Button type="button" variant="outline" size="sm" onClick={() => removeLine(line.id)} disabled={lines.length === 1}>
+                          Remove
+                        </Button>
+                      </div>
+                      <div className="md:col-span-4 text-xs text-slate-500">
+                        Line {index + 1} is billed from articles only. Line amount: {money(lineQuantity * Number(line.unitPrice || 0))}
+                      </div>
+                      {lineRequiredMaterials.length > 0 ? (
+                        <div className="md:col-span-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                          <div className="font-semibold">Required materials</div>
+                          <div className="mt-2 grid gap-1 sm:grid-cols-2">
+                            {lineRequiredMaterials.map((material) => (
+                              <div key={material.materialId || material.materialName} className="flex items-center justify-between gap-3">
+                                <span className="min-w-0 truncate">
+                                  {material.materialName}{material.sku ? ` (${material.sku})` : ''}
+                                </span>
+                                <span className="shrink-0 font-medium">
+                                  {material.requiredQuantity.toLocaleString()} {material.unit || ''}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
-                    <div className="md:col-span-4 text-xs text-slate-500">
-                      Line {index + 1} is billed from articles only. Line amount: {money(Number(line.quantity || 0) * Number(line.unitPrice || 0))}
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
 
               <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">

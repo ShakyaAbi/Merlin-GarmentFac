@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Indicator, IndicatorType, CategoryDefinition } from "../../types";
 import { Button } from "../ui/Button";
+import { formatNepaliDate } from "../../utils/nepaliDate";
 
 interface DataEntryFieldsProps {
   indicator: Indicator;
@@ -92,18 +93,12 @@ export const DataEntryFields: React.FC<DataEntryFieldsProps> = ({
                       ? "Today"
                       : offset === 1
                         ? "Yesterday"
-                        : target.toLocaleDateString(undefined, {
-                            weekday: "short",
-                            day: "numeric",
-                          });
+                        : formatNepaliDate(target);
                 } else if (indicator.frequency === "Weekly") {
                   const diff = d.getDate() - d.getDay() - offset * 7;
                   const target = new Date(d.getFullYear(), d.getMonth(), diff);
                   dateStr = target.toISOString().split("T")[0];
-                  label = `Wk of ${target.toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                  })}`;
+                  label = `Wk of ${formatNepaliDate(target)}`;
                 } else if (indicator.frequency === "Monthly") {
                   const target = new Date(
                     d.getFullYear(),
@@ -111,10 +106,7 @@ export const DataEntryFields: React.FC<DataEntryFieldsProps> = ({
                     0,
                   );
                   dateStr = target.toISOString().split("T")[0];
-                  label = target.toLocaleString("default", {
-                    month: "short",
-                    year: "2-digit",
-                  });
+                  label = formatNepaliDate(target);
                 }
 
                 if (!dateStr) return null;

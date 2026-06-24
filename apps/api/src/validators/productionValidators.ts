@@ -6,6 +6,8 @@ export const createProductionOrderSchema = z.object({
   notes: z.string().trim().optional(),
 })
 
+export const updateProductionOrderSchema = createProductionOrderSchema
+
 export const issueProductionOrderSchema = z.object({
   issueReason: z.string().trim().optional(),
 })

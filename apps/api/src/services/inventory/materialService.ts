@@ -38,6 +38,7 @@ export const listPurchasesForMaterial = async (materialId: string, opts: any = {
   const pr = await import('../../repositories/inventory/purchaseRepository')
   return pr.listPurchasesForMaterial(materialId, opts)
 }
+export const listBomUsagesForMaterial = async (materialId: string) => repo.listBomUsagesForMaterial(materialId)
 // Updates a material with audit user
 export const updateMaterialWithUser = async (id: string, data: any, userId?: number) => repo.updateMaterial(id, { ...data, updatedBy: userId })
 export const toggleMaterialStatus = async (id: string, active: boolean, userId?: number) => {

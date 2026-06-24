@@ -1,6 +1,7 @@
 import React from "react";
 import { Check } from "lucide-react";
 import { IndicatorValue, Indicator } from "../../types";
+import { formatNepaliDate, formatNepaliDateTime } from "../../utils/nepaliDate";
 
 interface RecentSubmissionsListProps {
   indicator: Indicator;
@@ -86,7 +87,7 @@ export const RecentSubmissionsList: React.FC<RecentSubmissionsListProps> = ({
                     className="w-full px-1 py-1 border border-slate-300 rounded bg-white"
                   />
                 ) : (
-                  new Date(row.date).toLocaleDateString("en-US")
+                  formatNepaliDate(row.date)
                 )}
               </div>
               <div className="col-span-2 text-slate-900 font-semibold">
@@ -153,7 +154,7 @@ export const RecentSubmissionsList: React.FC<RecentSubmissionsListProps> = ({
               <div className="col-span-2 flex flex-col items-end gap-1">
                 {row.deletedAt && (
                   <div className="text-xs text-amber-700 mb-1">
-                    Deleted {row.deletedAt ? `on ${new Date(row.deletedAt).toLocaleString()}` : ""}
+                    Deleted {row.deletedAt ? `on ${formatNepaliDateTime(row.deletedAt)}` : ""}
                     {row.deletedByUserId ? ` by User ${row.deletedByUserId}` : ""}
                   </div>
                 )}

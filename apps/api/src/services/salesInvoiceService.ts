@@ -3,6 +3,7 @@ import { stringify } from 'csv-stringify/sync'
 import { prisma } from '../prisma'
 import * as repo from '../repositories/salesInvoiceRepository'
 import { AppError } from '../utils/errors'
+import { getSalesCatalogProductsByIds, listSalesCatalogProducts } from './salesCatalogService'
 
 type InvoiceItemInput = {
   productId: string
@@ -79,16 +80,7 @@ async function buildInvoiceData(payload: any) {
   }
 
   const items: InvoiceItemInput[] = payload.items || []
-  const productIds = [...new Set(items.map((item) => item.productId))]
-  const products = await prisma.finishedGoodProduct.findMany({
-    where: { id: { in: productIds }, deletedAt: null },
-  })
-  const productMap = new Map(products.map((product) => [product.id, product]))
-
-  if (productMap.size !== productIds.length) {
-    const missing = productIds.filter((id) => !productMap.has(id))
-    throw new AppError(400, 'INVALID_PRODUCT', `Unknown article product(s): ${missing.join(', ')}`)
-  }
+  const productMap = await getSalesCatalogProductsByIds(items.map((item) => item.productId))
 
   const invoiceDiscountValue = payload.discountAmount ?? 0
   const preparedItems: Array<Omit<Prisma.SalesInvoiceItemUncheckedCreateInput, 'invoiceId'>> = []
@@ -317,51 +309,7 @@ export async function listCustomers(opts: { search?: string } = {}) {
 }
 
 export async function listProducts(opts: { search?: string } = {}) {
-  const where: any = { deletedAt: null }
-  if (opts.search) {
-    where.OR = [
-      { name: { contains: opts.search, mode: 'insensitive' } },
-      { sku: { contains: opts.search, mode: 'insensitive' } },
-      { productCode: { contains: opts.search, mode: 'insensitive' } },
-      { category: { contains: opts.search, mode: 'insensitive' } },
-      { description: { contains: opts.search, mode: 'insensitive' } },
-    ]
-  }
-
-  const products = await prisma.finishedGoodProduct.findMany({
-    where,
-    orderBy: { name: 'asc' },
-    select: {
-      id: true,
-      sku: true,
-      productCode: true,
-      name: true,
-      description: true,
-      category: true,
-      unit: true,
-      sellingPrice: true,
-      costPrice: true,
-      active: true,
-      notes: true,
-      createdAt: true,
-      updatedAt: true,
-      deletedAt: true,
-    },
-  })
-
-  const stockRows = products.length
-    ? await prisma.finishedGoodStockTransaction.groupBy({
-        by: ['productId'],
-        where: { productId: { in: products.map((product) => product.id) } },
-        _sum: { change: true },
-      })
-    : []
-  const stockByProductId = new Map(stockRows.map((row) => [row.productId, Number(row._sum.change || 0)]))
-
-  return products.map((product) => ({
-    ...product,
-    currentStock: stockByProductId.get(product.id) || 0,
-  }))
+  return listSalesCatalogProducts(opts)
 }
 
 export async function getInvoice(id: string) {

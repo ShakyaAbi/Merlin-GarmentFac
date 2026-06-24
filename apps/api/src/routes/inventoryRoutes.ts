@@ -9,7 +9,7 @@ import * as alerts from '../controllers/inventory/alertsController'
 import { authenticate } from '../middleware/auth'
 import { requireRoles } from '../middleware/rbac'
 import { validate } from '../middleware/validate'
-import { uploadCSV } from '../middleware/upload'
+import { uploadCSV, uploadArticleImage } from '../middleware/upload'
 import { Role } from '@prisma/client'
 import { adjustStockSchema, createCategorySchema, createMaterialSchema, createPurchaseSchema, toggleMaterialStatusSchema, updateMaterialSchema } from '../validators/inventoryValidators'
 import { createSupplierSchema, updateSupplierSchema } from '../validators/supplierValidators'
@@ -40,6 +40,7 @@ router.patch('/materials/:id/adjust-stock', authenticate, requireRoles(Role.ADMI
 router.get('/materials/:id/transactions', authenticate, materials.transactions)
 router.get('/materials/:id/prices', authenticate, materials.prices)
 router.get('/materials/:id/purchases', authenticate, materials.purchases)
+router.get('/materials/:id/boms', authenticate, materials.boms)
 router.put('/materials/:id', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), validate({ body: updateMaterialSchema }), materials.update)
 router.patch('/materials/:id/status', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), validate({ body: toggleMaterialStatusSchema }), materials.toggleStatus)
 router.delete('/materials/:id', authenticate, requireRoles(Role.ADMIN), materials.remove)
@@ -49,6 +50,7 @@ router.get('/finished-goods/next-number', authenticate, finishedGoods.nextNumber
 router.get('/finished-goods', authenticate, finishedGoods.list)
 router.get('/finished-goods/:id', authenticate, finishedGoods.get)
 router.put('/finished-goods/:id', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), validate({ body: updateFinishedGoodSchema }), finishedGoods.update)
+router.post('/finished-goods/:id/image', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), uploadArticleImage, finishedGoods.uploadImage)
 router.get('/finished-goods/:id/transactions', authenticate, finishedGoods.transactions)
 router.patch('/finished-goods/:id/adjust-stock', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), validate({ body: adjustStockSchema }), finishedGoods.adjustStock)
 

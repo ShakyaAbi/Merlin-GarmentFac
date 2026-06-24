@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { authApi, Invitation } from '../services/authApi';
 import { Mail, Users, Clock, Trash2, Plus, AlertCircle } from 'lucide-react';
+import { formatNepaliDate } from '../utils/nepaliDate';
 
 export const AdminInvitations: React.FC = () => {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -56,13 +57,7 @@ export const AdminInvitations: React.FC = () => {
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
+  const formatDate = (dateStr: string) => formatNepaliDate(dateStr);
 
   const pendingInvitations = invitations.filter(i => !i.acceptedAt);
   const acceptedInvitations = invitations.filter(i => i.acceptedAt);

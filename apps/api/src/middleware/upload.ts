@@ -2,6 +2,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { Request } from "express";
+import { getArticleUploadRoot } from "../utils/uploadPaths";
 
 // Configure multer for memory storage (files stored in buffer)
 const storage = multer.memoryStorage();
@@ -31,6 +32,21 @@ const fileFilter = (
     cb(new Error("Invalid file type. Only CSV, TXT and PDF are allowed."));
   }
 };
+
+const articleImageFilter = (
+  req: Request,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback,
+) => {
+  const allowedExtensions = [".jpg", ".jpeg", ".png"]
+  const allowedMimeTypes = ["image/jpeg", "image/png"]
+  const ext = path.extname(file.originalname).toLowerCase()
+  if (allowedExtensions.includes(ext) && allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true)
+  } else {
+    cb(new Error("Invalid file type. Only JPG and PNG images are allowed."))
+  }
+}
 
 // Create multer upload instance
 const storageDisk = multer.diskStorage({
@@ -70,3 +86,23 @@ export const uploadToDisk = multer({
 export const uploadCSV = upload.single("file");
 // Middleware for single file upload to disk
 export const uploadVerification = uploadToDisk.single("file");
+
+export const uploadArticleImage = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const uploadPath = getArticleUploadRoot();
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+      cb(null, uploadPath);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      cb(null, `article-${uniqueSuffix}${path.extname(file.originalname).toLowerCase()}`);
+    },
+  }),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+  fileFilter: articleImageFilter,
+}).single("image");

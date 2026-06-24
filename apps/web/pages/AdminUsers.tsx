@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { authApi, OrganizationUser } from '../services/authApi';
 import { Users as UsersIcon, Shield, Mail, Calendar, ChevronDown, Trash2 } from 'lucide-react';
+import { formatNepaliDate } from '../utils/nepaliDate';
 
 const ROLES = [
   { value: 'ADMIN', label: 'Admin', description: 'Full access to all features' },
@@ -63,13 +64,7 @@ export const AdminUsers: React.FC = () => {
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
+  const formatDate = (dateStr: string) => formatNepaliDate(dateStr);
 
   const getRoleBadge = (role: string) => {
     const roleConfig = ROLES.find(r => r.value === role);
