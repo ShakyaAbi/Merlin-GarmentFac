@@ -10,12 +10,14 @@ import { calculateInvoiceTotals } from '../../components/invoices/invoiceTotals'
 type Item = { rawMaterialId: string; quantity: number; unit: string; unitPrice: string }
 
 type Supplier = { id: string; name: string; phone?: string | null; email?: string | null; address?: string | null }
-type Material = { id: string; name: string; sku?: string | null; defaultUnit?: string | null }
+type Material = { id: string; name: string; sku?: string | null; defaultUnit?: string | null; costPrice?: number | null; averageUnitCost?: number | null }
 
 const today = new Date().toISOString().slice(0, 10)
 
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
+
+const getMaterialRate = (material?: Material | null) => Number(material?.costPrice ?? material?.averageUnitCost ?? 0)
 
 export default function PurchaseCreate() {
   const [searchParams] = useSearchParams()
@@ -56,12 +58,19 @@ export default function PurchaseCreate() {
   useEffect(() => {
     if (!selectedMaterial) return
     setItems((current) => {
+      const selected = materials.find((material) => material.id === selectedMaterial)
+      const unitPrice = String(getMaterialRate(selected))
       if (current.length === 0) return [{ rawMaterialId: selectedMaterial, quantity: 1, unit: 'unit', unitPrice: '0' }]
       const next = [...current]
-      next[0] = { ...next[0], rawMaterialId: selectedMaterial }
+      next[0] = {
+        ...next[0],
+        rawMaterialId: selectedMaterial,
+        unit: selected?.defaultUnit || next[0].unit,
+        unitPrice,
+      }
       return next
     })
-  }, [selectedMaterial])
+  }, [materials, selectedMaterial])
 
   const addLine = () => setItems((current) => [...current, { rawMaterialId: '', quantity: 1, unit: 'unit', unitPrice: '0' }])
   const removeLine = (idx: number) => setItems((current) => current.filter((_, i) => i !== idx))
@@ -299,7 +308,11 @@ export default function PurchaseCreate() {
                           value={item.rawMaterialId}
                           onChange={(e) => {
                             const next = materials.find((material) => material.id === e.target.value)
-                            updateLine(idx, { rawMaterialId: e.target.value, unit: next?.defaultUnit || item.unit })
+                            updateLine(idx, {
+                              rawMaterialId: e.target.value,
+                              unit: next?.defaultUnit || item.unit,
+                              unitPrice: String(getMaterialRate(next)),
+                            })
                           }}
                           className="w-full rounded-xl border border-slate-300 px-3 py-2"
                         >
@@ -333,14 +346,12 @@ export default function PurchaseCreate() {
                         />
                       </td>
                       <td className="px-4 py-3 align-top">
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={item.unitPrice}
-                          onChange={(e) => updateLine(idx, { unitPrice: e.target.value })}
-                          className="w-28 rounded-xl border border-slate-300 px-3 py-2 text-right"
-                        />
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right font-medium text-slate-900">
+                          {money(Number(item.unitPrice || 0))}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          Pulled from material cost
+                        </div>
                       </td>
                       <td className="px-4 py-3 align-top font-medium text-slate-900">{money(amount)}</td>
                       <td className="px-4 py-3 align-top">
