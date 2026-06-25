@@ -3,33 +3,34 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { request } from '../../services/apiClient'
 import { Button } from '../../components/ui/Button'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
+import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { InventoryDocumentShell } from '../../components/inventory/InventoryDocumentShell'
+import { calculateInvoiceTotals } from '../../components/invoices/invoiceTotals'
 
 type Item = { rawMaterialId: string; quantity: number; unit: string; unitPrice: string }
 
-type Supplier = { id: string; name: string }
+type Supplier = { id: string; name: string; phone?: string | null; email?: string | null; address?: string | null }
 type Material = { id: string; name: string; sku?: string | null; defaultUnit?: string | null }
 
-type TabKey = 'details' | 'items' | 'more'
-
 const today = new Date().toISOString().slice(0, 10)
+
+const money = (value: number | string | null | undefined) =>
+  new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
 
 export default function PurchaseCreate() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<TabKey>('details')
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [materials, setMaterials] = useState<Material[]>([])
   const [supplierId, setSupplierId] = useState('')
-  const [requiredBy, setRequiredBy] = useState('')
-  const [company, setCompany] = useState('Merlin Lite')
+  const [invoiceDate, setInvoiceDate] = useState(today)
+  const [invoiceNumber, setInvoiceNumber] = useState('')
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState<Item[]>([{ rawMaterialId: '', quantity: 1, unit: 'unit', unitPrice: '0' }])
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const selectedMaterial = searchParams.get('material')
-  const [invoiceNumber, setInvoiceNumber] = useState('')
 
   useEffect(() => {
     let alive = true
@@ -70,26 +71,39 @@ export default function PurchaseCreate() {
     setItems(copy)
   }
 
-  const totalAmount = useMemo(() => items.reduce((sum, it) => sum + Number(it.quantity) * Number(it.unitPrice || 0), 0), [items])
-  const totalQty = useMemo(() => items.reduce((sum, it) => sum + Number(it.quantity || 0), 0), [items])
+  const totals = useMemo(
+    () =>
+      calculateInvoiceTotals({
+        lines: items.map((item) => ({
+          id: item.rawMaterialId || `${item.quantity}-${item.unitPrice}`,
+          quantity: Number(item.quantity ?? 0),
+          rate: Number(item.unitPrice ?? 0),
+        })),
+        vatRate: 0.13,
+      }),
+    [items],
+  )
+  const totalQty = useMemo(() => items.reduce((sum, item) => sum + Number(item.quantity || 0), 0), [items])
+  const selectedSupplier = useMemo(() => suppliers.find((supplier) => supplier.id === supplierId) || null, [suppliers, supplierId])
   const anyInvalid =
     !supplierId ||
     !invoiceNumber.trim() ||
-    items.some((it) => !it.rawMaterialId || !it.quantity || Number(it.quantity) <= 0 || !it.unitPrice || Number(it.unitPrice) < 0)
+    !invoiceDate ||
+    items.some((item) => !item.rawMaterialId || !item.quantity || Number(item.quantity) <= 0 || !item.unitPrice || Number(item.unitPrice) < 0)
 
   const validate = () => {
-    const e: Record<string, string> = {}
-    if (!supplierId) e.supplier = 'Supplier is required'
-    if (!invoiceNumber.trim()) e.invoiceNumber = 'Invoice number is required'
-    if (!company.trim()) e.company = 'Company is required'
-    if (items.length === 0) e.items = 'At least one item is required'
-    items.forEach((it, idx) => {
-      if (!it.rawMaterialId) e[`item.${idx}.material`] = 'Select material'
-      if (!it.quantity || Number(it.quantity) <= 0) e[`item.${idx}.quantity`] = 'Quantity must be > 0'
-      if (!it.unitPrice || Number(it.unitPrice) < 0) e[`item.${idx}.unitPrice`] = 'Unit price required'
+    const nextErrors: Record<string, string> = {}
+    if (!supplierId) nextErrors.supplier = 'Supplier is required'
+    if (!invoiceNumber.trim()) nextErrors.invoiceNumber = 'Invoice number is required'
+    if (!invoiceDate) nextErrors.invoiceDate = 'Invoice date is required'
+    if (items.length === 0) nextErrors.items = 'At least one item is required'
+    items.forEach((item, idx) => {
+      if (!item.rawMaterialId) nextErrors[`item.${idx}.material`] = 'Select material'
+      if (!item.quantity || Number(item.quantity) <= 0) nextErrors[`item.${idx}.quantity`] = 'Quantity must be greater than zero'
+      if (!item.unitPrice || Number(item.unitPrice) < 0) nextErrors[`item.${idx}.unitPrice`] = 'Unit price is required'
     })
-    setErrors(e)
-    return Object.keys(e).length === 0
+    setErrors(nextErrors)
+    return Object.keys(nextErrors).length === 0
   }
 
   const submit = async () => {
@@ -98,7 +112,7 @@ export default function PurchaseCreate() {
     const payload = {
       supplierId,
       invoiceNumber: invoiceNumber.trim(),
-      invoiceDate: today,
+      invoiceDate,
       notes: notes.trim() || undefined,
       items: items.map(({ rawMaterialId, quantity, unit, unitPrice }) => ({ rawMaterialId, quantity, unit, unitPrice })),
     }
@@ -108,9 +122,65 @@ export default function PurchaseCreate() {
       navigate('/inventory/purchases')
     } catch (err: any) {
       alert(`Error: ${err?.message || 'failed'}`)
+    } finally {
+      setSubmitting(false)
     }
-    setSubmitting(false)
   }
+
+  const leftRail = (
+    <div className="space-y-4">
+      <InventorySectionCard title="Document Snapshot">
+        <div className="space-y-3 text-sm text-slate-600">
+          <div className="flex items-center justify-between">
+            <span>Status</span>
+            <span className="font-semibold text-orange-700">Not Saved</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Supplier</span>
+            <span className="font-semibold text-slate-900">{selectedSupplier?.name || '-'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Invoice No.</span>
+            <span className="font-semibold text-slate-900">{invoiceNumber || '-'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Invoice Date</span>
+            <span className="font-semibold text-slate-900">{invoiceDate || '-'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Lines</span>
+            <span className="font-semibold text-slate-900">{items.length}</span>
+          </div>
+        </div>
+      </InventorySectionCard>
+
+      <InventorySectionCard title="Tax Breakdown">
+        <div className="space-y-2 text-sm text-slate-600">
+          <div className="flex items-center justify-between">
+            <span>Subtotal</span>
+            <span className="font-semibold text-slate-900">{money(totals.subtotal)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>VAT 13%</span>
+            <span className="font-semibold text-slate-900">{money(totals.taxAmount)}</span>
+          </div>
+          <div className="flex items-center justify-between border-t border-slate-200 pt-2">
+            <span className="font-semibold text-slate-700">Grand total</span>
+            <span className="font-bold text-slate-950">{money(totals.grandTotal)}</span>
+          </div>
+        </div>
+      </InventorySectionCard>
+
+      <InventoryStatGrid
+        stats={[
+          { label: 'Total quantity', value: totalQty },
+          { label: 'Subtotal', value: money(totals.subtotal) },
+          { label: 'VAT 13%', value: money(totals.taxAmount), tone: 'warning' },
+          { label: 'Grand total', value: money(totals.grandTotal), tone: 'success' },
+        ]}
+      />
+    </div>
+  )
 
   return (
     <InventoryDocumentShell
@@ -120,38 +190,16 @@ export default function PurchaseCreate() {
         { label: 'Save', onClick: submit, disabled: submitting || anyInvalid || loading },
         { label: 'Cancel', variant: 'outline', to: '/inventory/purchases' },
       ]}
-      leftRail={
-        null
-      }
+      leftRail={leftRail}
       footer={
         <InventorySectionCard title="Activity">
           <div className="space-y-2 text-sm text-slate-600">
-            <div>Purchase orders can be reviewed after save from the list view.</div>
             <div>Purchase invoices update raw-material stock and supplier ledger balances automatically.</div>
             <div>Use the material detail page to trace stock impact and price history.</div>
           </div>
         </InventorySectionCard>
       }
     >
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-        {[
-          { key: 'details', label: 'Details' },
-          { key: 'items', label: 'Items' },
-          { key: 'more', label: 'More Info' },
-        ].map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => setActiveTab(tab.key as TabKey)}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
-              activeTab === tab.key ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
       {errorBlock(errors)}
 
       <InventorySectionCard
@@ -179,13 +227,10 @@ export default function PurchaseCreate() {
               <input
                 type="date"
                 className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                value={today}
-                readOnly
+                value={invoiceDate}
+                onChange={(e) => setInvoiceDate(e.target.value)}
+                aria-invalid={Boolean(errors.invoiceDate)}
               />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">Company *</span>
-              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={company} onChange={(e) => setCompany(e.target.value)} />
             </label>
             <label className="block text-sm">
               <span className="mb-1 block text-slate-600">Supplier *</span>
@@ -196,9 +241,9 @@ export default function PurchaseCreate() {
                 aria-invalid={Boolean(errors.supplier)}
               >
                 <option value="">Select supplier</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
+                {suppliers.map((supplier) => (
+                  <option key={supplier.id} value={supplier.id}>
+                    {supplier.name}
                   </option>
                 ))}
               </select>
@@ -213,142 +258,121 @@ export default function PurchaseCreate() {
                 aria-invalid={Boolean(errors.invoiceNumber)}
               />
             </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">Required By</span>
-              <input
-                type="date"
-                className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                value={requiredBy}
-                onChange={(e) => setRequiredBy(e.target.value)}
-              />
-            </label>
+            <div className="md:col-span-2 xl:col-span-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+              VAT is calculated automatically at 13% from the line subtotal. The summary on the left updates as you change quantities and rates.
+            </div>
           </div>
         )}
       </InventorySectionCard>
 
-      {activeTab === 'items' && (
-        <InventorySectionCard
-          title="Items"
-          description="Raw material lines in a dense table layout."
-          action={<Button type="button" variant="outline" onClick={addLine}>Add Multiple</Button>}
-        >
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <caption className="sr-only">Purchase order items</caption>
-                <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                  <tr>
-                    <th className="w-12 px-4 py-3"><input type="checkbox" aria-label="Select all rows" /></th>
-                    <th className="px-4 py-3 font-semibold">No.</th>
-                    <th className="px-4 py-3 font-semibold">Item Code *</th>
-                    <th className="px-4 py-3 font-semibold">Required By *</th>
-                    <th className="px-4 py-3 font-semibold">Quantity *</th>
-                    <th className="px-4 py-3 font-semibold">UOM *</th>
-                    <th className="px-4 py-3 font-semibold">Rate (NPR)</th>
-                    <th className="px-4 py-3 font-semibold">Amount (NPR)</th>
-                    <th className="w-14 px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {items.map((it, idx) => {
-                    const selected = materials.find((m) => m.id === it.rawMaterialId)
-                    const amount = Number(it.quantity || 0) * Number(it.unitPrice || 0)
-                    return (
-                      <tr key={idx} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 align-top"><input type="checkbox" aria-label={`Select row ${idx + 1}`} /></td>
-                        <td className="px-4 py-3 align-top font-medium text-slate-900">{idx + 1}</td>
-                        <td className="px-4 py-3 align-top">
-                          <select
-                            value={it.rawMaterialId}
-                            onChange={(e) => {
-                              const next = materials.find((m) => m.id === e.target.value)
-                              updateLine(idx, { rawMaterialId: e.target.value, unit: next?.defaultUnit || it.unit })
-                            }}
-                            className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                          >
-                            <option value="">Select material</option>
-                            {materials.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.name}{m.sku ? ` • ${m.sku}` : ''}
-                              </option>
-                            ))}
-                          </select>
-                          <div className="mt-1 text-xs text-slate-500">
-                            {selected ? `${selected.name}${selected.sku ? ` • ${selected.sku}` : ''}` : 'Choose a material'}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <input
-                            type="date"
-                            className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                            value={requiredBy}
-                            onChange={(e) => setRequiredBy(e.target.value)}
-                          />
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <input
-                            type="number"
-                            value={it.quantity}
-                            onChange={(e) => updateLine(idx, { quantity: Number(e.target.value) })}
-                            className="w-24 rounded-xl border border-slate-300 px-3 py-2 text-right"
-                          />
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <input className="w-24 rounded-xl border border-slate-300 px-3 py-2" value={it.unit} onChange={(e) => updateLine(idx, { unit: e.target.value })} />
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <input type="number" value={it.unitPrice} onChange={(e) => updateLine(idx, { unitPrice: e.target.value })} className="w-28 rounded-xl border border-slate-300 px-3 py-2 text-right" />
-                        </td>
-                        <td className="px-4 py-3 align-top font-medium text-slate-900">
-                          {amount.toLocaleString('en-NP', { style: 'currency', currency: 'NPR' })}
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <Button type="button" variant="ghost" size="sm" onClick={() => removeLine(idx)} disabled={items.length === 1}>
-                            Remove
-                          </Button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/60 px-4 py-3">
-              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
-                <span>Showing 1 - {items.length} of {items.length} entries</span>
-                <span>Selected: 0</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={addLine}>Add Row</Button>
-                <Button type="button" variant="outline" size="sm" onClick={submit} disabled={submitting || anyInvalid || loading}>
-                  {submitting ? 'Saving...' : 'Save Purchase'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </InventorySectionCard>
-      )}
-
-      {activeTab === 'more' && (
-        <InventorySectionCard title="More Info">
-          <label className="block text-sm">
-            <span className="mb-1 block text-slate-600">Notes</span>
-            <textarea className="w-full rounded-xl border border-slate-300 px-3 py-2" rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Internal notes, supplier instructions, or receiving guidance..." />
-          </label>
-        </InventorySectionCard>
-      )}
-
-      <InventorySectionCard title="Summary">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total quantity</div>
-            <div className="mt-1 text-2xl font-bold text-slate-900">{totalQty}</div>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total amount (NPR)</div>
-            <div className="mt-1 text-2xl font-bold text-slate-900">{totalAmount.toLocaleString('en-NP', { style: 'currency', currency: 'NPR' })}</div>
+      <InventorySectionCard
+        title="Items"
+        description="Raw material lines in a dense table layout."
+        action={<Button type="button" variant="outline" onClick={addLine}>Add Row</Button>}
+      >
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <caption className="sr-only">Purchase invoice items</caption>
+              <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">#</th>
+                  <th className="px-4 py-3 font-semibold">Material *</th>
+                  <th className="px-4 py-3 font-semibold">Qty *</th>
+                  <th className="px-4 py-3 font-semibold">Unit *</th>
+                  <th className="px-4 py-3 font-semibold">Rate (NPR)</th>
+                  <th className="px-4 py-3 font-semibold">Amount (NPR)</th>
+                  <th className="w-14 px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {items.map((item, idx) => {
+                  const selected = materials.find((material) => material.id === item.rawMaterialId)
+                  const amount = Number(item.quantity || 0) * Number(item.unitPrice || 0)
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 align-top font-medium text-slate-900">{idx + 1}</td>
+                      <td className="px-4 py-3 align-top">
+                        <select
+                          value={item.rawMaterialId}
+                          onChange={(e) => {
+                            const next = materials.find((material) => material.id === e.target.value)
+                            updateLine(idx, { rawMaterialId: e.target.value, unit: next?.defaultUnit || item.unit })
+                          }}
+                          className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                        >
+                          <option value="">Select material</option>
+                          {materials.map((material) => (
+                            <option key={material.id} value={material.id}>
+                              {material.name}
+                              {material.sku ? ` - ${material.sku}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="mt-1 text-xs text-slate-500">
+                          {selected ? `${selected.name}${selected.sku ? ` - ${selected.sku}` : ''}` : 'Choose a material'}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={item.quantity}
+                          onChange={(e) => updateLine(idx, { quantity: Number(e.target.value) })}
+                          className="w-24 rounded-xl border border-slate-300 px-3 py-2 text-right"
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <input
+                          className="w-24 rounded-xl border border-slate-300 px-3 py-2"
+                          value={item.unit}
+                          onChange={(e) => updateLine(idx, { unit: e.target.value })}
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={item.unitPrice}
+                          onChange={(e) => updateLine(idx, { unitPrice: e.target.value })}
+                          className="w-28 rounded-xl border border-slate-300 px-3 py-2 text-right"
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top font-medium text-slate-900">{money(amount)}</td>
+                      <td className="px-4 py-3 align-top">
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removeLine(idx)} disabled={items.length === 1}>
+                          Remove
+                        </Button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-xs text-slate-600">
+          <span>Items: {items.length}</span>
+          <span>Total quantity: {totalQty}</span>
+          <span>Subtotal: {money(totals.subtotal)}</span>
+          <span>VAT 13%: {money(totals.taxAmount)}</span>
+          <span className="font-semibold text-slate-900">Grand total: {money(totals.grandTotal)}</span>
+        </div>
+      </InventorySectionCard>
+
+      <InventorySectionCard title="More Info">
+        <label className="block text-sm">
+          <span className="mb-1 block text-slate-600">Notes</span>
+          <textarea
+            className="w-full rounded-xl border border-slate-300 px-3 py-2"
+            rows={5}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Internal notes, supplier instructions, or receiving guidance..."
+          />
+        </label>
       </InventorySectionCard>
     </InventoryDocumentShell>
   )
