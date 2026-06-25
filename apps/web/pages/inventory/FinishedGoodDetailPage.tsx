@@ -288,17 +288,8 @@ export default function FinishedGoodDetailPage() {
           description="Every manual adjustment and production movement for the article."
           action={<span className="text-xs font-semibold text-slate-500">{totalRows} entries</span>}
         >
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className="rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm transition hover:bg-blue-50"
-              onClick={() => setShowAdjust(true)}
-            >
-              Adjust Stock
-            </button>
-            <div className="rounded-xl bg-slate-100 px-3 py-2 text-xs text-slate-600">
-              Use the edit action above for the master record and adjust stock for movement corrections.
-            </div>
+          <div className="mb-4 rounded-xl bg-slate-100 px-4 py-3 text-xs leading-5 text-slate-600">
+            Use the primary actions above for master-record edits and stock corrections. Stock history below is read-only unless you need to inspect a specific movement.
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
