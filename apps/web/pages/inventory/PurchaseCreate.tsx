@@ -4,14 +4,15 @@ import { request } from '../../services/apiClient'
 import { Button } from '../../components/ui/Button'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
 import { InventoryDocumentShell } from '../../components/inventory/InventoryDocumentShell'
-import { calculateInvoiceTotals } from '../../components/invoices/invoiceTotals'
 
 type Item = { rawMaterialId: string; quantity: number; unit: string; unitPrice: string }
 
 type Supplier = { id: string; name: string }
 type Material = { id: string; name: string; sku?: string | null; defaultUnit?: string | null }
 
-type TabKey = 'details' | 'items' | 'taxes' | 'more'
+type TabKey = 'details' | 'items' | 'more'
+
+const today = new Date().toISOString().slice(0, 10)
 
 export default function PurchaseCreate() {
   const [searchParams] = useSearchParams()
@@ -22,12 +23,6 @@ export default function PurchaseCreate() {
   const [supplierId, setSupplierId] = useState('')
   const [requiredBy, setRequiredBy] = useState('')
   const [company, setCompany] = useState('Merlin Lite')
-  const [applyTaxWithholding, setApplyTaxWithholding] = useState(false)
-  const [isSubcontracted, setIsSubcontracted] = useState(false)
-  const [taxCategory, setTaxCategory] = useState('')
-  const [shippingRule, setShippingRule] = useState('')
-  const [incoterm, setIncoterm] = useState('')
-  const [purchaseTaxTemplate, setPurchaseTaxTemplate] = useState('')
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState<Item[]>([{ rawMaterialId: '', quantity: 1, unit: 'unit', unitPrice: '0' }])
   const [submitting, setSubmitting] = useState(false)
@@ -75,20 +70,8 @@ export default function PurchaseCreate() {
     setItems(copy)
   }
 
-  const total = useMemo(() => items.reduce((sum, it) => sum + Number(it.quantity) * Number(it.unitPrice || 0), 0), [items])
+  const totalAmount = useMemo(() => items.reduce((sum, it) => sum + Number(it.quantity) * Number(it.unitPrice || 0), 0), [items])
   const totalQty = useMemo(() => items.reduce((sum, it) => sum + Number(it.quantity || 0), 0), [items])
-  const summary = useMemo(
-    () =>
-      calculateInvoiceTotals({
-        lines: items.map((item) => ({
-          id: item.rawMaterialId || `${item.quantity}-${item.unitPrice}`,
-          quantity: Number(item.quantity || 0),
-          rate: Number(item.unitPrice || 0),
-          amount: Number(item.quantity || 0) * Number(item.unitPrice || 0),
-        })),
-      }),
-    [items],
-  )
   const anyInvalid =
     !supplierId ||
     !invoiceNumber.trim() ||
@@ -115,6 +98,8 @@ export default function PurchaseCreate() {
     const payload = {
       supplierId,
       invoiceNumber: invoiceNumber.trim(),
+      invoiceDate: today,
+      notes: notes.trim() || undefined,
       items: items.map(({ rawMaterialId, quantity, unit, unitPrice }) => ({ rawMaterialId, quantity, unit, unitPrice })),
     }
     try {
@@ -152,7 +137,6 @@ export default function PurchaseCreate() {
         {[
           { key: 'details', label: 'Details' },
           { key: 'items', label: 'Items' },
-          { key: 'taxes', label: 'Taxes and Charges' },
           { key: 'more', label: 'More Info' },
         ].map((tab) => (
           <button
@@ -195,7 +179,7 @@ export default function PurchaseCreate() {
               <input
                 type="date"
                 className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                value={new Date().toISOString().slice(0, 10)}
+                value={today}
                 readOnly
               />
             </label>
@@ -238,16 +222,6 @@ export default function PurchaseCreate() {
                 onChange={(e) => setRequiredBy(e.target.value)}
               />
             </label>
-            <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={applyTaxWithholding} onChange={(e) => setApplyTaxWithholding(e.target.checked)} />
-                <span className="text-sm font-medium text-slate-700">Apply Tax Withholding Amount</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={isSubcontracted} onChange={(e) => setIsSubcontracted(e.target.checked)} />
-                <span className="text-sm font-medium text-slate-700">Is Subcontracted</span>
-              </label>
-            </div>
           </div>
         )}
       </InventorySectionCard>
@@ -355,29 +329,6 @@ export default function PurchaseCreate() {
         </InventorySectionCard>
       )}
 
-      {activeTab === 'taxes' && (
-        <InventorySectionCard title="Taxes and Charges">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">Tax Category</span>
-              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={taxCategory} onChange={(e) => setTaxCategory(e.target.value)} />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">Shipping Rule</span>
-              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={shippingRule} onChange={(e) => setShippingRule(e.target.value)} />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">Incoterm</span>
-              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={incoterm} onChange={(e) => setIncoterm(e.target.value)} />
-            </label>
-            <label className="block text-sm md:col-span-3">
-              <span className="mb-1 block text-slate-600">Purchase Taxes and Charges Template</span>
-              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={purchaseTaxTemplate} onChange={(e) => setPurchaseTaxTemplate(e.target.value)} />
-            </label>
-          </div>
-        </InventorySectionCard>
-      )}
-
       {activeTab === 'more' && (
         <InventorySectionCard title="More Info">
           <label className="block text-sm">
@@ -394,9 +345,8 @@ export default function PurchaseCreate() {
             <div className="mt-1 text-2xl font-bold text-slate-900">{totalQty}</div>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Grand total (NPR)</div>
-            <div className="mt-1 text-2xl font-bold text-slate-900">{summary.grandTotal.toLocaleString('en-NP', { style: 'currency', currency: 'NPR' })}</div>
-            <div className="mt-1 text-sm text-slate-500">VAT 13%: {summary.taxAmount.toLocaleString('en-NP', { style: 'currency', currency: 'NPR' })}</div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total amount (NPR)</div>
+            <div className="mt-1 text-2xl font-bold text-slate-900">{totalAmount.toLocaleString('en-NP', { style: 'currency', currency: 'NPR' })}</div>
           </div>
         </div>
       </InventorySectionCard>
