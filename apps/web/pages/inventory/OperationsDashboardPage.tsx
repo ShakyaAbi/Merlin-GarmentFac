@@ -109,7 +109,6 @@ export default function OperationsDashboardPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [summary, setSummary] = useState<any | null>(null)
   const [search, setSearch] = useState('')
-  const [partySearch, setPartySearch] = useState('')
   const [transactionType, setTransactionType] = useState('ALL')
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
   const [fromDate, setFromDate] = useState('')
@@ -150,6 +149,7 @@ export default function OperationsDashboardPage() {
   const stats = useMemo(() => {
     const counts = summary?.counts || {}
     const moneyData = summary?.money || {}
+    const grossProfitLoss = Number(moneyData.grossMargin || 0)
     return [
       { label: 'Raw materials', value: counts.materials || 0, tone: 'slate' as const },
       { label: 'Articles', value: counts.finishedGoods || 0, tone: 'emerald' as const },
@@ -159,7 +159,11 @@ export default function OperationsDashboardPage() {
       { label: 'Open balance', value: money(moneyData.dueTotal), tone: 'amber' as const },
       { label: 'Purchase value', value: money(moneyData.purchaseValue), tone: 'slate' as const },
       { label: 'Expense value', value: money(moneyData.expenseTotal), tone: 'rose' as const },
-      { label: 'Gross margin', value: money(moneyData.grossMargin), tone: Number(moneyData.grossMargin || 0) >= 0 ? 'emerald' as const : 'rose' as const },
+      {
+        label: 'Gross profit / loss',
+        value: money(grossProfitLoss),
+        tone: grossProfitLoss >= 0 ? ('emerald' as const) : ('rose' as const),
+      },
       { label: 'Open invoices', value: counts.openInvoices || 0, tone: 'amber' as const },
       { label: 'Low stock materials', value: counts.lowStockMaterials || 0, tone: 'amber' as const },
       { label: 'Low stock articles', value: counts.lowStockFinishedGoods || 0, tone: 'amber' as const },
@@ -201,7 +205,7 @@ export default function OperationsDashboardPage() {
         balanceAmount: Number(purchase.balanceAmount ?? purchase.dueAmount ?? purchase.totalAmount ?? 0),
         note: purchase.invoiceNumber || null,
         href: purchase.id ? `/inventory/purchases/${purchase.id}` : undefined,
-        tone: 'cyan',
+        tone: 'slate',
       })
     }
 
@@ -313,27 +317,7 @@ export default function OperationsDashboardPage() {
           </div>
         </div>
 
-        <div className="mb-6 flex flex-wrap items-center gap-2 rounded-[24px] border border-slate-200 bg-white p-2 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
-          {[
-            { key: 'overview', label: 'Overview' },
-            { key: 'transactions', label: 'Transactions' },
-            { key: 'activity', label: 'Activity' },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              className={`rounded-2xl px-4 py-2.5 text-sm font-semibold transition ${
-                tab.key === 'overview'
-                  ? 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="mb-6 grid gap-3 rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)] lg:grid-cols-[1.4fr_220px_260px_220px_160px]">
+        <div className="mb-6 grid gap-3 rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)] lg:grid-cols-[1.4fr_260px_220px_160px]">
           <label className="block text-sm">
             <span className="mb-2 block text-slate-500">Search</span>
             <input
@@ -358,15 +342,6 @@ export default function OperationsDashboardPage() {
             </select>
           </label>
           <label className="block text-sm">
-            <span className="mb-2 block text-slate-500">Party / Name</span>
-            <input
-              value={partySearch}
-              onChange={(event) => setPartySearch(event.target.value)}
-              placeholder="Search party"
-              className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-400"
-            />
-          </label>
-          <label className="block text-sm">
             <span className="mb-2 block text-slate-500">Sort By</span>
             <select
               value={sortOrder}
@@ -382,7 +357,6 @@ export default function OperationsDashboardPage() {
               type="button"
               onClick={() => {
                 setSearch('')
-                setPartySearch('')
                 setTransactionType('ALL')
                 setSortOrder('newest')
                 setFromDate('')
