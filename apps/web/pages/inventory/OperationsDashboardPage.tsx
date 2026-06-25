@@ -29,21 +29,19 @@ type TransactionRow = {
   balanceAmount: number | null
   note?: string | null
   href?: string
-  tone: 'slate' | 'emerald' | 'amber' | 'rose' | 'cyan'
+  tone: 'slate' | 'emerald' | 'amber' | 'rose'
 }
 
-function darkToneClass(tone: TransactionRow['tone']) {
+function toneClass(tone: TransactionRow['tone']) {
   switch (tone) {
     case 'emerald':
-      return 'bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/20'
+      return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
     case 'amber':
-      return 'bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/20'
+      return 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
     case 'rose':
-      return 'bg-rose-500/10 text-rose-300 ring-1 ring-rose-500/20'
-    case 'cyan':
-      return 'bg-cyan-500/10 text-cyan-300 ring-1 ring-cyan-500/20'
+      return 'bg-rose-50 text-rose-700 ring-1 ring-rose-200'
     default:
-      return 'bg-white/5 text-zinc-200 ring-1 ring-white/10'
+      return 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'
   }
 }
 
@@ -61,12 +59,12 @@ function Panel({
   className?: string
 }) {
   return (
-    <section className={`overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-[0_20px_60px_rgba(0,0,0,0.35)] ${className}`}>
-      <div className="border-b border-white/10 px-5 py-4 sm:px-6">
+    <section className={`overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_12px_35px_rgba(15,23,42,0.08)] ${className}`}>
+      <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold tracking-tight text-zinc-50">{title}</h2>
-            {description ? <p className="mt-1 text-sm text-zinc-400">{description}</p> : null}
+            <h2 className="text-lg font-semibold tracking-tight text-slate-900">{title}</h2>
+            {description ? <p className="mt-1 text-sm text-slate-500">{description}</p> : null}
           </div>
           {action ? <div className="flex items-center gap-2">{action}</div> : null}
         </div>
@@ -84,25 +82,23 @@ function StatCard({
 }: {
   label: string
   value: React.ReactNode
-  tone?: 'slate' | 'emerald' | 'amber' | 'rose' | 'cyan'
+  tone?: 'slate' | 'emerald' | 'amber' | 'rose'
   hint?: React.ReactNode
 }) {
   const toneClass =
     tone === 'emerald'
-      ? 'text-emerald-300'
+      ? 'text-emerald-700'
       : tone === 'amber'
-        ? 'text-amber-300'
+        ? 'text-amber-700'
         : tone === 'rose'
-          ? 'text-rose-300'
-          : tone === 'cyan'
-            ? 'text-cyan-300'
-            : 'text-zinc-100'
+          ? 'text-rose-700'
+          : 'text-slate-900'
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.2)]">
-      <div className="text-sm text-zinc-400">{label}</div>
-      <div className={`mt-2 text-xl font-semibold tracking-tight ${toneClass}`}>{value}</div>
-      {hint ? <div className="mt-1 text-xs text-zinc-500">{hint}</div> : null}
+    <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
+      <div className="text-sm font-medium uppercase tracking-[0.18em] text-slate-500">{label}</div>
+      <div className={`mt-3 text-2xl font-semibold tracking-tight ${toneClass}`}>{value}</div>
+      {hint ? <div className="mt-1 text-xs text-slate-500">{hint}</div> : null}
     </div>
   )
 }
@@ -155,13 +151,13 @@ export default function OperationsDashboardPage() {
     const counts = summary?.counts || {}
     const moneyData = summary?.money || {}
     return [
-      { label: 'Raw materials', value: counts.materials || 0, tone: 'cyan' as const },
+      { label: 'Raw materials', value: counts.materials || 0, tone: 'slate' as const },
       { label: 'Articles', value: counts.finishedGoods || 0, tone: 'emerald' as const },
       { label: 'Suppliers', value: counts.suppliers || 0, tone: 'slate' as const },
       { label: 'Customers', value: counts.customers || 0, tone: 'slate' as const },
       { label: 'Sales value', value: money(moneyData.salesTotal), tone: 'emerald' as const },
       { label: 'Open balance', value: money(moneyData.dueTotal), tone: 'amber' as const },
-      { label: 'Purchase value', value: money(moneyData.purchaseValue), tone: 'cyan' as const },
+      { label: 'Purchase value', value: money(moneyData.purchaseValue), tone: 'slate' as const },
       { label: 'Expense value', value: money(moneyData.expenseTotal), tone: 'rose' as const },
       { label: 'Gross margin', value: money(moneyData.grossMargin), tone: Number(moneyData.grossMargin || 0) >= 0 ? 'emerald' as const : 'rose' as const },
       { label: 'Open invoices', value: counts.openInvoices || 0, tone: 'amber' as const },
@@ -170,7 +166,7 @@ export default function OperationsDashboardPage() {
     ]
   }, [summary])
 
-  const transactions = useMemo(() => {
+  const filteredTransactions = useMemo(() => {
     const rows: TransactionRow[] = []
     const invoices = Array.isArray(summary?.recent?.invoices) ? summary.recent.invoices : []
     const purchases = Array.isArray(summary?.recent?.purchases) ? summary.recent.purchases : []
@@ -266,24 +262,28 @@ export default function OperationsDashboardPage() {
   const productionBatches = useMemo(() => (summary?.recent?.productionOrders || []).slice(0, 5), [summary])
 
   return (
-    <div className="-m-4 min-h-[calc(100vh-2rem)] bg-[#0b0b0d] text-zinc-100 lg:-m-8">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.14),transparent_28%),radial-gradient(circle_at_top_right,rgba(74,222,128,0.08),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent_30%)]" />
+    <div className="-m-4 min-h-[calc(100vh-2rem)] bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 lg:-m-8">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(76,81,255,0.08),transparent_24%),radial-gradient(circle_at_top_right,rgba(34,197,94,0.06),transparent_22%)]" />
 
       <div className="relative mx-auto max-w-7xl px-4 py-4 lg:px-8 lg:py-6">
         {error ? (
-          <div className="mb-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200" role="alert">
+          <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">
             {error}
           </div>
         ) : null}
 
-        <div className="mb-6 flex flex-col gap-4 rounded-[28px] border border-white/10 bg-white/[0.04] px-5 py-5 shadow-[0_20px_80px_rgba(0,0,0,0.35)] backdrop-blur md:flex-row md:items-end md:justify-between">
+        <div className="mb-6 flex flex-col gap-4 rounded-[30px] border border-slate-200 bg-white px-5 py-5 shadow-[0_14px_40px_rgba(15,23,42,0.08)] md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">
-            <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">
+            <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-700">
+              <span>←</span>
+              <span>Back to Home</span>
+            </Link>
+            <div className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-blue-700">
               Reports
             </div>
             <div>
-              <h1 className="text-3xl font-semibold tracking-tight text-zinc-50 md:text-4xl">All Transactions Report</h1>
-              <p className="mt-2 max-w-3xl text-sm text-zinc-400">
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">All Transactions Report</h1>
+              <p className="mt-2 max-w-3xl text-sm text-slate-500">
                 A Merlin-native summary of inventory, sales, purchasing, production, and expenses.
               </p>
             </div>
@@ -293,7 +293,7 @@ export default function OperationsDashboardPage() {
             <button
               type="button"
               onClick={() => window.print()}
-              className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-100 transition hover:bg-white/10"
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Print PDF
             </button>
@@ -306,29 +306,49 @@ export default function OperationsDashboardPage() {
             <button
               type="button"
               onClick={() => loadDashboard('refresh')}
-              className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-100 transition hover:bg-white/10"
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               {refreshing ? 'Refreshing...' : 'Refresh'}
             </button>
           </div>
         </div>
 
-        <div className="mb-6 grid gap-3 rounded-[24px] border border-white/10 bg-white/[0.03] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.25)] lg:grid-cols-[1.4fr_220px_260px_220px_160px]">
+        <div className="mb-6 flex flex-wrap items-center gap-2 rounded-[24px] border border-slate-200 bg-white p-2 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
+          {[
+            { key: 'overview', label: 'Overview' },
+            { key: 'transactions', label: 'Transactions' },
+            { key: 'activity', label: 'Activity' },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={`rounded-2xl px-4 py-2.5 text-sm font-semibold transition ${
+                tab.key === 'overview'
+                  ? 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mb-6 grid gap-3 rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)] lg:grid-cols-[1.4fr_220px_260px_220px_160px]">
           <label className="block text-sm">
-            <span className="mb-2 block text-zinc-400">Search</span>
+            <span className="mb-2 block text-slate-500">Search</span>
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search transactions"
-              className="h-11 w-full rounded-xl border border-white/10 bg-[#111214] px-4 text-sm text-zinc-100 placeholder:text-zinc-500 outline-none ring-0 transition focus:border-cyan-400/50"
+              className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-400"
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-2 block text-zinc-400">Transaction Type</span>
+            <span className="mb-2 block text-slate-500">Transaction Type</span>
             <select
               value={transactionType}
               onChange={(event) => setTransactionType(event.target.value)}
-              className="h-11 w-full rounded-xl border border-white/10 bg-[#111214] px-4 text-sm text-zinc-100 outline-none transition focus:border-cyan-400/50"
+              className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-blue-400"
             >
               <option value="ALL">All Transactions</option>
               <option value="SALES_INVOICE">Sales Invoices</option>
@@ -338,20 +358,20 @@ export default function OperationsDashboardPage() {
             </select>
           </label>
           <label className="block text-sm">
-            <span className="mb-2 block text-zinc-400">Party / Name</span>
+            <span className="mb-2 block text-slate-500">Party / Name</span>
             <input
               value={partySearch}
               onChange={(event) => setPartySearch(event.target.value)}
               placeholder="Search party"
-              className="h-11 w-full rounded-xl border border-white/10 bg-[#111214] px-4 text-sm text-zinc-100 placeholder:text-zinc-500 outline-none transition focus:border-cyan-400/50"
+              className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-400"
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-2 block text-zinc-400">Sort By</span>
+            <span className="mb-2 block text-slate-500">Sort By</span>
             <select
               value={sortOrder}
               onChange={(event) => setSortOrder(event.target.value as 'newest' | 'oldest')}
-              className="h-11 w-full rounded-xl border border-white/10 bg-[#111214] px-4 text-sm text-zinc-100 outline-none transition focus:border-cyan-400/50"
+              className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-blue-400"
             >
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
@@ -371,7 +391,7 @@ export default function OperationsDashboardPage() {
                 setAppliedToDate('')
                 void loadDashboard('refresh', { from: '', to: '' })
               }}
-              className="h-11 w-full rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-zinc-100 transition hover:bg-white/10"
+              className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Reset
             </button>
@@ -395,17 +415,17 @@ export default function OperationsDashboardPage() {
             <Panel
               title="Transactions"
               description={loading ? 'Loading dashboard...' : `${filteredTransactions.length} rows in the current report view.`}
-              action={<span className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">{appliedFromDate || appliedToDate ? 'Filtered' : 'All time'}</span>}
+              action={<span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">{appliedFromDate || appliedToDate ? 'Filtered' : 'All time'}</span>}
             >
               {loading ? (
-                <div className="py-14 text-center text-sm text-zinc-400">Loading dashboard...</div>
+                <div className="py-14 text-center text-sm text-slate-500">Loading dashboard...</div>
               ) : filteredTransactions.length === 0 ? (
-                <div className="py-14 text-center text-sm text-zinc-400">No transactions match the current filters.</div>
+                <div className="py-14 text-center text-sm text-slate-500">No transactions match the current filters.</div>
               ) : (
-                <div className="overflow-hidden rounded-2xl border border-white/10">
+                <div className="overflow-hidden rounded-2xl border border-slate-200">
                   <div className="overflow-x-auto">
                     <table className="min-w-[980px] w-full text-left text-sm">
-                      <thead className="bg-white/[0.04] text-zinc-400">
+                      <thead className="bg-slate-50 text-slate-500">
                         <tr>
                           <th className="px-5 py-4 font-medium">Date</th>
                           <th className="px-5 py-4 font-medium">Transaction Type</th>
@@ -415,28 +435,28 @@ export default function OperationsDashboardPage() {
                           <th className="px-5 py-4 font-medium">Balance Amount</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-white/10 bg-[#101114]">
+                      <tbody className="divide-y divide-slate-100 bg-white">
                         {filteredTransactions.map((row) => (
-                          <tr key={row.id} className="transition hover:bg-white/[0.03]">
-                            <td className="px-5 py-4 whitespace-nowrap text-zinc-300">{formatDate(row.entryDate)}</td>
+                          <tr key={row.id} className="transition hover:bg-slate-50">
+                            <td className="px-5 py-4 whitespace-nowrap text-slate-600">{formatDate(row.entryDate)}</td>
                             <td className="px-5 py-4">
-                              <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${darkToneClass(row.tone)}`}>
+                              <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneClass(row.tone)}`}>
                                 {row.transactionType}
                               </span>
                             </td>
                             <td className="px-5 py-4">
                               {row.href ? (
-                                <Link to={row.href} className="font-medium text-zinc-100 hover:text-cyan-300 hover:underline">
+                                <Link to={row.href} className="font-medium text-slate-900 hover:text-blue-700 hover:underline">
                                   {row.name}
                                 </Link>
                               ) : (
-                                <div className="font-medium text-zinc-100">{row.name}</div>
+                                <div className="font-medium text-slate-900">{row.name}</div>
                               )}
-                              {row.note ? <div className="mt-1 text-xs text-zinc-500">{row.note}</div> : null}
+                              {row.note ? <div className="mt-1 text-xs text-slate-500">{row.note}</div> : null}
                             </td>
-                            <td className="px-5 py-4 font-medium text-zinc-100">{money(row.totalAmount)}</td>
-                            <td className="px-5 py-4 font-medium text-zinc-300">{row.recPaidAmount == null ? '--' : money(row.recPaidAmount)}</td>
-                            <td className="px-5 py-4 font-medium text-zinc-300">{row.balanceAmount == null ? '--' : money(row.balanceAmount)}</td>
+                            <td className="px-5 py-4 font-medium text-slate-900">{money(row.totalAmount)}</td>
+                            <td className="px-5 py-4 font-medium text-slate-700">{row.recPaidAmount == null ? '--' : money(row.recPaidAmount)}</td>
+                            <td className="px-5 py-4 font-medium text-slate-700">{row.balanceAmount == null ? '--' : money(row.balanceAmount)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -450,15 +470,15 @@ export default function OperationsDashboardPage() {
               <Panel title="Recent Sales" description="Latest issued invoices from the sales flow.">
                 <div className="space-y-3">
                   {recentInvoices.length === 0 ? (
-                    <div className="text-sm text-zinc-400">No invoices yet.</div>
+                    <div className="text-sm text-slate-500">No invoices yet.</div>
                   ) : (
                     recentInvoices.map((invoice: any) => (
-                      <div key={invoice.id} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                      <div key={invoice.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                         <div className="flex items-center justify-between gap-3">
-                          <div className="font-medium text-zinc-100">{invoice.invoiceNumber || invoice.id}</div>
-                          <div className="text-sm text-emerald-300">{money(invoice.grandTotal)}</div>
+                          <div className="font-medium text-slate-900">{invoice.invoiceNumber || invoice.id}</div>
+                          <div className="text-sm text-emerald-700">{money(invoice.grandTotal)}</div>
                         </div>
-                        <div className="mt-1 text-xs text-zinc-500">{invoice.customer?.customerName || invoice.customerName || '-'}</div>
+                        <div className="mt-1 text-xs text-slate-500">{invoice.customer?.customerName || invoice.customerName || '-'}</div>
                       </div>
                     ))
                   )}
@@ -468,15 +488,15 @@ export default function OperationsDashboardPage() {
               <Panel title="Recent Purchases" description="Most recent purchase activity.">
                 <div className="space-y-3">
                   {recentPurchases.length === 0 ? (
-                    <div className="text-sm text-zinc-400">No purchase history yet.</div>
+                    <div className="text-sm text-slate-500">No purchase history yet.</div>
                   ) : (
                     recentPurchases.map((purchase: any) => (
-                      <div key={purchase.id} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                      <div key={purchase.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                         <div className="flex items-center justify-between gap-3">
-                          <div className="font-medium text-zinc-100">{purchase.supplierName || purchase.supplier?.name || purchase.invoiceNumber || purchase.id}</div>
-                          <div className="text-sm text-cyan-300">{money(purchase.totalAmount)}</div>
+                          <div className="font-medium text-slate-900">{purchase.supplierName || purchase.supplier?.name || purchase.invoiceNumber || purchase.id}</div>
+                          <div className="text-sm text-slate-700">{money(purchase.totalAmount)}</div>
                         </div>
-                        <div className="mt-1 text-xs text-zinc-500">{formatDate(purchase.invoiceDate || purchase.createdAt)}</div>
+                        <div className="mt-1 text-xs text-slate-500">{formatDate(purchase.invoiceDate || purchase.createdAt)}</div>
                       </div>
                     ))
                   )}
@@ -486,15 +506,15 @@ export default function OperationsDashboardPage() {
               <Panel title="Recent Production" description="Latest article batches from the floor.">
                 <div className="space-y-3">
                   {productionBatches.length === 0 ? (
-                    <div className="text-sm text-zinc-400">No production batches yet.</div>
+                    <div className="text-sm text-slate-500">No production batches yet.</div>
                   ) : (
                     productionBatches.map((order: any) => (
-                      <div key={order.id} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                      <div key={order.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                         <div className="flex items-center justify-between gap-3">
-                          <div className="font-medium text-zinc-100">{order.orderNumber || order.id}</div>
-                          <div className="text-sm text-amber-300">{money(order.fullyAbsorbedCost)}</div>
+                          <div className="font-medium text-slate-900">{order.orderNumber || order.id}</div>
+                          <div className="text-sm text-slate-700">{money(order.fullyAbsorbedCost)}</div>
                         </div>
-                        <div className="mt-1 text-xs text-zinc-500">{order.finishedGoodName || order.finishedGood?.name || '-'}</div>
+                        <div className="mt-1 text-xs text-slate-500">{order.finishedGoodName || order.finishedGood?.name || '-'}</div>
                       </div>
                     ))
                   )}
@@ -507,28 +527,28 @@ export default function OperationsDashboardPage() {
             <Panel title="Reporting Period" description="Filter the dashboard by date range.">
               <div className="space-y-4">
                 <label className="block text-sm">
-                  <span className="mb-2 block text-zinc-400">From</span>
+                  <span className="mb-2 block text-slate-500">From</span>
                   <input
                     type="date"
                     value={fromDate}
                     onChange={(event) => setFromDate(event.target.value)}
-                    className="h-11 w-full rounded-xl border border-white/10 bg-[#111214] px-4 text-sm text-zinc-100 outline-none transition focus:border-cyan-400/50"
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-blue-400"
                   />
                 </label>
                 <label className="block text-sm">
-                  <span className="mb-2 block text-zinc-400">To</span>
+                  <span className="mb-2 block text-slate-500">To</span>
                   <input
                     type="date"
                     value={toDate}
                     onChange={(event) => setToDate(event.target.value)}
-                    className="h-11 w-full rounded-xl border border-white/10 bg-[#111214] px-4 text-sm text-zinc-100 outline-none transition focus:border-cyan-400/50"
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-blue-400"
                   />
                 </label>
                 <button
                   type="button"
                   onClick={applyReportingPeriod}
                   disabled={refreshing}
-                  className="h-11 w-full rounded-xl bg-cyan-500 px-4 text-sm font-semibold text-white transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="h-11 w-full rounded-2xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {refreshing ? 'Applying...' : 'Apply'}
                 </button>
@@ -538,42 +558,42 @@ export default function OperationsDashboardPage() {
             <Panel title="Low Stock Raw Materials" description="Items at or below reorder point.">
               <div className="space-y-3">
                 {lowStockMaterials.map((material: any) => (
-                  <div key={material.id} className="rounded-2xl border border-amber-500/20 bg-amber-500/8 px-4 py-3">
-                    <div className="font-medium text-zinc-100">{material.name}</div>
-                    <div className="mt-1 text-xs text-zinc-400">Stock {Number(material.currentStock ?? 0)} | Reorder {material.reorderLevel ?? 'N/A'}</div>
+                  <div key={material.id} className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                    <div className="font-medium text-slate-900">{material.name}</div>
+                    <div className="mt-1 text-xs text-slate-500">Stock {Number(material.currentStock ?? 0)} | Reorder {material.reorderLevel ?? 'N/A'}</div>
                   </div>
                 ))}
-                {lowStockMaterials.length === 0 ? <div className="text-sm text-zinc-400">No low-stock raw materials.</div> : null}
+                {lowStockMaterials.length === 0 ? <div className="text-sm text-slate-500">No low-stock raw materials.</div> : null}
               </div>
             </Panel>
 
             <Panel title="Low Stock Articles" description="Articles that need replenishment.">
               <div className="space-y-3">
                 {lowStockFinishedGoods.map((item: any) => (
-                  <div key={item.id} className="rounded-2xl border border-amber-500/20 bg-amber-500/8 px-4 py-3">
-                    <div className="font-medium text-zinc-100">{item.name}</div>
-                    <div className="mt-1 text-xs text-zinc-400">Stock {Number(item.currentStock ?? 0)} | Reorder {item.reorderLevel ?? 'N/A'}</div>
+                  <div key={item.id} className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                    <div className="font-medium text-slate-900">{item.name}</div>
+                    <div className="mt-1 text-xs text-slate-500">Stock {Number(item.currentStock ?? 0)} | Reorder {item.reorderLevel ?? 'N/A'}</div>
                   </div>
                 ))}
-                {lowStockFinishedGoods.length === 0 ? <div className="text-sm text-zinc-400">No low-stock articles.</div> : null}
+                {lowStockFinishedGoods.length === 0 ? <div className="text-sm text-slate-500">No low-stock articles.</div> : null}
               </div>
             </Panel>
 
             <Panel title="Quick Actions" description="Jump to common work areas.">
               <div className="grid gap-2">
-                <Link to="/inventory/materials" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-zinc-100 transition hover:bg-white/10">
+                <Link to="/inventory/materials" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                   Materials
                 </Link>
-                <Link to="/inventory/finished-goods" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-zinc-100 transition hover:bg-white/10">
+                <Link to="/inventory/finished-goods" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                   Articles
                 </Link>
-                <Link to="/inventory/purchases" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-zinc-100 transition hover:bg-white/10">
+                <Link to="/inventory/purchases" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                   Purchases
                 </Link>
-                <Link to="/sales-invoices" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-zinc-100 transition hover:bg-white/10">
+                <Link to="/sales-invoices" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                   Sales Invoices
                 </Link>
-                <Link to="/expenses" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-zinc-100 transition hover:bg-white/10">
+                <Link to="/expenses" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                   Expenses
                 </Link>
               </div>
