@@ -172,6 +172,8 @@ export default function PurchaseCreate() {
       </InventorySectionCard>
 
       <InventoryStatGrid
+        layoutClassName="grid grid-cols-1 gap-3"
+        density="compact"
         stats={[
           { label: 'Total quantity', value: totalQty },
           { label: 'Subtotal', value: money(totals.subtotal) },
