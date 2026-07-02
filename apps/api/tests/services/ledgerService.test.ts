@@ -101,7 +101,7 @@ describe('ledgerService', () => {
   test('replaceSupplierLedgerEntry updates an existing payment row and recalculates later balances', async () => {
     const supplierLedgerFindMany = jest.fn().mockResolvedValue([
       { id: 'opening', supplierId: 'supplier-1', entryDate: new Date('2026-06-01'), createdAt: new Date('2026-06-01'), debit: 0, credit: 500, runningBalance: 500 },
-      { id: 'payment-ledger', supplierId: 'supplier-1', entryDate: new Date('2026-06-10'), createdAt: new Date('2026-06-10'), debit: 100, credit: 0, runningBalance: 400, referenceType: 'supplier_payment', referenceId: 'payment-1' },
+      { id: 'payment-ledger', supplierId: 'supplier-1', entryDate: new Date('2026-06-10'), createdAt: new Date('2026-06-10'), debit: 120, credit: 0, runningBalance: 380, referenceType: 'supplier_payment', referenceId: 'payment-1' },
       { id: 'purchase-ledger', supplierId: 'supplier-1', entryDate: new Date('2026-06-12'), createdAt: new Date('2026-06-12'), debit: 0, credit: 50, runningBalance: 450 },
     ])
     const supplierLedgerUpdate = jest.fn().mockResolvedValue(null)
@@ -126,10 +126,30 @@ describe('ledgerService', () => {
       credit: 0,
     })
 
-    expect(supplierLedgerUpdate).toHaveBeenCalledWith(expect.objectContaining({
+    expect(supplierLedgerUpdate).toHaveBeenNthCalledWith(1, expect.objectContaining({
       where: { id: 'payment-ledger' },
-      data: expect.objectContaining({ debit: expect.anything() }),
+      data: expect.objectContaining({
+        debit: expect.anything(),
+        credit: expect.anything(),
+        documentNumber: 'PAY-2083-00001',
+        entryType: 'PAYMENT_MADE',
+      }),
     }))
+    expect(supplierLedgerUpdate).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      where: { id: 'opening' },
+      data: expect.objectContaining({ runningBalance: expect.anything() }),
+    }))
+    expect(String(supplierLedgerUpdate.mock.calls[1][0].data.runningBalance)).toBe('500')
+    expect(supplierLedgerUpdate).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      where: { id: 'payment-ledger' },
+      data: expect.objectContaining({ runningBalance: expect.anything() }),
+    }))
+    expect(String(supplierLedgerUpdate.mock.calls[2][0].data.runningBalance)).toBe('380')
+    expect(supplierLedgerUpdate).toHaveBeenNthCalledWith(4, expect.objectContaining({
+      where: { id: 'purchase-ledger' },
+      data: expect.objectContaining({ runningBalance: expect.anything() }),
+    }))
+    expect(String(supplierLedgerUpdate.mock.calls[3][0].data.runningBalance)).toBe('430')
   })
 
   test('removeCustomerLedgerEntry deletes the payment row and recalculates remaining balances', async () => {
@@ -154,9 +174,15 @@ describe('ledgerService', () => {
     })
 
     expect(customerLedgerDelete).toHaveBeenCalledWith({ where: { id: 'payment-ledger' } })
-    expect(customerLedgerUpdate).toHaveBeenCalledWith(expect.objectContaining({
+    expect(customerLedgerUpdate).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      where: { id: 'opening' },
+      data: expect.objectContaining({ runningBalance: expect.anything() }),
+    }))
+    expect(String(customerLedgerUpdate.mock.calls[0][0].data.runningBalance)).toBe('200')
+    expect(customerLedgerUpdate).toHaveBeenNthCalledWith(2, expect.objectContaining({
       where: { id: 'invoice-ledger' },
       data: expect.objectContaining({ runningBalance: expect.anything() }),
     }))
+    expect(String(customerLedgerUpdate.mock.calls[1][0].data.runningBalance)).toBe('500')
   })
 })

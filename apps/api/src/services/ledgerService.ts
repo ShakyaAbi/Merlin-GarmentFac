@@ -162,12 +162,12 @@ export async function replaceCustomerLedgerEntry(input: CustomerLedgerMutationIn
       where: { id: existing.id },
       data: {
         entryType: input.entryType,
-        entryDate: input.entryDate || existing.entryDate,
-        documentNumber: input.documentNumber || null,
-        description: input.description || null,
-        debit: decimal(input.debit),
-        credit: decimal(input.credit),
-        createdBy: input.createdBy ?? null,
+        entryDate: input.entryDate ?? existing.entryDate,
+        documentNumber: input.documentNumber ?? existing.documentNumber,
+        description: input.description ?? existing.description,
+        debit: decimal(input.debit ?? existing.debit),
+        credit: decimal(input.credit ?? existing.credit),
+        createdBy: input.createdBy ?? existing.createdBy,
       },
     })
   } else {
@@ -211,12 +211,12 @@ export async function replaceSupplierLedgerEntry(input: SupplierLedgerMutationIn
       where: { id: existing.id },
       data: {
         entryType: input.entryType,
-        entryDate: input.entryDate || existing.entryDate,
-        documentNumber: input.documentNumber || null,
-        description: input.description || null,
-        debit: decimal(input.debit),
-        credit: decimal(input.credit),
-        createdBy: input.createdBy ?? null,
+        entryDate: input.entryDate ?? existing.entryDate,
+        documentNumber: input.documentNumber ?? existing.documentNumber,
+        description: input.description ?? existing.description,
+        debit: decimal(input.debit ?? existing.debit),
+        credit: decimal(input.credit ?? existing.credit),
+        createdBy: input.createdBy ?? existing.createdBy,
       },
     })
   } else {
