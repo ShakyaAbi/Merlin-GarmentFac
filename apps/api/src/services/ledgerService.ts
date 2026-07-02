@@ -15,6 +15,11 @@ type CustomerLedgerInput = {
   tx?: any
 }
 
+type CustomerLedgerMutationInput = CustomerLedgerInput & {
+  referenceType: string
+  referenceId: string
+}
+
 type SupplierLedgerInput = {
   supplierId: string
   entryType: 'OPENING_BALANCE' | 'PURCHASE_INVOICE' | 'PAYMENT_MADE'
@@ -27,6 +32,11 @@ type SupplierLedgerInput = {
   credit?: number | string | Prisma.Decimal
   createdBy?: number | null
   tx?: any
+}
+
+type SupplierLedgerMutationInput = SupplierLedgerInput & {
+  referenceType: string
+  referenceId: string
 }
 
 function decimal(value: number | string | Prisma.Decimal | null | undefined) {
@@ -103,6 +113,136 @@ export async function appendSupplierLedgerEntry(input: SupplierLedgerInput) {
       createdBy: input.createdBy ?? null,
     },
   })
+}
+
+async function recalculateCustomerRunningBalances(tx: any, customerId: string) {
+  const rows = await tx.customerLedgerEntry.findMany({
+    where: { customerId },
+    orderBy: [{ entryDate: 'asc' }, { createdAt: 'asc' }],
+  })
+
+  let runningBalance = new Prisma.Decimal(0)
+  for (const row of rows) {
+    runningBalance = runningBalance.plus(decimal(row.debit)).minus(decimal(row.credit))
+    await tx.customerLedgerEntry.update({
+      where: { id: row.id },
+      data: { runningBalance },
+    })
+  }
+}
+
+async function recalculateSupplierRunningBalances(tx: any, supplierId: string) {
+  const rows = await tx.supplierLedgerEntry.findMany({
+    where: { supplierId },
+    orderBy: [{ entryDate: 'asc' }, { createdAt: 'asc' }],
+  })
+
+  let runningBalance = new Prisma.Decimal(0)
+  for (const row of rows) {
+    runningBalance = runningBalance.plus(decimal(row.credit)).minus(decimal(row.debit))
+    await tx.supplierLedgerEntry.update({
+      where: { id: row.id },
+      data: { runningBalance },
+    })
+  }
+}
+
+export async function replaceCustomerLedgerEntry(input: CustomerLedgerMutationInput) {
+  const tx = input.tx || prisma
+  const existing = await tx.customerLedgerEntry.findFirst({
+    where: {
+      customerId: input.customerId,
+      referenceType: input.referenceType,
+      referenceId: input.referenceId,
+    },
+  })
+
+  if (existing) {
+    await tx.customerLedgerEntry.update({
+      where: { id: existing.id },
+      data: {
+        entryType: input.entryType,
+        entryDate: input.entryDate || existing.entryDate,
+        documentNumber: input.documentNumber || null,
+        description: input.description || null,
+        debit: decimal(input.debit),
+        credit: decimal(input.credit),
+        createdBy: input.createdBy ?? null,
+      },
+    })
+  } else {
+    await appendCustomerLedgerEntry(input)
+  }
+
+  await recalculateCustomerRunningBalances(tx, input.customerId)
+}
+
+export async function removeCustomerLedgerEntry(input: {
+  tx?: any
+  customerId: string
+  referenceType: string
+  referenceId: string
+}) {
+  const tx = input.tx || prisma
+  const existing = await tx.customerLedgerEntry.findFirst({
+    where: {
+      customerId: input.customerId,
+      referenceType: input.referenceType,
+      referenceId: input.referenceId,
+    },
+  })
+  if (!existing) return
+  await tx.customerLedgerEntry.delete({ where: { id: existing.id } })
+  await recalculateCustomerRunningBalances(tx, input.customerId)
+}
+
+export async function replaceSupplierLedgerEntry(input: SupplierLedgerMutationInput) {
+  const tx = input.tx || prisma
+  const existing = await tx.supplierLedgerEntry.findFirst({
+    where: {
+      supplierId: input.supplierId,
+      referenceType: input.referenceType,
+      referenceId: input.referenceId,
+    },
+  })
+
+  if (existing) {
+    await tx.supplierLedgerEntry.update({
+      where: { id: existing.id },
+      data: {
+        entryType: input.entryType,
+        entryDate: input.entryDate || existing.entryDate,
+        documentNumber: input.documentNumber || null,
+        description: input.description || null,
+        debit: decimal(input.debit),
+        credit: decimal(input.credit),
+        createdBy: input.createdBy ?? null,
+      },
+    })
+  } else {
+    await appendSupplierLedgerEntry(input)
+  }
+
+  await recalculateSupplierRunningBalances(tx, input.supplierId)
+}
+
+export async function removeSupplierLedgerEntry(input: {
+  tx?: any
+  supplierId: string
+  referenceType: string
+  referenceId: string
+}) {
+  const tx = input.tx || prisma
+  const existing = await tx.supplierLedgerEntry.findFirst({
+    where: {
+      supplierId: input.supplierId,
+      referenceType: input.referenceType,
+      referenceId: input.referenceId,
+    },
+  })
+  if (!existing) return
+  await tx.supplierLedgerEntry.delete({ where: { id: existing.id } })
+  await recalculateSupplierRunningBalances(tx, input.supplierId)
 }
 
 export async function getCustomerRunningBalance(customerId: string) {

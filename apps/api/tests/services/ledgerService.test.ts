@@ -1,20 +1,43 @@
 const customerLedgerFindFirst = jest.fn()
+const customerLedgerFindMany = jest.fn()
 const supplierLedgerFindFirst = jest.fn()
+const supplierLedgerFindMany = jest.fn()
 const customerFindUnique = jest.fn()
 const supplierFindUnique = jest.fn()
 const customerLedgerCreate = jest.fn()
 const supplierLedgerCreate = jest.fn()
+const customerLedgerUpdate = jest.fn()
+const customerLedgerDelete = jest.fn()
+const supplierLedgerUpdate = jest.fn()
+const supplierLedgerDelete = jest.fn()
 
 jest.mock('../../src/prisma', () => ({
   prisma: {
-    customerLedgerEntry: { findFirst: (...args: unknown[]) => customerLedgerFindFirst(...args), create: (...args: unknown[]) => customerLedgerCreate(...args) },
-    supplierLedgerEntry: { findFirst: (...args: unknown[]) => supplierLedgerFindFirst(...args), create: (...args: unknown[]) => supplierLedgerCreate(...args) },
+    customerLedgerEntry: {
+      findFirst: (...args: unknown[]) => customerLedgerFindFirst(...args),
+      findMany: (...args: unknown[]) => customerLedgerFindMany(...args),
+      create: (...args: unknown[]) => customerLedgerCreate(...args),
+      update: (...args: unknown[]) => customerLedgerUpdate(...args),
+      delete: (...args: unknown[]) => customerLedgerDelete(...args),
+    },
+    supplierLedgerEntry: {
+      findFirst: (...args: unknown[]) => supplierLedgerFindFirst(...args),
+      findMany: (...args: unknown[]) => supplierLedgerFindMany(...args),
+      create: (...args: unknown[]) => supplierLedgerCreate(...args),
+      update: (...args: unknown[]) => supplierLedgerUpdate(...args),
+      delete: (...args: unknown[]) => supplierLedgerDelete(...args),
+    },
     customer: { findUnique: (...args: unknown[]) => customerFindUnique(...args) },
     supplier: { findUnique: (...args: unknown[]) => supplierFindUnique(...args) },
   },
 }))
 
-import { appendCustomerLedgerEntry, appendSupplierLedgerEntry } from '../../src/services/ledgerService'
+import {
+  appendCustomerLedgerEntry,
+  appendSupplierLedgerEntry,
+  removeCustomerLedgerEntry,
+  replaceSupplierLedgerEntry,
+} from '../../src/services/ledgerService'
 
 describe('ledgerService', () => {
   beforeEach(() => {
@@ -24,6 +47,12 @@ describe('ledgerService', () => {
     supplierFindUnique.mockReset()
     customerLedgerCreate.mockReset()
     supplierLedgerCreate.mockReset()
+    customerLedgerFindMany.mockReset()
+    supplierLedgerFindMany.mockReset()
+    customerLedgerUpdate.mockReset()
+    customerLedgerDelete.mockReset()
+    supplierLedgerUpdate.mockReset()
+    supplierLedgerDelete.mockReset()
   })
 
   test('appendCustomerLedgerEntry uses opening balance when no prior ledger row exists', async () => {
@@ -67,5 +96,67 @@ describe('ledgerService', () => {
       }),
     })
     expect(String(entry.runningBalance)).toBe('450')
+  })
+
+  test('replaceSupplierLedgerEntry updates an existing payment row and recalculates later balances', async () => {
+    const supplierLedgerFindMany = jest.fn().mockResolvedValue([
+      { id: 'opening', supplierId: 'supplier-1', entryDate: new Date('2026-06-01'), createdAt: new Date('2026-06-01'), debit: 0, credit: 500, runningBalance: 500 },
+      { id: 'payment-ledger', supplierId: 'supplier-1', entryDate: new Date('2026-06-10'), createdAt: new Date('2026-06-10'), debit: 100, credit: 0, runningBalance: 400, referenceType: 'supplier_payment', referenceId: 'payment-1' },
+      { id: 'purchase-ledger', supplierId: 'supplier-1', entryDate: new Date('2026-06-12'), createdAt: new Date('2026-06-12'), debit: 0, credit: 50, runningBalance: 450 },
+    ])
+    const supplierLedgerUpdate = jest.fn().mockResolvedValue(null)
+
+    await replaceSupplierLedgerEntry({
+      tx: {
+        supplierLedgerEntry: {
+          findMany: supplierLedgerFindMany,
+          updateMany: jest.fn(),
+          create: jest.fn(),
+          update: supplierLedgerUpdate,
+          findFirst: jest.fn().mockResolvedValue({ id: 'payment-ledger', supplierId: 'supplier-1' }),
+        },
+      } as any,
+      supplierId: 'supplier-1',
+      entryType: 'PAYMENT_MADE',
+      referenceType: 'supplier_payment',
+      referenceId: 'payment-1',
+      documentNumber: 'PAY-2083-00001',
+      entryDate: new Date('2026-06-10'),
+      debit: 120,
+      credit: 0,
+    })
+
+    expect(supplierLedgerUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'payment-ledger' },
+      data: expect.objectContaining({ debit: expect.anything() }),
+    }))
+  })
+
+  test('removeCustomerLedgerEntry deletes the payment row and recalculates remaining balances', async () => {
+    const customerLedgerDelete = jest.fn().mockResolvedValue(null)
+    const customerLedgerUpdate = jest.fn().mockResolvedValue(null)
+
+    await removeCustomerLedgerEntry({
+      tx: {
+        customerLedgerEntry: {
+          findFirst: jest.fn().mockResolvedValue({ id: 'payment-ledger', customerId: 'customer-1' }),
+          delete: customerLedgerDelete,
+          findMany: jest.fn().mockResolvedValue([
+            { id: 'opening', customerId: 'customer-1', entryDate: new Date('2026-06-01'), createdAt: new Date('2026-06-01'), debit: 200, credit: 0, runningBalance: 200 },
+            { id: 'invoice-ledger', customerId: 'customer-1', entryDate: new Date('2026-06-05'), createdAt: new Date('2026-06-05'), debit: 300, credit: 0, runningBalance: 500 },
+          ]),
+          update: customerLedgerUpdate,
+        },
+      } as any,
+      customerId: 'customer-1',
+      referenceType: 'sales_invoice_payment',
+      referenceId: 'payment-1',
+    })
+
+    expect(customerLedgerDelete).toHaveBeenCalledWith({ where: { id: 'payment-ledger' } })
+    expect(customerLedgerUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'invoice-ledger' },
+      data: expect.objectContaining({ runningBalance: expect.anything() }),
+    }))
   })
 })
