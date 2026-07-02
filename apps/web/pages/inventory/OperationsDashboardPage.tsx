@@ -1,22 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api } from '../../services/api'
+import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
+import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
+import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { formatNepaliDate } from '../../utils/nepaliDate'
 
-const money = (value: number | string | null | undefined) =>
-  new Intl.NumberFormat('en-NP', {
-    style: 'currency',
-    currency: 'NPR',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number(value ?? 0))
-
-const formatDate = (value?: string | null) => formatNepaliDate(value)
-
-type DashboardFilters = {
-  from?: string
-  to?: string
-}
+type ReportingPeriod = 'all' | 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
+type ReportingGranularity = 'day' | 'week' | 'month' | 'quarter' | 'year'
 
 type TransactionRow = {
   id: string
@@ -31,6 +23,34 @@ type TransactionRow = {
   href?: string
   tone: 'slate' | 'emerald' | 'amber' | 'rose'
 }
+
+const periodOptions: Array<{ value: ReportingPeriod; label: string; hint: string }> = [
+  { value: 'all', label: 'All time', hint: 'Everything in the database' },
+  { value: 'today', label: 'Today', hint: 'Current day activity' },
+  { value: 'week', label: 'This week', hint: 'Rolling 7-day view' },
+  { value: 'month', label: 'This month', hint: 'Current month to date' },
+  { value: 'quarter', label: 'This quarter', hint: 'Current quarter to date' },
+  { value: 'year', label: 'This year', hint: 'Current year to date' },
+  { value: 'custom', label: 'Custom', hint: 'Pick your own range' },
+]
+
+const granularityOptions: Array<{ value: ReportingGranularity; label: string }> = [
+  { value: 'day', label: 'Day' },
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
+  { value: 'quarter', label: 'Quarter' },
+  { value: 'year', label: 'Year' },
+]
+
+const money = (value: number | string | null | undefined) =>
+  new Intl.NumberFormat('en-NP', {
+    style: 'currency',
+    currency: 'NPR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value ?? 0))
+
+const formatDate = (value?: string | null) => formatNepaliDate(value)
 
 function toneClass(tone: TransactionRow['tone']) {
   switch (tone) {
@@ -50,16 +70,14 @@ function Panel({
   description,
   action,
   children,
-  className = '',
 }: {
   title: string
   description?: string
   action?: React.ReactNode
   children: React.ReactNode
-  className?: string
 }) {
   return (
-    <section className={`overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_12px_35px_rgba(15,23,42,0.08)] ${className}`}>
+    <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_12px_35px_rgba(15,23,42,0.08)]">
       <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -78,14 +96,14 @@ function StatCard({
   label,
   value,
   tone = 'slate',
-  hint,
+  note,
 }: {
   label: string
   value: React.ReactNode
   tone?: 'slate' | 'emerald' | 'amber' | 'rose'
-  hint?: React.ReactNode
+  note?: string
 }) {
-  const toneClass =
+  const valueClass =
     tone === 'emerald'
       ? 'text-emerald-700'
       : tone === 'amber'
@@ -97,37 +115,41 @@ function StatCard({
   return (
     <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
       <div className="text-sm font-medium uppercase tracking-[0.18em] text-slate-500">{label}</div>
-      <div className={`mt-3 text-2xl font-semibold tracking-tight ${toneClass}`}>{value}</div>
-      {hint ? <div className="mt-1 text-xs text-slate-500">{hint}</div> : null}
+      <div className={`mt-3 text-2xl font-semibold tracking-tight ${valueClass}`}>{value}</div>
+      {note ? <div className="mt-2 text-xs text-slate-500">{note}</div> : null}
     </div>
   )
 }
 
 export default function OperationsDashboardPage() {
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [summary, setSummary] = useState<any | null>(null)
   const [search, setSearch] = useState('')
-  const [transactionType, setTransactionType] = useState('ALL')
+  const [transactionType, setTransactionType] = useState<'ALL' | 'SALES_INVOICE' | 'PURCHASE' | 'EXPENSE' | 'PRODUCTION'>('ALL')
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [selectedPeriod, setSelectedPeriod] = useState<ReportingPeriod>('month')
+  const [selectedGranularity, setSelectedGranularity] = useState<ReportingGranularity>('month')
+  const [customFromDate, setCustomFromDate] = useState('')
+  const [customToDate, setCustomToDate] = useState('')
   const [appliedFromDate, setAppliedFromDate] = useState('')
   const [appliedToDate, setAppliedToDate] = useState('')
 
-  const loadDashboard = async (mode: 'initial' | 'refresh' = 'initial', filters?: DashboardFilters) => {
+  const loadSummary = async (mode: 'initial' | 'refresh' = 'initial') => {
     if (mode === 'refresh') setRefreshing(true)
     else setLoading(true)
     setError(null)
+
     try {
-      const from = filters?.from ?? appliedFromDate
-      const to = filters?.to ?? appliedToDate
       const query = new URLSearchParams()
-      if (from) query.set('from', from)
-      if (to) query.set('to', to)
-      const data = await api.get(`/operations/summary${query.toString() ? `?${query.toString()}` : ''}`)
-      setSummary(data)
+      query.set('period', selectedPeriod)
+      query.set('granularity', selectedGranularity)
+      if (selectedPeriod === 'custom') {
+        if (appliedFromDate) query.set('from', appliedFromDate)
+        if (appliedToDate) query.set('to', appliedToDate)
+      }
+      setSummary(await api.get(`/operations/summary?${query.toString()}`))
     } catch (err: any) {
       setError(err?.message || 'Failed to load the reports page.')
     } finally {
@@ -137,444 +159,440 @@ export default function OperationsDashboardPage() {
   }
 
   useEffect(() => {
-    void loadDashboard('initial')
-  }, [])
+    if (selectedPeriod === 'custom' && !appliedFromDate && !appliedToDate) {
+      return
+    }
+    void loadSummary()
+    // The function is intentionally recreated with the latest form state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPeriod, selectedGranularity, appliedFromDate, appliedToDate])
 
-  const applyReportingPeriod = () => {
-    setAppliedFromDate(fromDate)
-    setAppliedToDate(toDate)
-    void loadDashboard('refresh', { from: fromDate, to: toDate })
+  const applyCustomPeriod = () => {
+    setSelectedPeriod('custom')
+    setAppliedFromDate(customFromDate)
+    setAppliedToDate(customToDate)
   }
 
   const stats = useMemo(() => {
     const counts = summary?.counts || {}
     const moneyData = summary?.money || {}
-    const grossProfitLoss = Number(moneyData.grossMargin || 0)
+    const grossProfit = Number(moneyData.grossMargin ?? moneyData.manufacturingMargin ?? 0)
+    const netProfit = Number(moneyData.estimatedProfit ?? 0)
+
     return [
-      { label: 'Raw materials', value: counts.materials || 0, tone: 'slate' as const },
-      { label: 'Articles', value: counts.finishedGoods || 0, tone: 'emerald' as const },
-      { label: 'Suppliers', value: counts.suppliers || 0, tone: 'slate' as const },
-      { label: 'Customers', value: counts.customers || 0, tone: 'slate' as const },
-      { label: 'Sales value', value: money(moneyData.salesTotal), tone: 'emerald' as const },
-      { label: 'Open balance', value: money(moneyData.dueTotal), tone: 'amber' as const },
-      { label: 'Purchase value', value: money(moneyData.purchaseValue), tone: 'slate' as const },
-      { label: 'Expense value', value: money(moneyData.expenseTotal), tone: 'rose' as const },
-      {
-        label: 'Gross profit / loss',
-        value: money(grossProfitLoss),
-        tone: grossProfitLoss >= 0 ? ('emerald' as const) : ('rose' as const),
-      },
-      { label: 'Open invoices', value: counts.openInvoices || 0, tone: 'amber' as const },
-      { label: 'Low stock materials', value: counts.lowStockMaterials || 0, tone: 'amber' as const },
-      { label: 'Low stock articles', value: counts.lowStockFinishedGoods || 0, tone: 'amber' as const },
+      { label: 'Sales', value: money(moneyData.salesTotal), tone: 'emerald' as const, note: 'Invoice total, not payment timing' },
+      { label: 'Purchases', value: money(moneyData.purchaseValue), tone: 'slate' as const, note: 'Purchase invoice total' },
+      { label: 'Expenses', value: money(moneyData.expenseTotal), tone: 'rose' as const, note: 'All expense entries' },
+      { label: 'Gross profit / loss', value: money(grossProfit), tone: grossProfit >= 0 ? ('emerald' as const) : ('rose' as const), note: 'Sales less purchase cost' },
+      { label: 'Net profit / loss', value: money(netProfit), tone: netProfit >= 0 ? ('emerald' as const) : ('rose' as const), note: 'Accrual-based view' },
+      { label: 'Outstanding invoices', value: counts.openInvoices || 0, tone: 'amber' as const, note: 'Due against issued invoices' },
+      { label: 'Raw material stock alerts', value: counts.lowStockMaterials || 0, tone: 'amber' as const, note: 'At or below reorder level' },
+      { label: 'Article stock alerts', value: counts.lowStockFinishedGoods || 0, tone: 'amber' as const, note: 'At or below reorder level' },
     ]
   }, [summary])
 
-  const filteredTransactions = useMemo(() => {
-    const rows: TransactionRow[] = []
-    const invoices = Array.isArray(summary?.recent?.invoices) ? summary.recent.invoices : []
-    const purchases = Array.isArray(summary?.recent?.purchases) ? summary.recent.purchases : []
-    const expenses = Array.isArray(summary?.lists?.expenses) ? summary.lists.expenses : []
-    const productionOrders = Array.isArray(summary?.recent?.productionOrders) ? summary.recent.productionOrders : []
+  const transactions = useMemo(() => {
+    const rows: TransactionRow[] = Array.isArray(summary?.transactions) ? summary.transactions : []
+    const q = search.trim().toLowerCase()
 
-    for (const invoice of invoices) {
-      rows.push({
-        id: `invoice-${invoice.id}`,
-        entryDate: invoice.invoiceDate || invoice.createdAt || new Date().toISOString(),
-        transactionType: 'Sales Invoice',
-        transactionKey: 'SALES_INVOICE',
-        name: invoice.customer?.customerName || invoice.customerName || invoice.invoiceNumber || invoice.id,
-        totalAmount: Number(invoice.grandTotal ?? 0),
-        recPaidAmount: Number(invoice.paidAmount ?? 0),
-        balanceAmount: Number(invoice.dueAmount ?? 0),
-        note: invoice.invoiceNumber || null,
-        href: `/sales-invoices/${invoice.id}`,
-        tone: 'emerald',
-      })
-    }
-
-    for (const purchase of purchases) {
-      rows.push({
-        id: `purchase-${purchase.id}`,
-        entryDate: purchase.invoiceDate || purchase.createdAt || new Date().toISOString(),
-        transactionType: 'Purchase',
-        transactionKey: 'PURCHASE',
-        name: purchase.supplierName || purchase.supplier?.name || purchase.invoiceNumber || purchase.id,
-        totalAmount: Number(purchase.totalAmount ?? 0),
-        recPaidAmount: Number(purchase.paidAmount ?? 0) || null,
-        balanceAmount: Number(purchase.balanceAmount ?? purchase.dueAmount ?? purchase.totalAmount ?? 0),
-        note: purchase.invoiceNumber || null,
-        href: purchase.id ? `/inventory/purchases/${purchase.id}` : undefined,
-        tone: 'slate',
-      })
-    }
-
-    for (const expense of expenses) {
-      rows.push({
-        id: `expense-${expense.id}`,
-        entryDate: expense.expenseDate || expense.createdAt || new Date().toISOString(),
-        transactionType: 'Expense',
-        transactionKey: 'EXPENSE',
-        name: expense.description || expense.category || expense.vendor || expense.id,
-        totalAmount: Number(expense.amount ?? 0),
-        recPaidAmount: Number(expense.amount ?? 0),
-        balanceAmount: null,
-        note: expense.vendor || null,
-        href: expense.id ? `/expenses/${expense.id}` : undefined,
-        tone: 'rose',
-      })
-    }
-
-    for (const order of productionOrders) {
-      rows.push({
-        id: `production-${order.id}`,
-        entryDate: order.createdAt || new Date().toISOString(),
-        transactionType: 'Production Batch',
-        transactionKey: 'PRODUCTION',
-        name: order.finishedGoodName || order.finishedGood?.name || order.orderNumber || order.id,
-        totalAmount: Number(order.fullyAbsorbedCost ?? order.baseCost ?? 0),
-        recPaidAmount: null,
-        balanceAmount: null,
-        note: order.status || null,
-        href: order.id ? `/inventory/production/${order.id}` : undefined,
-        tone: 'amber',
-      })
-    }
-
-    const q = `${search} ${partySearch}`.trim().toLowerCase()
-    const filtered = rows.filter((row) => {
-      const typeMatch = transactionType === 'ALL' || row.transactionKey === transactionType
-      const textMatch =
-        !q ||
-        [row.transactionType, row.name, row.note, formatDate(row.entryDate)]
+    return rows
+      .filter((row) => {
+        if (transactionType !== 'ALL' && row.transactionKey !== transactionType) return false
+        if (!q) return true
+        return [row.transactionType, row.name, row.note, formatDate(row.entryDate)]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(q))
-      return typeMatch && textMatch
-    })
+      })
+      .sort((a, b) => {
+        const left = new Date(a.entryDate).getTime()
+        const right = new Date(b.entryDate).getTime()
+        return sortOrder === 'newest' ? right - left : left - right
+      })
+  }, [search, sortOrder, summary, transactionType])
 
-    filtered.sort((a, b) => {
-      const diff = new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
-      return sortOrder === 'newest' ? -diff : diff
-    })
-    return filtered
-  }, [search, partySearch, summary, sortOrder, transactionType])
-
+  const trendData = useMemo(() => Array.isArray(summary?.trend) ? summary.trend : [], [summary])
   const lowStockMaterials = useMemo(() => (summary?.lists?.lowStockMaterials || []).slice(0, 5), [summary])
   const lowStockFinishedGoods = useMemo(() => (summary?.lists?.lowStockFinishedGoods || []).slice(0, 5), [summary])
   const recentInvoices = useMemo(() => (summary?.recent?.invoices || []).slice(0, 5), [summary])
   const recentPurchases = useMemo(() => (summary?.recent?.purchases || []).slice(0, 5), [summary])
   const productionBatches = useMemo(() => (summary?.recent?.productionOrders || []).slice(0, 5), [summary])
 
+  const periodLabel = summary?.period?.label || 'Loading'
+  const dateRangeLabel =
+    selectedPeriod === 'custom'
+      ? `${appliedFromDate || 'Any start'} to ${appliedToDate || 'Any end'}`
+      : periodLabel
+
+  const transactionTypeOptions = [
+    { value: 'ALL' as const, label: 'All types' },
+    { value: 'SALES_INVOICE' as const, label: 'Sales invoices' },
+    { value: 'PURCHASE' as const, label: 'Purchases' },
+    { value: 'EXPENSE' as const, label: 'Expenses' },
+    { value: 'PRODUCTION' as const, label: 'Production batches' },
+  ]
+
   return (
-    <div className="-m-4 min-h-[calc(100vh-2rem)] bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 lg:-m-8">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(76,81,255,0.08),transparent_24%),radial-gradient(circle_at_top_right,rgba(34,197,94,0.06),transparent_22%)]" />
+    <InventoryPageShell
+      eyebrow="Reports"
+      title="All Transactions Report"
+      description="Selectable period reporting with full transactions and accrual-based profit / loss over time."
+      backTo={{ to: '/', label: 'Back to Home' }}
+      actions={[
+        { label: 'Print PDF', variant: 'outline', onClick: () => window.print() },
+        { label: 'Download Excel', variant: 'primary', to: '/exports' },
+        { label: refreshing ? 'Refreshing...' : 'Refresh', variant: 'outline', onClick: () => loadSummary('refresh') },
+      ]}
+    >
+      {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
-      <div className="relative mx-auto max-w-7xl px-4 py-4 lg:px-8 lg:py-6">
-        {error ? (
-          <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">
-            {error}
-          </div>
-        ) : null}
+      <div className="mb-6">
+        <InventoryStatGrid stats={stats} />
+      </div>
 
-        <div className="mb-6 flex flex-col gap-4 rounded-[30px] border border-slate-200 bg-white px-5 py-5 shadow-[0_14px_40px_rgba(15,23,42,0.08)] md:flex-row md:items-end md:justify-between">
-          <div className="space-y-2">
-            <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-700">
-              <span>←</span>
-              <span>Back to Home</span>
-            </Link>
-            <div className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-blue-700">
-              Reports
-            </div>
-            <div>
-              <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">All Transactions Report</h1>
-              <p className="mt-2 max-w-3xl text-sm text-slate-500">
-                A Merlin-native summary of inventory, sales, purchasing, production, and expenses.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Print PDF
-            </button>
-            <Link
-              to="/exports"
-              className="inline-flex h-11 items-center justify-center rounded-xl bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400"
-            >
-              Download Excel
-            </Link>
-            <button
-              type="button"
-              onClick={() => loadDashboard('refresh')}
-              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              {refreshing ? 'Refreshing...' : 'Refresh'}
-            </button>
-          </div>
-        </div>
-
-        <div className="mb-6 grid gap-3 rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)] lg:grid-cols-[1.4fr_260px_220px_160px]">
-          <label className="block text-sm">
-            <span className="mb-2 block text-slate-500">Search</span>
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search transactions"
-              className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-400"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-2 block text-slate-500">Transaction Type</span>
-            <select
-              value={transactionType}
-              onChange={(event) => setTransactionType(event.target.value)}
-              className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-blue-400"
-            >
-              <option value="ALL">All Transactions</option>
-              <option value="SALES_INVOICE">Sales Invoices</option>
-              <option value="PURCHASE">Purchases</option>
-              <option value="EXPENSE">Expenses</option>
-              <option value="PRODUCTION">Production Batches</option>
-            </select>
-          </label>
-          <label className="block text-sm">
-            <span className="mb-2 block text-slate-500">Sort By</span>
-            <select
-              value={sortOrder}
-              onChange={(event) => setSortOrder(event.target.value as 'newest' | 'oldest')}
-              className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-blue-400"
-            >
-              <option value="newest">Newest first</option>
-              <option value="oldest">Oldest first</option>
-            </select>
-          </label>
-          <div className="flex items-end">
-            <button
-              type="button"
-              onClick={() => {
-                setSearch('')
-                setTransactionType('ALL')
-                setSortOrder('newest')
-                setFromDate('')
-                setToDate('')
-                setAppliedFromDate('')
-                setAppliedToDate('')
-                void loadDashboard('refresh', { from: '', to: '' })
-              }}
-              className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-
-        <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {stats.slice(0, 4).map((stat) => (
-            <StatCard key={stat.label} {...stat} />
-          ))}
-        </div>
-
-        <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {stats.slice(4, 8).map((stat) => (
-            <StatCard key={stat.label} {...stat} />
-          ))}
-        </div>
-
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_360px]">
-          <div className="space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_360px]">
+        <div className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-2">
             <Panel
-              title="Transactions"
-              description={loading ? 'Loading dashboard...' : `${filteredTransactions.length} rows in the current report view.`}
-              action={<span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">{appliedFromDate || appliedToDate ? 'Filtered' : 'All time'}</span>}
+              title="Revenue vs Spend"
+              description="Sales, purchases, and expenses for the selected period."
+              action={<span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">{dateRangeLabel}</span>}
             >
-              {loading ? (
-                <div className="py-14 text-center text-sm text-slate-500">Loading dashboard...</div>
-              ) : filteredTransactions.length === 0 ? (
-                <div className="py-14 text-center text-sm text-slate-500">No transactions match the current filters.</div>
-              ) : (
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-[980px] w-full text-left text-sm">
-                      <thead className="bg-slate-50 text-slate-500">
-                        <tr>
-                          <th className="px-5 py-4 font-medium">Date</th>
-                          <th className="px-5 py-4 font-medium">Transaction Type</th>
-                          <th className="px-5 py-4 font-medium">Name</th>
-                          <th className="px-5 py-4 font-medium">Total Amount</th>
-                          <th className="px-5 py-4 font-medium">Rec/Paid Amount</th>
-                          <th className="px-5 py-4 font-medium">Balance Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 bg-white">
-                        {filteredTransactions.map((row) => (
-                          <tr key={row.id} className="transition hover:bg-slate-50">
-                            <td className="px-5 py-4 whitespace-nowrap text-slate-600">{formatDate(row.entryDate)}</td>
-                            <td className="px-5 py-4">
-                              <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneClass(row.tone)}`}>
-                                {row.transactionType}
-                              </span>
-                            </td>
-                            <td className="px-5 py-4">
-                              {row.href ? (
-                                <Link to={row.href} className="font-medium text-slate-900 hover:text-blue-700 hover:underline">
-                                  {row.name}
-                                </Link>
-                              ) : (
-                                <div className="font-medium text-slate-900">{row.name}</div>
-                              )}
-                              {row.note ? <div className="mt-1 text-xs text-slate-500">{row.note}</div> : null}
-                            </td>
-                            <td className="px-5 py-4 font-medium text-slate-900">{money(row.totalAmount)}</td>
-                            <td className="px-5 py-4 font-medium text-slate-700">{row.recPaidAmount == null ? '--' : money(row.recPaidAmount)}</td>
-                            <td className="px-5 py-4 font-medium text-slate-700">{row.balanceAmount == null ? '--' : money(row.balanceAmount)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} />
+                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} width={48} />
+                    <Tooltip formatter={(value: any) => money(value)} />
+                    <Bar dataKey="sales" name="Sales" fill="#2563eb" radius={[10, 10, 0, 0]} />
+                    <Bar dataKey="purchases" name="Purchases" fill="#64748b" radius={[10, 10, 0, 0]} />
+                    <Bar dataKey="expenses" name="Expenses" fill="#e11d48" radius={[10, 10, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </Panel>
 
-            <div className="grid gap-6 lg:grid-cols-3">
-              <Panel title="Recent Sales" description="Latest issued invoices from the sales flow.">
-                <div className="space-y-3">
-                  {recentInvoices.length === 0 ? (
-                    <div className="text-sm text-slate-500">No invoices yet.</div>
-                  ) : (
-                    recentInvoices.map((invoice: any) => (
-                      <div key={invoice.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="font-medium text-slate-900">{invoice.invoiceNumber || invoice.id}</div>
-                          <div className="text-sm text-emerald-700">{money(invoice.grandTotal)}</div>
-                        </div>
-                        <div className="mt-1 text-xs text-slate-500">{invoice.customer?.customerName || invoice.customerName || '-'}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </Panel>
-
-              <Panel title="Recent Purchases" description="Most recent purchase activity.">
-                <div className="space-y-3">
-                  {recentPurchases.length === 0 ? (
-                    <div className="text-sm text-slate-500">No purchase history yet.</div>
-                  ) : (
-                    recentPurchases.map((purchase: any) => (
-                      <div key={purchase.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="font-medium text-slate-900">{purchase.supplierName || purchase.supplier?.name || purchase.invoiceNumber || purchase.id}</div>
-                          <div className="text-sm text-slate-700">{money(purchase.totalAmount)}</div>
-                        </div>
-                        <div className="mt-1 text-xs text-slate-500">{formatDate(purchase.invoiceDate || purchase.createdAt)}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </Panel>
-
-              <Panel title="Recent Production" description="Latest article batches from the floor.">
-                <div className="space-y-3">
-                  {productionBatches.length === 0 ? (
-                    <div className="text-sm text-slate-500">No production batches yet.</div>
-                  ) : (
-                    productionBatches.map((order: any) => (
-                      <div key={order.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="font-medium text-slate-900">{order.orderNumber || order.id}</div>
-                          <div className="text-sm text-slate-700">{money(order.fullyAbsorbedCost)}</div>
-                        </div>
-                        <div className="mt-1 text-xs text-slate-500">{order.finishedGoodName || order.finishedGood?.name || '-'}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </Panel>
-            </div>
+            <Panel title="Profit / Loss Over Time" description="Gross and net movement based on the selected reporting window.">
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="grossProfitFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.28} />
+                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
+                      </linearGradient>
+                      <linearGradient id="netProfitFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#16a34a" stopOpacity={0.28} />
+                        <stop offset="95%" stopColor="#16a34a" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} />
+                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} width={48} />
+                    <Tooltip formatter={(value: any) => money(value)} />
+                    <Area type="monotone" dataKey="grossProfit" name="Gross Profit" stroke="#2563eb" strokeWidth={2.5} fill="url(#grossProfitFill)" />
+                    <Area type="monotone" dataKey="netProfit" name="Net Profit" stroke="#16a34a" strokeWidth={2.5} fill="url(#netProfitFill)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </Panel>
           </div>
 
-          <div className="space-y-6">
-            <Panel title="Reporting Period" description="Filter the dashboard by date range.">
-              <div className="space-y-4">
-                <label className="block text-sm">
-                  <span className="mb-2 block text-slate-500">From</span>
-                  <input
-                    type="date"
-                    value={fromDate}
-                    onChange={(event) => setFromDate(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-blue-400"
-                  />
-                </label>
-                <label className="block text-sm">
-                  <span className="mb-2 block text-slate-500">To</span>
-                  <input
-                    type="date"
-                    value={toDate}
-                    onChange={(event) => setToDate(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-blue-400"
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={applyReportingPeriod}
-                  disabled={refreshing}
-                  className="h-11 w-full rounded-2xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          <Panel
+            title="Transactions"
+            description={loading ? 'Loading report data...' : `${transactions.length} rows in the current report view.`}
+            action={<span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">{summary?.period?.granularity || 'month'}</span>}
+          >
+            <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_220px_180px]">
+              <label className="block text-sm">
+                <span className="mb-2 block text-slate-500">Search</span>
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search transactions, names, dates..."
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-blue-400"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-2 block text-slate-500">Type</span>
+                <select
+                  value={transactionType}
+                  onChange={(event) => setTransactionType(event.target.value as typeof transactionType)}
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-blue-400"
                 >
-                  {refreshing ? 'Applying...' : 'Apply'}
-                </button>
-              </div>
-            </Panel>
+                  {transactionTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="mb-2 block text-slate-500">Sort</span>
+                <select
+                  value={sortOrder}
+                  onChange={(event) => setSortOrder(event.target.value as typeof sortOrder)}
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-blue-400"
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                </select>
+              </label>
+            </div>
 
-            <Panel title="Low Stock Raw Materials" description="Items at or below reorder point.">
+            {loading ? (
+              <div className="py-14 text-center text-sm text-slate-500">Loading report data...</div>
+            ) : transactions.length === 0 ? (
+              <div className="py-14 text-center text-sm text-slate-500">No transactions match the current filters.</div>
+            ) : (
+              <div className="overflow-hidden rounded-2xl border border-slate-200">
+                <div className="overflow-x-auto">
+                  <table className="min-w-[1040px] w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-slate-500">
+                      <tr>
+                        <th className="px-5 py-4 font-medium">Date</th>
+                        <th className="px-5 py-4 font-medium">Transaction Type</th>
+                        <th className="px-5 py-4 font-medium">Name</th>
+                        <th className="px-5 py-4 font-medium">Total Amount</th>
+                        <th className="px-5 py-4 font-medium">Rec/Paid Amount</th>
+                        <th className="px-5 py-4 font-medium">Balance Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {transactions.map((row) => (
+                        <tr key={row.id} className="transition hover:bg-slate-50">
+                          <td className="whitespace-nowrap px-5 py-4 text-slate-600">{formatDate(row.entryDate)}</td>
+                          <td className="px-5 py-4">
+                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneClass(row.tone)}`}>{row.transactionType}</span>
+                          </td>
+                          <td className="px-5 py-4">
+                            {row.href ? (
+                              <Link to={row.href} className="font-medium text-slate-900 hover:text-blue-700 hover:underline">
+                                {row.name}
+                              </Link>
+                            ) : (
+                              <div className="font-medium text-slate-900">{row.name}</div>
+                            )}
+                            {row.note ? <div className="mt-1 text-xs text-slate-500">{row.note}</div> : null}
+                          </td>
+                          <td className="px-5 py-4 font-medium text-slate-900">{money(row.totalAmount)}</td>
+                          <td className="px-5 py-4 font-medium text-slate-700">{row.recPaidAmount == null ? '--' : money(row.recPaidAmount)}</td>
+                          <td className="px-5 py-4 font-medium text-slate-700">{row.balanceAmount == null ? '--' : money(row.balanceAmount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </Panel>
+
+          <div className="grid gap-6 lg:grid-cols-3">
+            <Panel title="Recent Sales" description="Latest issued invoices in the current data set.">
               <div className="space-y-3">
-                {lowStockMaterials.map((material: any) => (
-                  <div key={material.id} className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                    <div className="font-medium text-slate-900">{material.name}</div>
-                    <div className="mt-1 text-xs text-slate-500">Stock {Number(material.currentStock ?? 0)} | Reorder {material.reorderLevel ?? 'N/A'}</div>
-                  </div>
-                ))}
-                {lowStockMaterials.length === 0 ? <div className="text-sm text-slate-500">No low-stock raw materials.</div> : null}
+                {recentInvoices.length === 0 ? (
+                  <div className="text-sm text-slate-500">No invoices yet.</div>
+                ) : (
+                  recentInvoices.map((invoice: any) => (
+                    <div key={invoice.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="font-medium text-slate-900">{invoice.invoiceNumber || invoice.id}</div>
+                        <div className="text-sm text-emerald-700">{money(invoice.grandTotal)}</div>
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">{invoice.customer?.customerName || invoice.customerName || '-'}</div>
+                    </div>
+                  ))
+                )}
               </div>
             </Panel>
 
-            <Panel title="Low Stock Articles" description="Articles that need replenishment.">
+            <Panel title="Recent Purchases" description="Most recent purchase activity.">
               <div className="space-y-3">
-                {lowStockFinishedGoods.map((item: any) => (
-                  <div key={item.id} className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                    <div className="font-medium text-slate-900">{item.name}</div>
-                    <div className="mt-1 text-xs text-slate-500">Stock {Number(item.currentStock ?? 0)} | Reorder {item.reorderLevel ?? 'N/A'}</div>
-                  </div>
-                ))}
-                {lowStockFinishedGoods.length === 0 ? <div className="text-sm text-slate-500">No low-stock articles.</div> : null}
+                {recentPurchases.length === 0 ? (
+                  <div className="text-sm text-slate-500">No purchase history yet.</div>
+                ) : (
+                  recentPurchases.map((purchase: any) => (
+                    <div key={purchase.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="font-medium text-slate-900">{purchase.supplierName || purchase.supplier?.name || purchase.invoiceNumber || purchase.id}</div>
+                        <div className="text-sm text-slate-700">{money(purchase.totalAmount)}</div>
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">{formatDate(purchase.invoiceDate || purchase.createdAt)}</div>
+                    </div>
+                  ))
+                )}
               </div>
             </Panel>
 
-            <Panel title="Quick Actions" description="Jump to common work areas.">
-              <div className="grid gap-2">
-                <Link to="/inventory/materials" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-                  Materials
-                </Link>
-                <Link to="/inventory/finished-goods" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-                  Articles
-                </Link>
-                <Link to="/inventory/purchases" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-                  Purchases
-                </Link>
-                <Link to="/sales-invoices" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-                  Sales Invoices
-                </Link>
-                <Link to="/expenses" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-                  Expenses
-                </Link>
+            <Panel title="Recent Production" description="Latest article batches from the floor.">
+              <div className="space-y-3">
+                {productionBatches.length === 0 ? (
+                  <div className="text-sm text-slate-500">No production batches yet.</div>
+                ) : (
+                  productionBatches.map((order: any) => (
+                    <div key={order.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="font-medium text-slate-900">{order.orderNumber || order.id}</div>
+                        <div className="text-sm text-slate-700">{money(order.fullyAbsorbedCost ?? order.baseCost)}</div>
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">{order.finishedGoodName || order.finishedGood?.name || '-'}</div>
+                    </div>
+                  ))
+                )}
               </div>
             </Panel>
           </div>
+        </div>
+
+        <div className="space-y-6">
+          <InventorySectionCard title="Reporting Period" description="Select a preset or apply a custom range.">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                {periodOptions.map((option) => {
+                  const active = selectedPeriod === option.value
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setSelectedPeriod(option.value)}
+                      className={`rounded-2xl border px-3 py-3 text-left transition ${
+                        active
+                          ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="text-sm font-semibold">{option.label}</div>
+                      <div className="mt-1 text-xs text-slate-500">{option.hint}</div>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-slate-700">Granularity</div>
+                <div className="flex flex-wrap gap-2">
+                  {granularityOptions.map((option) => {
+                    const active = selectedGranularity === option.value
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setSelectedGranularity(option.value)}
+                        className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                          active
+                            ? 'bg-slate-900 text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <label className="block text-sm">
+                <span className="mb-2 block text-slate-500">From</span>
+                <input
+                  type="date"
+                  value={customFromDate}
+                  onChange={(event) => setCustomFromDate(event.target.value)}
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-blue-400"
+                />
+              </label>
+
+              <label className="block text-sm">
+                <span className="mb-2 block text-slate-500">To</span>
+                <input
+                  type="date"
+                  value={customToDate}
+                  onChange={(event) => setCustomToDate(event.target.value)}
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-blue-400"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={applyCustomPeriod}
+                disabled={refreshing}
+                className="h-11 w-full rounded-2xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {refreshing ? 'Applying...' : 'Apply custom range'}
+              </button>
+            </div>
+          </InventorySectionCard>
+
+          <InventorySectionCard title="Low Stock Raw Materials" description="Items at or below reorder point.">
+            <div className="space-y-3">
+              {lowStockMaterials.map((material: any) => (
+                <Link
+                  key={material.id}
+                  to={`/inventory/materials/${material.id}`}
+                  className="block rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 transition hover:bg-amber-100"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-slate-900">{material.name}</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        Stock {Number(material.currentStock ?? 0)} | Reorder {material.reorderLevel ?? 'N/A'}
+                      </div>
+                    </div>
+                    <span className="rounded-full border border-amber-300 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-amber-700">
+                      Open
+                    </span>
+                  </div>
+                </Link>
+              ))}
+              {lowStockMaterials.length === 0 ? <div className="text-sm text-slate-500">No low-stock raw materials.</div> : null}
+            </div>
+          </InventorySectionCard>
+
+          <InventorySectionCard title="Low Stock Articles" description="Articles that need replenishment.">
+            <div className="space-y-3">
+              {lowStockFinishedGoods.map((item: any) => (
+                <Link
+                  key={item.id}
+                  to={`/inventory/finished-goods/${item.id}`}
+                  className="block rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 transition hover:bg-amber-100"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-slate-900">{item.name}</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        Stock {Number(item.currentStock ?? 0)} | Reorder {item.reorderLevel ?? 'N/A'}
+                      </div>
+                    </div>
+                    <span className="rounded-full border border-amber-300 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-amber-700">
+                      Open
+                    </span>
+                  </div>
+                </Link>
+              ))}
+              {lowStockFinishedGoods.length === 0 ? <div className="text-sm text-slate-500">No low-stock articles.</div> : null}
+            </div>
+          </InventorySectionCard>
+
+          <InventorySectionCard title="Quick Actions" description="Jump to common work areas.">
+            <div className="grid gap-2">
+              <Link to="/inventory/materials" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                Materials
+              </Link>
+              <Link to="/inventory/finished-goods" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                Articles
+              </Link>
+              <Link to="/inventory/purchases" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                Purchases
+              </Link>
+              <Link to="/sales-invoices" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                Sales Invoices
+              </Link>
+              <Link to="/payments" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                Payments
+              </Link>
+            </div>
+          </InventorySectionCard>
         </div>
       </div>
-    </div>
+    </InventoryPageShell>
   )
 }

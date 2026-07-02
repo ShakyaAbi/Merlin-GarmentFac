@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { api } from '../../services/api'
+import { finishedGoodApi } from '../../services/finishedGoodApi'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
 import { Button } from '../../components/ui/Button'
 import { useNavigate } from 'react-router-dom'
+import { ArticleCategorySelect } from '../../components/inventory/ArticleCategorySelect'
+import { FinishedGoodCsvActions } from '../../components/inventory/FinishedGoodCsvActions'
 
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR' }).format(Number(value ?? 0))
@@ -13,14 +15,15 @@ export default function FinishedGoodsPage() {
   const [articles, setArticles] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [articleCategoryId, setArticleCategoryId] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const loadItems = async () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await api.get<any>('/inventory/finished-goods')
-      setArticles(Array.isArray(data?.items) ? data.items : [])
+      const data = await finishedGoodApi.list({ page: 1, pageSize: 500 })
+      setArticles(Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [])
     } catch (err: any) {
       setError(err?.message || 'Failed to load articles.')
     } finally {
@@ -34,18 +37,21 @@ export default function FinishedGoodsPage() {
 
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return articles
     return articles.filter((item) =>
-      [item.name, item.sku, item.productCode, item.category, item.unit].filter(Boolean).some((field) => String(field).toLowerCase().includes(q)),
+      (!articleCategoryId || item.articleCategoryId === articleCategoryId) &&
+      (!q ||
+        [item.name, item.sku, item.productCode, item.category, item.unit]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(q))),
     )
-  }, [articles, search])
+  }, [articleCategoryId, articles, search])
 
   const stats = useMemo(() => {
-    const totalStock = articles.reduce((sum, item) => sum + Number(item.currentStock ?? 0), 0)
-    const lowStock = articles.filter((item) => item.reorderLevel != null && Number(item.currentStock ?? 0) <= Number(item.reorderLevel)).length
-    const totalValue = articles.reduce((sum, item) => sum + Number(item.currentStock ?? 0) * Number(item.sellingPrice ?? 0), 0)
-    return { total: articles.length, totalStock, lowStock, totalValue }
-  }, [articles])
+    const totalStock = filteredItems.reduce((sum, item) => sum + Number(item.currentStock ?? 0), 0)
+    const lowStock = filteredItems.filter((item) => item.reorderLevel != null && Number(item.currentStock ?? 0) <= Number(item.reorderLevel)).length
+    const totalValue = filteredItems.reduce((sum, item) => sum + Number(item.currentStock ?? 0) * Number(item.sellingPrice ?? 0), 0)
+    return { total: filteredItems.length, totalStock, lowStock, totalValue }
+  }, [filteredItems])
 
   const deleteItem = async (id: string) => {
     if (!window.confirm('Delete this article?')) return
@@ -66,6 +72,7 @@ export default function FinishedGoodsPage() {
       backTo={{ to: '/inventory/production', label: 'Back to production batches' }}
       actions={[
         { label: 'Create Article', variant: 'outline', to: '/inventory/finished-goods/create' },
+        { label: 'Manage Categories', variant: 'secondary', to: '/inventory/categories?kind=articles' },
         { label: 'New Invoice', variant: 'outline', to: '/sales-invoices/create' },
       ]}
     >
@@ -76,17 +83,26 @@ export default function FinishedGoodsPage() {
             description="Search and open an article to manage stock and the attached material bill."
           >
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <label className="sr-only" htmlFor="article-search">
-                Search articles
-              </label>
-              <input
-                id="article-search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search articles"
-                aria-label="Search articles"
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 md:w-72"
-              />
+              <div className="grid w-full gap-3 md:grid-cols-2">
+                <label className="sr-only" htmlFor="article-search">
+                  Search articles
+                </label>
+                <input
+                  id="article-search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search articles"
+                  aria-label="Search articles"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <ArticleCategorySelect
+                  value={articleCategoryId}
+                  onChange={setArticleCategoryId}
+                  label="Filter by category"
+                  allowAllOption
+                  allLabel="All categories"
+                />
+              </div>
               <Button type="button" onClick={() => navigate('/inventory/finished-goods/create')}>
                 New Article
               </Button>
@@ -102,7 +118,7 @@ export default function FinishedGoodsPage() {
               <div className="py-12 text-center text-sm text-slate-500">Loading articles...</div>
             ) : filteredItems.length === 0 ? (
               <div className="py-12 text-center text-sm text-slate-500">
-                {search.trim() ? 'No matching articles found.' : 'No articles yet.'}
+                {search.trim() || articleCategoryId ? 'No matching articles found.' : 'No articles yet.'}
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -193,8 +209,8 @@ export default function FinishedGoodsPage() {
 
           <InventorySectionCard title="Low Stock" description="Articles below reorder levels.">
             <div className="space-y-3">
-              {articles.filter((item) => item.reorderLevel != null && Number(item.currentStock ?? 0) <= Number(item.reorderLevel)).slice(0, 5).map((item) => (
-                <div key={item.id} className="flex items-center justify-between rounded-xl bg-amber-50 px-3 py-2 text-sm">
+              {filteredItems.filter((item) => item.reorderLevel != null && Number(item.currentStock ?? 0) <= Number(item.reorderLevel)).slice(0, 5).map((item) => (
+                <div key={item.id} className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm shadow-sm transition hover:bg-amber-100">
                   <div>
                     <div className="font-medium text-slate-900">{item.name}</div>
                     <div className="text-slate-500">Reorder {item.reorderLevel ?? 'N/A'}</div>
@@ -204,7 +220,7 @@ export default function FinishedGoodsPage() {
                   </Button>
                 </div>
               ))}
-              {articles.filter((item) => item.reorderLevel != null && Number(item.currentStock ?? 0) <= Number(item.reorderLevel)).length === 0 && (
+              {filteredItems.filter((item) => item.reorderLevel != null && Number(item.currentStock ?? 0) <= Number(item.reorderLevel)).length === 0 && (
                 <div className="text-sm text-slate-500">No low-stock articles.</div>
               )}
             </div>
@@ -225,6 +241,14 @@ export default function FinishedGoodsPage() {
                 Production Batches
               </Button>
             </div>
+          </InventorySectionCard>
+
+          <InventorySectionCard title="CSV Tools" description="Import or export the article catalog.">
+            <FinishedGoodCsvActions
+              title="article catalog"
+              filters={{ search, articleCategoryId }}
+              onSuccess={() => void loadItems()}
+            />
           </InventorySectionCard>
         </div>
       </div>

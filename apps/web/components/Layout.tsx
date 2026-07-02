@@ -14,6 +14,7 @@ import { api } from "../services/api";
 import { routeLabelMap, sidebarSections } from "./layout/layoutNav";
 import { SidebarSection } from "./layout/SidebarSection";
 import { NotificationsMenu } from "./layout/NotificationsMenu";
+import { ToastStack } from "./layout/ToastStack";
 
 type InventoryAlertItem = {
   id: string;
@@ -27,6 +28,15 @@ type InventoryAlertItem = {
   } | null;
 };
 
+type LowStockFinishedGoodItem = {
+  id: string;
+  name: string;
+  currentStock?: number | null;
+  reorderLevel?: number | null;
+  sku?: string | null;
+  productCode?: string | null;
+};
+
 interface LayoutProps {
   children: React.ReactNode;
 }
@@ -37,6 +47,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [notifications, setNotifications] = useState<AnomalyNotification[]>([]);
   const [overdueNotifications, setOverdueNotifications] = useState<any[]>([]);
   const [inventoryAlerts, setInventoryAlerts] = useState<InventoryAlertItem[]>([]);
+  const [lowStockFinishedGoods, setLowStockFinishedGoods] = useState<LowStockFinishedGoodItem[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [markingRead, setMarkingRead] = useState(false);
@@ -76,15 +87,18 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     Promise.all([
       api.getAnomalyNotifications(),
       api.getOverdueNotifications(),
+      api.get('/operations/summary'),
       api.getInventoryAlerts?.(),
     ])
-      .then(([{ notifications, totalUnread }, overdue, alerts]) => {
+      .then(([{ notifications, totalUnread }, overdue, summary, alerts]) => {
         setNotifications(notifications);
         setOverdueNotifications(overdue || []);
+        setLowStockFinishedGoods(Array.isArray(summary?.lists?.lowStockFinishedGoods) ? summary.lists.lowStockFinishedGoods : []);
         const inventoryList = Array.isArray(alerts) ? alerts : [];
         setInventoryAlerts(inventoryList);
         const inventoryUnread = inventoryList.filter((alert: InventoryAlertItem) => !alert.acknowledged).length;
-        setUnreadCount(totalUnread + (overdue?.length || 0) + inventoryUnread);
+        const lowStockArticleCount = Array.isArray(summary?.lists?.lowStockFinishedGoods) ? summary.lists.lowStockFinishedGoods.length : 0;
+        setUnreadCount(totalUnread + (overdue?.length || 0) + inventoryUnread + lowStockArticleCount);
       })
       .catch(() => {});
   };
@@ -149,6 +163,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="h-screen w-full bg-blue-900 flex overflow-hidden font-sans p-2 lg:p-4 gap-4 relative">
       <Silk speed={5} scale={1} color="#4d66ff" noiseIntensity={0.8} rotation={0} paused={true} />
+      <ToastStack />
 
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
@@ -330,6 +345,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   notifications={notifications}
                   overdueNotifications={overdueNotifications}
                   inventoryAlerts={inventoryAlerts}
+                  lowStockFinishedGoods={lowStockFinishedGoods}
                   unreadCount={unreadCount}
                   onClose={() => setShowNotifications(false)}
                   onMarkAllRead={handleMarkAllRead}

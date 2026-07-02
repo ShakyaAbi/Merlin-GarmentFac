@@ -3,6 +3,9 @@ import { Link, useLocation, useParams } from 'react-router-dom'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api } from '../../services/api'
 import { rawMaterialApi } from '../../services/rawMaterialApi'
+import { FinishedGoodCsvActions } from '../../components/inventory/FinishedGoodCsvActions'
+import { ArticleCategoryCreateInline } from '../../components/inventory/ArticleCategoryCreateInline'
+import { ArticleCategorySelect } from '../../components/inventory/ArticleCategorySelect'
 import { Modal } from '../../components/ui/Modal'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
@@ -62,6 +65,7 @@ export default function FinishedGoodDetailPage() {
   const currentStock = Number(article?.currentStock ?? 0)
   const reorderLevel = article?.reorderLevel ?? null
   const hasTarget = reorderLevel != null && Number.isFinite(Number(reorderLevel)) && Number(reorderLevel) > 0
+  const isLowStock = hasTarget && currentStock <= Number(reorderLevel)
   const stockValue = Number(article?.sellingPrice ?? 0) * currentStock
   const bomItems = Array.isArray(article?.bomData?.items) ? article.bomData.items : []
   const stockSeries = useMemo(() => {
@@ -129,6 +133,17 @@ export default function FinishedGoodDetailPage() {
           ]}
         />
 
+        {isLowStock ? (
+          <InventorySectionCard title="Low Stock Warning" description="This article is at or below its reorder level.">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <div className="font-semibold">Reorder attention needed</div>
+              <div className="mt-1">
+                Stock is {currentStock} {article.unit || 'units'} and the reorder level is {reorderLevel}. This article will remain flagged until replenished.
+              </div>
+            </div>
+          </InventorySectionCard>
+        ) : null}
+
         <InventorySectionCard title="Article Overview" description="Master data, status, and primary actions for this finished good.">
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.8fr)]">
             <div className="grid grid-cols-1 gap-5 md:grid-cols-[210px_minmax(0,1fr)]">
@@ -175,7 +190,7 @@ export default function FinishedGoodDetailPage() {
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
                     <div className="text-xs uppercase tracking-wide text-slate-500">Category</div>
-                    <div className="mt-1 font-semibold text-slate-900">{article.category || '-'}</div>
+                    <div className="mt-1 font-semibold text-slate-900">{article.articleCategory?.name || article.category || '-'}</div>
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
                     <div className="text-xs uppercase tracking-wide text-slate-500">Unit</div>
@@ -234,6 +249,15 @@ export default function FinishedGoodDetailPage() {
               <div className="mt-5 rounded-2xl bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
                 Stock updates affect invoice validation and low-stock checks immediately.
               </div>
+            </div>
+          </div>
+        </InventorySectionCard>
+
+        <InventorySectionCard title="CSV Tools" description="Import or export this article or the broader article catalog.">
+          <div className="space-y-3">
+            <FinishedGoodCsvActions title="article" filters={{ ids: [article.id] }} onSuccess={() => void load()} />
+            <div className="text-xs leading-5 text-slate-500">
+              Export the current article record or download the template for bulk article updates.
             </div>
           </div>
         </InventorySectionCard>
@@ -336,24 +360,17 @@ export default function FinishedGoodDetailPage() {
                             {tx.reason || tx.transactionType || 'Adjustment'}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700"
-                              onClick={() => setShowAdjust(true)}
-                            >
-                              Adjust
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700"
-                              onClick={() => setShowEdit(true)}
-                            >
-                              Edit
-                            </button>
-                          </div>
-                        </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700"
+                                  onClick={() => setShowAdjust(true)}
+                                >
+                                  Adjust
+                                </button>
+                              </div>
+                            </td>
                       </tr>
                     ))
                   )}
@@ -420,6 +437,7 @@ function EditArticleForm({ article, onCancel, onSave }: any) {
     name: article.name,
     sku: article.sku || '',
     productCode: article.productCode || '',
+    articleCategoryId: article.articleCategoryId || '',
     category: article.category || '',
     unit: article.unit || 'pcs',
     sellingPrice: article.sellingPrice || '',
@@ -520,7 +538,12 @@ function EditArticleForm({ article, onCancel, onSave }: any) {
         <label className="block text-sm"><span className="mb-1 block text-slate-600">Unit</span><input className="w-full rounded-xl border px-3 py-2" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} /></label>
         <label className="block text-sm"><span className="mb-1 block text-slate-600">SKU</span><input className="w-full rounded-xl border px-3 py-2" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} /></label>
         <label className="block text-sm"><span className="mb-1 block text-slate-600">Product Code</span><input className="w-full rounded-xl border px-3 py-2" value={form.productCode} onChange={(e) => setForm({ ...form, productCode: e.target.value })} /></label>
-        <label className="block text-sm"><span className="mb-1 block text-slate-600">Category</span><input className="w-full rounded-xl border px-3 py-2" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></label>
+        <div className="block text-sm">
+          <span className="mb-1 block text-slate-600">Category</span>
+          <ArticleCategorySelect value={form.articleCategoryId} onChange={(articleCategoryId) => setForm({ ...form, articleCategoryId })} />
+          <ArticleCategoryCreateInline onCreated={(created) => setForm((current) => ({ ...current, articleCategoryId: created.id }))} />
+          <input className="mt-3 w-full rounded-xl border px-3 py-2" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Legacy fallback label" />
+        </div>
         <label className="block text-sm"><span className="mb-1 block text-slate-600">Reorder Level</span><input className="w-full rounded-xl border px-3 py-2" value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: e.target.value })} /></label>
         <label className="block text-sm"><span className="mb-1 block text-slate-600">Selling Price</span><input className="w-full rounded-xl border px-3 py-2" value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} /></label>
         <label className="block text-sm"><span className="mb-1 block text-slate-600">Material cost</span><input className="w-full rounded-xl border bg-slate-50 px-3 py-2" value={materialCost.toFixed(2)} readOnly /></label>
@@ -602,6 +625,7 @@ function EditArticleForm({ article, onCancel, onSave }: any) {
               sku: form.sku || undefined,
               productCode: form.productCode || undefined,
               category: form.category || undefined,
+              articleCategoryId: form.articleCategoryId || undefined,
               unit: form.unit || undefined,
               sellingPrice: Number(form.sellingPrice || 0),
               costPrice: materialCost,
