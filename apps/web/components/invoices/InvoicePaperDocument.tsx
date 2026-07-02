@@ -118,7 +118,7 @@ export function InvoicePaperDocument({
           <thead>
             <tr className="border-b border-slate-300 text-xs uppercase tracking-[0.18em] text-slate-500">
               <th className="px-3 py-3 font-semibold">SN</th>
-              <th className="px-3 py-3 font-semibold">Code</th>
+              <th className="px-3 py-3 font-semibold">EXIM CODE</th>
               <th className="px-3 py-3 font-semibold">Description</th>
               <th className="px-3 py-3 font-semibold text-right">Qty</th>
               <th className="px-3 py-3 font-semibold text-right">Rate</th>

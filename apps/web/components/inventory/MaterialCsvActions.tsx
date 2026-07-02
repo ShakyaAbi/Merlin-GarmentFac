@@ -87,7 +87,7 @@ export function MaterialCsvActions({ filters = {}, title = 'Materials CSV', onSu
       <Modal isOpen={showImport} onClose={() => setShowImport(false)} title={`Import ${title}`} size="md">
         <div className="space-y-4">
           <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-            Download the template, fill it with material records, then upload the CSV.
+            Download the template, fill it with material records including exim code, then upload the CSV.
           </div>
 
           {error ? (

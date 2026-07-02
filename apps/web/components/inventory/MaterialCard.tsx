@@ -50,7 +50,7 @@ export function MaterialCard({ material, onEdit }: MaterialCardProps) {
 
       <div className="mt-5 grid grid-cols-2 gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4">
         <div>
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">SKU</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">EXIM CODE</span>
           <p className="mt-1 text-sm font-semibold text-slate-900">{material.sku || 'N/A'}</p>
         </div>
         <div>

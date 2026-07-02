@@ -4,7 +4,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api
 
 export interface RawMaterialPayload {
   name: string
-  sku?: string
+  sku: string
   defaultUnit: string
   categoryId?: string
   description?: string
@@ -54,7 +54,7 @@ export const rawMaterialApi = {
     request<void>(`/inventory/materials/${id}`, { method: 'DELETE' }),
 
   adjustStock: (id: string, data: StockAdjustPayload) =>
-    request<any>(`/inventory/materials/${id}/adjust-stock`, { method: 'POST', body: data }),
+    request<any>(`/inventory/materials/${id}/adjust-stock`, { method: 'PATCH', body: data }),
 
   getTransactions: (id: string, params?: { page?: number; pageSize?: number }) => {
     const q = new URLSearchParams()
@@ -67,6 +67,9 @@ export const rawMaterialApi = {
 
   createCategory: (data: CategoryPayload) =>
     request<any>('/inventory/material-categories', { method: 'POST', body: data }),
+
+  deleteCategory: (id: string) =>
+    request<void>(`/inventory/material-categories/${id}`, { method: 'DELETE' }),
 
   getPurchases: (id: string) =>
     request<any[]>(`/inventory/materials/${id}/purchases`),

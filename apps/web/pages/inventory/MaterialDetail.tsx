@@ -2,11 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api } from '../../services/api'
+import { rawMaterialApi } from '../../services/rawMaterialApi'
 import { Modal } from '../../components/ui/Modal'
 import { MaterialCsvActions } from '../../components/inventory/MaterialCsvActions'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
 import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
+import { RawMaterialCategoryField } from '../../components/inventory/RawMaterialCategoryField'
 import { formatNepaliDate, formatNepaliDateTime } from '../../utils/nepaliDate'
 
 export default function MaterialDetail() {
@@ -126,7 +128,7 @@ export default function MaterialDetail() {
 
   const handleSaveEdit = async (payload: any) => {
     try {
-      const updated = await api.put(`/inventory/materials/${material.id}`, payload)
+      const updated = await rawMaterialApi.update(material.id, payload)
       setMaterial(updated)
       setShowEdit(false)
     } catch (err: any) {
@@ -136,7 +138,7 @@ export default function MaterialDetail() {
 
   const handleAdjust = async (payload: any) => {
     try {
-      const tx = await api.post(`/inventory/materials/${material.id}/adjust-stock`, payload)
+      const tx = await rawMaterialApi.adjustStock(material.id, payload)
       setTransactions([tx, ...transactions])
       const refreshed = await api.get(`/inventory/materials/${material.id}`)
       setMaterial(refreshed)
@@ -517,7 +519,9 @@ function EditMaterialForm({ material, onCancel, onSave }: any) {
     defaultUnit: material.defaultUnit || '',
     reorderLevel: material.reorderLevel || 0,
     costPrice: material.costPrice || '',
+    categoryId: material.categoryId || '',
   })
+  const canSave = Boolean(form.name.trim() && form.sku.trim() && form.defaultUnit.trim())
 
   return (
     <div className="space-y-4">
@@ -526,9 +530,18 @@ function EditMaterialForm({ material, onCancel, onSave }: any) {
         <input className="w-full rounded-xl border px-3 py-2" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
       </label>
       <label className="block text-sm">
-        <span className="mb-1 block text-slate-600">SKU</span>
-        <input className="w-full rounded-xl border px-3 py-2" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
+        <span className="mb-1 block text-slate-600">EXIM CODE</span>
+        <input
+          className="w-full rounded-xl border px-3 py-2"
+          value={form.sku}
+          onChange={(e) => setForm({ ...form, sku: e.target.value })}
+          placeholder="Required exim code"
+        />
       </label>
+      <RawMaterialCategoryField
+        value={form.categoryId}
+        onChange={(categoryId) => setForm({ ...form, categoryId })}
+      />
       <div className="flex gap-2">
         <label className="block flex-1 text-sm">
           <span className="mb-1 block text-slate-600">Default Unit</span>
@@ -560,7 +573,15 @@ function EditMaterialForm({ material, onCancel, onSave }: any) {
         <button type="button" onClick={onCancel} className="rounded-xl border px-3 py-2">
           Cancel
         </button>
-        <button type="button" onClick={() => onSave(form)} className="rounded-xl bg-blue-600 px-4 py-2 text-white">
+        <button
+          type="button"
+          onClick={() => {
+            if (!canSave) return
+            onSave({ ...form, categoryId: form.categoryId || undefined })
+          }}
+          disabled={!canSave}
+          className="rounded-xl bg-blue-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+        >
           Save
         </button>
       </div>

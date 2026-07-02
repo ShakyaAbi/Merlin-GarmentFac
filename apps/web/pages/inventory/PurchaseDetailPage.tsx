@@ -20,6 +20,7 @@ export default function PurchaseDetailPage() {
   const [purchase, setPurchase] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [organizationName, setOrganizationName] = useState('Merlin Lite')
 
   const load = async () => {
     if (!id) return
@@ -38,9 +39,21 @@ export default function PurchaseDetailPage() {
     void load()
   }, [id])
 
+  useEffect(() => {
+    let alive = true
+    api.me()
+      .then((user) => {
+        if (alive) setOrganizationName(user.organization || 'Merlin Lite')
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
+
   const summary = useMemo(() => {
     const items = purchase?.items || []
-    return calculateInvoiceTotals({
+    const baseTotals = calculateInvoiceTotals({
       lines: items.map((item: any) => ({
         id: item.id,
         quantity: Number(item.quantity ?? 0),
@@ -48,9 +61,18 @@ export default function PurchaseDetailPage() {
         amount: Number(item.lineTotal ?? Number(item.quantity ?? 0) * Number(item.unitPrice ?? 0)),
       })),
     })
+    const discountAmount = Number(purchase?.discountAmount ?? 0)
+    const subtotal = Number(baseTotals.subtotal ?? 0)
+    const taxableAmount = Math.max(subtotal - discountAmount, 0)
+    const taxAmount = Number((taxableAmount * 0.13).toFixed(2))
+    const grandTotal = Number((taxableAmount + taxAmount).toFixed(2))
+    return { ...baseTotals, subtotal, discountAmount, taxableAmount, taxAmount, grandTotal }
   }, [purchase])
 
-  const paperDocument = useMemo(() => buildPurchaseInvoicePaperDocumentProps(purchase), [purchase])
+  const paperDocument = useMemo(
+    () => buildPurchaseInvoicePaperDocumentProps(purchase, organizationName),
+    [purchase, organizationName],
+  )
 
   return (
     <InventoryPageShell
@@ -79,6 +101,7 @@ export default function PurchaseDetailPage() {
                 <div><div className="text-xs uppercase tracking-wide text-slate-500">Supplier</div><div className="font-semibold text-slate-900">{purchase.supplier?.name || '-'}</div></div>
                 <div><div className="text-xs uppercase tracking-wide text-slate-500">Invoice Number</div><div className="font-semibold text-slate-900">{purchase.invoiceNumber || '-'}</div></div>
                 <div><div className="text-xs uppercase tracking-wide text-slate-500">Invoice Date</div><div className="font-semibold text-slate-900">{formatDate(purchase.invoiceDate)}</div></div>
+                <div><div className="text-xs uppercase tracking-wide text-slate-500">Due Date</div><div className="font-semibold text-slate-900">{formatDate(purchase.dueDate) || '-'}</div></div>
                 <div><div className="text-xs uppercase tracking-wide text-slate-500">Status</div><div className="font-semibold text-slate-900">{purchase.status || '-'}</div></div>
               </div>
             </InventorySectionCard>
@@ -86,6 +109,7 @@ export default function PurchaseDetailPage() {
             <InventorySectionCard title="Totals" description="Document amount and currency.">
               <div className="grid grid-cols-1 gap-3 text-sm">
                 <div><div className="text-xs uppercase tracking-wide text-slate-500">Currency</div><div className="font-semibold text-slate-900">{purchase.currency || 'NPR'}</div></div>
+                <div><div className="text-xs uppercase tracking-wide text-slate-500">Discount</div><div className="font-semibold text-slate-900">{money(summary.discountAmount, purchase.currency || 'NPR')}</div></div>
                 <div><div className="text-xs uppercase tracking-wide text-slate-500">Debit</div><div className="font-semibold text-rose-700">{money(summary.grandTotal, purchase.currency || 'NPR')}</div></div>
                 <div><div className="text-xs uppercase tracking-wide text-slate-500">Credit</div><div className="font-semibold text-emerald-700">{money(0, purchase.currency || 'NPR')}</div></div>
                 <div><div className="text-xs uppercase tracking-wide text-slate-500">Grand Total</div><div className="font-semibold text-slate-900">{money(summary.grandTotal, purchase.currency || 'NPR')}</div></div>
@@ -108,7 +132,9 @@ export default function PurchaseDetailPage() {
                 <tr key={item.id} className="border-b border-slate-100 last:border-b-0">
                   <td className="px-3 py-4">
                     <div className="font-semibold text-slate-900">{item.rawMaterial?.name || item.rawMaterialId}</div>
-                    <div className="text-xs text-slate-500">{item.rawMaterial?.sku || item.rawMaterial?.defaultUnit || '-'}</div>
+                    <div className="text-xs text-slate-500">
+                      {item.rawMaterial?.sku ? `EXIM CODE: ${item.rawMaterial.sku}` : item.rawMaterial?.defaultUnit || '-'}
+                    </div>
                   </td>
                   <td className="px-3 py-4 text-slate-700">{Number(item.quantity ?? 0)}</td>
                   <td className="px-3 py-4 text-slate-700">{item.unit || '-'}</td>

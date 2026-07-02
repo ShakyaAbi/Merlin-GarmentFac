@@ -41,11 +41,15 @@ const toLine = (line: NonNullable<InvoicePaperSource['items']>[number]): Invoice
 
 const buildMeta = (entries: Array<{ label: string; value: string }>) => entries.filter((row) => row.value)
 
-export function buildSalesInvoicePaperDocumentProps(invoice: any, customerName: string): InvoicePaperDocumentProps | null {
+export function buildSalesInvoicePaperDocumentProps(
+  invoice: any,
+  customerName: string,
+  organizationName = 'Merlin Lite',
+): InvoicePaperDocumentProps | null {
   if (!invoice) return null
 
   return {
-    companyName: 'Merlin Lite',
+    companyName: organizationName,
     companyAddress: 'Nepal',
     invoiceTitle: 'Sales Invoice',
     invoiceNumber: invoice.invoiceNumber || invoice.id,
@@ -60,7 +64,7 @@ export function buildSalesInvoicePaperDocumentProps(invoice: any, customerName: 
     },
     meta: buildMeta([
       { label: 'Invoice Date', value: formatNepaliDateTime(invoice.invoiceDate || invoice.createdAt) },
-      { label: 'Due Date', value: formatNepaliDateTime(invoice.dueDate) },
+      ...(invoice.dueDate ? [{ label: 'Due Date', value: formatNepaliDateTime(invoice.dueDate) }] : []),
       { label: 'Fiscal Year', value: invoice.fiscalYear || '-' },
       { label: 'Payment Status', value: invoice.paymentStatus || 'UNKNOWN' },
     ]),
@@ -80,11 +84,14 @@ export function buildSalesInvoicePaperDocumentProps(invoice: any, customerName: 
   }
 }
 
-export function buildPurchaseInvoicePaperDocumentProps(purchase: any): InvoicePaperDocumentProps | null {
+export function buildPurchaseInvoicePaperDocumentProps(
+  purchase: any,
+  organizationName = 'Merlin Lite',
+): InvoicePaperDocumentProps | null {
   if (!purchase) return null
 
   return {
-    companyName: 'Merlin Lite',
+    companyName: organizationName,
     companyAddress: 'Nepal',
     invoiceTitle: 'Purchase Invoice',
     invoiceNumber: purchase.invoiceNumber || purchase.id || '-',
@@ -99,6 +106,7 @@ export function buildPurchaseInvoicePaperDocumentProps(purchase: any): InvoicePa
     },
     meta: buildMeta([
       { label: 'Invoice Date', value: formatNepaliDateTime(purchase.invoiceDate) },
+      ...(purchase.dueDate ? [{ label: 'Due Date', value: formatNepaliDateTime(purchase.dueDate) }] : []),
       { label: 'Status', value: purchase.status || '-' },
       { label: 'Currency', value: purchase.currency || 'NPR' },
     ]),
