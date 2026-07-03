@@ -1,6 +1,10 @@
 import { Prisma, SalesPaymentStatus, SalesInvoiceStatus, SalesStockTransactionType } from '@prisma/client'
 import { prisma } from '../prisma'
-import { appendCustomerLedgerEntry } from '../services/ledgerService'
+import {
+  appendCustomerLedgerEntry,
+  removeCustomerLedgerEntry,
+  replaceCustomerLedgerEntry,
+} from '../services/ledgerService'
 import { allocateDocumentNumber } from '../services/sequenceService'
 import { AppError } from '../utils/errors'
 
@@ -63,6 +67,35 @@ function mapPaymentStatus(paidAmount: Prisma.Decimal, grandTotal: Prisma.Decimal
   return 'UNPAID'
 }
 
+async function refreshInvoicePaymentTotals(tx: Tx, invoiceId: string) {
+  const invoice = await tx.salesInvoice.findUnique({
+    where: { id: invoiceId },
+    select: { grandTotal: true },
+  })
+  if (!invoice) {
+    throw new AppError(404, 'NOT_FOUND', 'Sales invoice not found')
+  }
+
+  const aggregate = await tx.salesInvoicePayment.aggregate({
+    where: { invoiceId },
+    _sum: { amount: true },
+  })
+  const paidAmount = new Prisma.Decimal(aggregate._sum.amount || 0)
+  const grandTotal = new Prisma.Decimal(invoice.grandTotal || 0)
+  const dueAmount = grandTotal.minus(paidAmount)
+
+  await tx.salesInvoice.update({
+    where: { id: invoiceId },
+    data: {
+      paidAmount,
+      dueAmount,
+      paymentStatus: mapPaymentStatus(paidAmount, grandTotal),
+    },
+  })
+
+  return { paidAmount, dueAmount, grandTotal }
+}
+
 export async function listInvoices(opts: {
   search?: string
   customerId?: string
@@ -109,6 +142,11 @@ export async function listInvoices(opts: {
 
 export async function getInvoice(id: string) {
   return loadInvoice(prisma, id)
+}
+
+export async function listInvoicePayments(id: string) {
+  const invoice = await getInvoice(id)
+  return invoice?.payments || []
 }
 
 export async function previewNextInvoiceNumber(invoiceDate: Date) {
@@ -311,18 +349,13 @@ export async function recordPayment(
         receivedBy: userId ?? null,
       },
     })
-
-    const updatedPaidAmount = paidAmount.plus(amount)
-    const dueAmount = grandTotal.minus(updatedPaidAmount)
-
-    await tx.salesInvoice.update({
-      where: { id },
-      data: {
-        paidAmount: updatedPaidAmount,
-        dueAmount,
-        paymentStatus: mapPaymentStatus(updatedPaidAmount, grandTotal),
-      },
+    await refreshInvoicePaymentTotals(tx, id)
+    const createdPayment = await tx.salesInvoicePayment.findFirst({
+      where: { invoiceId: id, paymentNumber },
     })
+    if (!createdPayment) {
+      throw new AppError(404, 'NOT_FOUND', 'Sales invoice payment not found')
+    }
 
     await appendCustomerLedgerEntry({
       tx,
@@ -330,7 +363,7 @@ export async function recordPayment(
       entryType: 'PAYMENT_RECEIVED',
       entryDate: payment.paymentDate || new Date(),
       referenceType: 'sales_invoice_payment',
-      referenceId: id,
+      referenceId: createdPayment.id,
       documentNumber: paymentNumber,
       description: `Payment received for ${invoice.invoiceNumber || invoice.id}`,
       debit: 0,
@@ -339,6 +372,79 @@ export async function recordPayment(
     })
 
     return getInvoiceOrThrow(tx, id)
+  })
+}
+
+export async function updatePayment(
+  invoiceId: string,
+  paymentId: string,
+  payment: {
+    amount: number
+    paymentMethod: string
+    paymentDate?: Date
+    note?: string
+  },
+  userId?: number,
+) {
+  return prisma.$transaction(async (tx) => {
+    const invoice = await getInvoiceOrThrow(tx, invoiceId)
+    if (invoice.invoiceStatus === SalesInvoiceStatus.CANCELLED) {
+      throw new AppError(409, 'INVALID_STATUS', 'Cannot update a payment for a cancelled invoice')
+    }
+    const existing = await tx.salesInvoicePayment.findFirst({ where: { id: paymentId, invoiceId } })
+    if (!existing) {
+      throw new AppError(404, 'NOT_FOUND', 'Sales invoice payment not found')
+    }
+
+    await tx.salesInvoicePayment.update({
+      where: { id: paymentId },
+      data: {
+        amount: new Prisma.Decimal(payment.amount),
+        paymentMethod: payment.paymentMethod,
+        paymentDate: payment.paymentDate || existing.paymentDate,
+        note: payment.note || null,
+        receivedBy: userId ?? existing.receivedBy ?? null,
+      },
+    })
+
+    await refreshInvoicePaymentTotals(tx, invoiceId)
+    await replaceCustomerLedgerEntry({
+      tx,
+      customerId: invoice.customerId,
+      entryType: 'PAYMENT_RECEIVED',
+      entryDate: payment.paymentDate || existing.paymentDate,
+      referenceType: 'sales_invoice_payment',
+      referenceId: existing.id,
+      documentNumber: existing.paymentNumber,
+      description: `Payment received for ${invoice.invoiceNumber || invoice.id}`,
+      debit: 0,
+      credit: new Prisma.Decimal(payment.amount),
+      createdBy: userId ?? existing.receivedBy ?? null,
+    })
+    return getInvoiceOrThrow(tx, invoiceId)
+  })
+}
+
+export async function deletePayment(invoiceId: string, paymentId: string) {
+  return prisma.$transaction(async (tx) => {
+    const invoice = await getInvoiceOrThrow(tx, invoiceId)
+    if (invoice.invoiceStatus === SalesInvoiceStatus.CANCELLED) {
+      throw new AppError(409, 'INVALID_STATUS', 'Cannot delete a payment from a cancelled invoice')
+    }
+    const existing = await tx.salesInvoicePayment.findFirst({ where: { id: paymentId, invoiceId } })
+    if (!existing) {
+      throw new AppError(404, 'NOT_FOUND', 'Sales invoice payment not found')
+    }
+
+    await tx.salesInvoicePayment.delete({ where: { id: paymentId } })
+    await refreshInvoicePaymentTotals(tx, invoiceId)
+    await removeCustomerLedgerEntry({
+      tx,
+      customerId: invoice.customerId,
+      referenceType: 'sales_invoice_payment',
+      referenceId: existing.id,
+    })
+    return getInvoiceOrThrow(tx, invoiceId)
   })
 }
 
