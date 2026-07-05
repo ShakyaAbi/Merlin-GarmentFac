@@ -10,13 +10,17 @@
   },
   "dependencies": {
     "@react-three/fiber": "^9.5.0",
+    "@untitledui/icons": "^0.0.22",
     "framer-motion": "^12.27.0",
     "lucide-react": "^0.554.0",
     "pdfjs-dist": "^3.11.174",
     "react": "^19.2.0",
+    "react-aria": "^3.50.0",
+    "react-aria-components": "^1.19.0",
     "react-dom": "^19.2.1",
     "react-router-dom": "^7.9.6",
     "recharts": "^3.4.1",
+    "tailwind-merge": "^3.6.0",
     "three": "^0.182.0"
   },
   "devDependencies": {

@@ -26,6 +26,8 @@ export default function PurchaseCreate() {
   const [materials, setMaterials] = useState<Material[]>([])
   const [supplierId, setSupplierId] = useState('')
   const [invoiceDate, setInvoiceDate] = useState(today)
+  const [dueDate, setDueDate] = useState('')
+  const [discountAmount, setDiscountAmount] = useState('0')
   const [invoiceNumber, setInvoiceNumber] = useState('')
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState<Item[]>([{ rawMaterialId: '', quantity: 1, unit: 'unit', unitPrice: '0' }])
@@ -81,16 +83,25 @@ export default function PurchaseCreate() {
   }
 
   const totals = useMemo(
-    () =>
-      calculateInvoiceTotals({
-        lines: items.map((item) => ({
-          id: item.rawMaterialId || `${item.quantity}-${item.unitPrice}`,
-          quantity: Number(item.quantity ?? 0),
-          rate: Number(item.unitPrice ?? 0),
-        })),
-        vatRate: 0.13,
-      }),
-    [items],
+    () => {
+      const subtotal = Number(
+        calculateInvoiceTotals({
+          lines: items.map((item) => ({
+            id: item.rawMaterialId || `${item.quantity}-${item.unitPrice}`,
+            quantity: Number(item.quantity ?? 0),
+            rate: Number(item.unitPrice ?? 0),
+          })),
+          vatRate: 0.13,
+        }).subtotal,
+      )
+      const discount = Math.max(Number(discountAmount || 0), 0)
+      const taxableAmount = Math.max(subtotal - discount, 0)
+      const taxAmount = Number((taxableAmount * 0.13).toFixed(2))
+      const grandTotal = Number((taxableAmount + taxAmount).toFixed(2))
+
+      return { subtotal, discountAmount: discount, taxableAmount, taxAmount, grandTotal }
+    },
+    [discountAmount, items],
   )
   const totalQty = useMemo(() => items.reduce((sum, item) => sum + Number(item.quantity || 0), 0), [items])
   const selectedSupplier = useMemo(() => suppliers.find((supplier) => supplier.id === supplierId) || null, [suppliers, supplierId])
@@ -98,6 +109,7 @@ export default function PurchaseCreate() {
     !supplierId ||
     !invoiceNumber.trim() ||
     !invoiceDate ||
+    Number(discountAmount || 0) < 0 ||
     items.some((item) => !item.rawMaterialId || !item.quantity || Number(item.quantity) <= 0 || !item.unitPrice || Number(item.unitPrice) < 0)
 
   const validate = () => {
@@ -122,6 +134,8 @@ export default function PurchaseCreate() {
       supplierId,
       invoiceNumber: invoiceNumber.trim(),
       invoiceDate,
+      dueDate: dueDate || undefined,
+      discountAmount: Number(discountAmount || 0),
       notes: notes.trim() || undefined,
       items: items.map(({ rawMaterialId, quantity, unit, unitPrice }) => ({ rawMaterialId, quantity, unit, unitPrice })),
     }
@@ -155,6 +169,14 @@ export default function PurchaseCreate() {
           <div className="flex items-center justify-between">
             <span>Invoice Date</span>
             <span className="font-semibold text-slate-900">{invoiceDate || '-'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Due Date</span>
+            <span className="font-semibold text-slate-900">{dueDate || '-'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Discount</span>
+            <span className="font-semibold text-slate-900">{money(totals.discountAmount)}</span>
           </div>
           <div className="flex items-center justify-between">
             <span>Lines</span>
@@ -193,6 +215,27 @@ export default function PurchaseCreate() {
     </div>
   )
 
+  const mobileSummary = (
+    <div className="grid grid-cols-2 gap-3 xl:hidden">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="text-xs uppercase tracking-wide text-slate-500">Status</div>
+        <div className="mt-1 font-semibold text-orange-700">Not Saved</div>
+      </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="text-xs uppercase tracking-wide text-slate-500">Lines</div>
+        <div className="mt-1 font-semibold text-slate-900">{items.length}</div>
+      </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="text-xs uppercase tracking-wide text-slate-500">Subtotal</div>
+        <div className="mt-1 font-semibold text-slate-900">{money(totals.subtotal)}</div>
+      </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="text-xs uppercase tracking-wide text-slate-500">Grand total</div>
+        <div className="mt-1 font-semibold text-emerald-700">{money(totals.grandTotal)}</div>
+      </div>
+    </div>
+  )
+
   return (
     <InventoryDocumentShell
       title="Purchase Invoice"
@@ -201,7 +244,7 @@ export default function PurchaseCreate() {
         { label: 'Save', onClick: submit, disabled: submitting || anyInvalid || loading },
         { label: 'Cancel', variant: 'outline', to: '/inventory/purchases' },
       ]}
-      leftRail={leftRail}
+      leftRail={<div className="hidden xl:block">{leftRail}</div>}
       footer={
         <InventorySectionCard title="Activity">
           <div className="space-y-2 text-sm text-slate-600">
@@ -212,6 +255,8 @@ export default function PurchaseCreate() {
       }
     >
       {errorBlock(errors)}
+
+      {mobileSummary}
 
       <InventorySectionCard
         title="Details"
@@ -244,6 +289,15 @@ export default function PurchaseCreate() {
               />
             </label>
             <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Due date (optional)</span>
+              <input
+                type="date"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </label>
+            <label className="block text-sm">
               <span className="mb-1 block text-slate-600">Supplier *</span>
               <select
                 value={supplierId}
@@ -269,8 +323,20 @@ export default function PurchaseCreate() {
                 aria-invalid={Boolean(errors.invoiceNumber)}
               />
             </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Discount amount</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={discountAmount}
+                onChange={(e) => setDiscountAmount(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                placeholder="0.00"
+              />
+            </label>
             <div className="md:col-span-2 xl:col-span-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-              VAT is calculated automatically at 13% from the line subtotal. The summary on the left updates as you change quantities and rates.
+              VAT is calculated automatically at 13% from the subtotal after discount. Due date is optional. The summary on the left updates as you change quantities and rates.
             </div>
           </div>
         )}
@@ -283,7 +349,7 @@ export default function PurchaseCreate() {
       >
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-[960px] text-left text-sm">
               <caption className="sr-only">Purchase invoice items</caption>
               <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
                 <tr>
@@ -366,10 +432,11 @@ export default function PurchaseCreate() {
             </table>
           </div>
         </div>
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-xs text-slate-600">
+        <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl bg-slate-50 px-4 py-3 text-xs text-slate-600 sm:grid-cols-3 lg:grid-cols-6">
           <span>Items: {items.length}</span>
           <span>Total quantity: {totalQty}</span>
           <span>Subtotal: {money(totals.subtotal)}</span>
+          <span>Discount: {money(totals.discountAmount)}</span>
           <span>VAT 13%: {money(totals.taxAmount)}</span>
           <span className="font-semibold text-slate-900">Grand total: {money(totals.grandTotal)}</span>
         </div>

@@ -24,7 +24,12 @@ export const getSupplier = async (id: string) => {
   return prisma.supplier.findUnique({
     where: { id },
     include: {
-      purchases: { orderBy: { invoiceDate: 'desc' } },
+      purchases: {
+        orderBy: { invoiceDate: 'desc' },
+        include: {
+          items: true,
+        },
+      },
       supplierPayments: { orderBy: { paymentDate: 'desc' } },
       ledgerEntries: { orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }] },
     },
@@ -39,7 +44,12 @@ export const listSuppliers = async (opts: { skip?: number; take?: number; search
     skip: opts.skip,
     take: opts.take,
     include: {
-      purchases: { orderBy: { invoiceDate: 'desc' } },
+      purchases: {
+        orderBy: { invoiceDate: 'desc' },
+        include: {
+          items: true,
+        },
+      },
       supplierPayments: { orderBy: { paymentDate: 'desc' } },
       ledgerEntries: { orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }] },
     },

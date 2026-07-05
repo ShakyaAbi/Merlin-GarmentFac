@@ -114,13 +114,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   }, []);
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    public: true,
-    accounting: true,
-    buying: true,
-    selling: true,
-    stock: true,
-    support: false,
-    settings: false,
+    workspace: true,
+    operations: true,
+    sales: true,
   });
 
   const toggleSection = (key: string) => {
@@ -263,7 +259,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <p className="text-sm font-semibold text-slate-100 truncate">
                   {currentUser?.name || currentUser?.email || "User"}
                 </p>
-                <p className="text-xs text-slate-400 truncate group-hover:text-slate-300">
+                <p className="text-xs text-slate-300 truncate">
                   {currentUser?.jobTitle || (currentUser?.role ? currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1).toLowerCase() : "Role")}
                 </p>
               </div>
@@ -286,7 +282,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       </aside>
 
       {/* Main Content Wrapper - The "Card" */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50 rounded-2xl shadow-2xl relative">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50 rounded-xl shadow-lg relative">
         {/* Header */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 flex-shrink-0 z-40">
           <div className="flex items-center gap-4">

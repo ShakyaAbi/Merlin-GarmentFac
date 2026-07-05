@@ -1,4 +1,5 @@
 import * as repo from '../../repositories/inventory/finishedGoodsRepository'
+import * as articleCategories from './articleCategoryService'
 import { prisma } from '../../prisma'
 import { AppError } from '../../utils/errors'
 import { allocateDocumentNumber, previewDocumentNumber } from '../sequenceService'
@@ -55,9 +56,11 @@ async function normalizeBomCosts(data: any) {
 export async function createFinishedGood(data: any, userId?: number) {
   const articleNumber = await allocateDocumentNumber('article')
   const normalized = await normalizeBomCosts(data)
+  const category = data.articleCategoryId ? await articleCategories.getCategory(data.articleCategoryId) : null
   return repo.createFinishedGood({
     ...normalized.data,
     costPrice: normalized.materialCost,
+    category: category?.name || data.category?.trim() || undefined,
     sku: data.sku?.trim() || articleNumber,
     productCode: data.productCode?.trim() || articleNumber,
     createdBy: userId,
@@ -71,9 +74,11 @@ export async function previewNextArticleNumber() {
 
 export async function updateFinishedGood(id: string, data: any, userId?: number) {
   const normalized = await normalizeBomCosts(data)
+  const category = data.articleCategoryId ? await articleCategories.getCategory(data.articleCategoryId) : null
   return repo.updateFinishedGood(id, {
     ...normalized.data,
     costPrice: normalized.materialCost,
+    category: category?.name || data.category?.trim() || undefined,
     updatedBy: userId,
   })
 }

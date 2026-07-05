@@ -104,17 +104,6 @@ export default function CustomersPage() {
     }
   }
 
-  const deleteCustomer = async (id: string) => {
-    if (!window.confirm('Delete this customer?')) return
-    setError(null)
-    try {
-      await api.delete(`/customers/${id}`)
-      await loadCustomers()
-    } catch (err: any) {
-      setError(err?.message || 'Failed to delete customer.')
-    }
-  }
-
   return (
     <InventoryPageShell
       eyebrow="Sales Master"
@@ -274,9 +263,6 @@ export default function CustomersPage() {
                         <div className="flex flex-wrap gap-2">
                           <Button type="button" size="sm" variant="outline" onClick={() => navigate(`/inventory/customers/${customer.id}`)}>
                             Open
-                          </Button>
-                          <Button type="button" size="sm" variant="outline" onClick={() => deleteCustomer(customer.id)}>
-                            Delete
                           </Button>
                         </div>
                       </td>

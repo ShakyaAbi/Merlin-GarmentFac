@@ -35,11 +35,11 @@ export default function HomePage() {
     >
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <InventorySectionCard title="P&L" description="High-level operating view with a clean landing-page layout.">
-          <div className="min-h-[320px] rounded-3xl border border-dashed border-slate-200 bg-gradient-to-br from-white to-slate-50 p-6">
+          <div className="min-h-[320px] rounded-2xl border border-slate-200 bg-white p-6">
             <div className="flex h-full flex-col justify-between">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold text-slate-700">Current period</div>
-                <button className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm">
+                <button className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
                   Filter
                 </button>
               </div>
@@ -57,8 +57,8 @@ export default function HomePage() {
                 { label: 'Purchases', value: 'Register', href: '/inventory/purchases' },
                 { label: 'Production', value: 'Orders', href: '/inventory/production' },
               ].map((item) => (
-                <Link key={item.label} to={item.href} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:shadow-md">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">{item.label}</div>
+                <Link key={item.label} to={item.href} className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-blue-200">
+                  <div className="text-xs font-semibold text-slate-400">{item.label}</div>
                   <div className="mt-2 flex items-center justify-between text-sm font-semibold text-slate-900">
                     {item.value}
                     <ArrowUpRight className="h-4 w-4 text-slate-400" />
@@ -75,7 +75,7 @@ export default function HomePage() {
                   <Link
                     key={item.label}
                     to={item.to}
-                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-blue-200 hover:text-blue-700"
                   >
                     <item.icon className="h-4 w-4 text-slate-400" />
                     <span>{item.label}</span>

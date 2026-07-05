@@ -8,12 +8,14 @@ import { MaterialCsvActions } from '../../components/inventory/MaterialCsvAction
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
 import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
+import { RawMaterialCategorySelect } from '../../components/inventory/RawMaterialCategorySelect'
 
 export default function MaterialsPage() {
   const [materials, setMaterials] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [categoryId, setCategoryId] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -39,22 +41,23 @@ export default function MaterialsPage() {
 
   const filteredMaterials = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return materials
     return materials.filter((m) =>
-      [m.name, m.sku, m.defaultUnit, m.type, m.description]
-        .filter(Boolean)
-        .some((field) => String(field).toLowerCase().includes(q)),
+      (!categoryId || m.categoryId === categoryId) &&
+      (!q ||
+        [m.name, m.sku, m.defaultUnit, m.type, m.description]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(q))),
     )
-  }, [materials, search])
+  }, [categoryId, materials, search])
 
   const lowStockMaterials = useMemo(
-    () => materials.filter((m) => m.reorderLevel != null && Number(m.currentStock ?? 0) <= Number(m.reorderLevel)),
-    [materials],
+    () => filteredMaterials.filter((m) => m.reorderLevel != null && Number(m.currentStock ?? 0) <= Number(m.reorderLevel)),
+    [filteredMaterials],
   )
 
   const totalStock = useMemo(
-    () => materials.reduce((sum, m) => sum + Number(m.currentStock ?? 0), 0),
-    [materials],
+    () => filteredMaterials.reduce((sum, m) => sum + Number(m.currentStock ?? 0), 0),
+    [filteredMaterials],
   )
 
   if (loading) {
@@ -82,6 +85,7 @@ export default function MaterialsPage() {
       actions={[
         { label: 'Create Material', onClick: () => navigate('/inventory/materials/create') },
         { label: 'View Articles', variant: 'outline', to: '/inventory/finished-goods' },
+        { label: 'Manage Categories', variant: 'secondary', to: '/inventory/categories?kind=materials' },
       ]}
     >
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -91,17 +95,26 @@ export default function MaterialsPage() {
             description="Search raw materials used in purchases, production, and article material bills."
           >
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <label className="sr-only" htmlFor="material-search">
-                Search materials
-              </label>
-              <input
-                id="material-search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search materials"
-                aria-label="Search materials"
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 md:w-72"
-              />
+              <div className="grid w-full gap-3 md:grid-cols-2">
+                <label className="sr-only" htmlFor="material-search">
+                  Search materials
+                </label>
+                <input
+                  id="material-search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search materials"
+                  aria-label="Search materials"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <RawMaterialCategorySelect
+                  value={categoryId}
+                  onChange={setCategoryId}
+                  label="Filter by category"
+                  allowAllOption
+                  allLabel="All categories"
+                />
+              </div>
             </div>
 
             {filteredMaterials.length === 0 ? (
@@ -163,7 +176,7 @@ export default function MaterialsPage() {
           <InventorySectionCard title="CSV Tools" description="Import or export the raw material catalog.">
             <MaterialCsvActions
               title="material catalog"
-              filters={{ search }}
+              filters={{ search, categoryId }}
               onSuccess={() => window.location.reload()}
             />
           </InventorySectionCard>

@@ -29,6 +29,7 @@ type PurchaseLedgerRow = {
   supplier?: { id: string; name: string } | null
   invoiceNumber?: string | null
   invoiceDate?: string | null
+  dueDate?: string | null
   currency?: string | null
   totalAmount?: number | string | null
   createdAt: string
@@ -158,6 +159,7 @@ export default function PurchasesPage() {
             supplier: row.supplier || (supplierName ? { id: row.supplierId, name: supplierName } : null),
             invoiceNumber: row.invoiceNumber || null,
             invoiceDate: row.invoiceDate || null,
+            dueDate: row.dueDate || null,
             currency: row.currency || 'NPR',
             totalAmount: row.totalAmount ?? 0,
             createdAt: row.createdAt,
@@ -337,6 +339,7 @@ export default function PurchasesPage() {
                 { label: 'Purchase Invoice', className: 'px-3' },
                 { label: 'Supplier', className: 'px-3' },
                 { label: 'Date', className: 'px-3' },
+                { label: 'Due Date', className: 'px-3' },
                 { label: 'Total', className: 'px-3' },
                 { label: 'Materials', className: 'px-3' },
                 { label: 'Status', className: 'px-3' },
@@ -354,6 +357,7 @@ export default function PurchasesPage() {
                     <div className="text-xs text-slate-500">{purchase.notes || 'No notes'}</div>
                   </td>
                   <td className="px-3 py-4 align-top text-slate-600">{formatDate(purchase.invoiceDate || purchase.createdAt)}</td>
+                  <td className="px-3 py-4 align-top text-slate-600">{formatDate(purchase.dueDate) || '-'}</td>
                   <td className="px-3 py-4 align-top font-semibold text-slate-900">{money(purchase.totalAmount, purchase.currency || 'NPR')}</td>
                   <td className="px-3 py-4 align-top">
                     <div className="space-y-1">

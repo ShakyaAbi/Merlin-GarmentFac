@@ -1,4 +1,6 @@
 import * as repo from '../../repositories/inventory/materialRepository'
+import { prisma } from '../../prisma'
+import { AppError } from '../../utils/errors'
 
 // Creates a material
 export const createMaterial = async (payload: any) => repo.createMaterial(payload)
@@ -45,5 +47,33 @@ export const toggleMaterialStatus = async (id: string, active: boolean, userId?:
   return repo.updateMaterial(id, { active, updatedBy: userId })
 }
 export const deleteMaterial = async (id: string) => {
+  const [purchaseItemCount, stockTransactionCount, issueLineCount, lowStockAlertCount, bomUsages] = await Promise.all([
+    prisma.purchaseItem.count({ where: { rawMaterialId: id } }),
+    prisma.stockTransaction.count({ where: { rawMaterialId: id } }),
+    prisma.productionIssueLine.count({ where: { rawMaterialId: id } }),
+    prisma.lowStockAlert.count({ where: { rawMaterialId: id } }),
+    repo.listBomUsagesForMaterial(id),
+  ])
+
+  const references: Array<{ label: string; count: number; examples?: string[] }> = []
+  if (purchaseItemCount > 0) references.push({ label: 'purchase line', count: purchaseItemCount })
+  if (stockTransactionCount > 0) references.push({ label: 'stock transaction', count: stockTransactionCount })
+  if (issueLineCount > 0) references.push({ label: 'production issue', count: issueLineCount })
+  if (lowStockAlertCount > 0) references.push({ label: 'low stock alert', count: lowStockAlertCount })
+  if (bomUsages.length > 0) {
+    references.push({
+      label: 'article BOM',
+      count: bomUsages.length,
+      examples: bomUsages.slice(0, 5).map((usage: any) => usage.articleName || usage.sku || usage.productCode || usage.finishedGoodId),
+    })
+  }
+
+  if (references.length > 0) {
+    const summary = references.map((ref) => `${ref.count} ${ref.label}${ref.count === 1 ? '' : 's'}`).join(' and ')
+    throw new AppError(409, 'DELETE_BLOCKED', `Cannot delete material because it is referenced by ${summary}.`, {
+      references,
+    })
+  }
+
   return repo.softDeleteMaterial(id)
 }

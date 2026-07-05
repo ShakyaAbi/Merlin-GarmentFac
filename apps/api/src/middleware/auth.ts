@@ -25,6 +25,9 @@ export const authenticate = async (
       const passwordHash = await hashPassword(password);
       user = await userRepo.create({ email: adminEmail, passwordHash, role: "ADMIN" as any, organizationId: 1 });
     }
+    if (!user) {
+      return next(new UnauthorizedError("Unable to bootstrap local admin account"));
+    }
     req.user = { id: user.id, email: user.email, role: user.role, organizationId: user.organizationId } as any;
     return next();
   }

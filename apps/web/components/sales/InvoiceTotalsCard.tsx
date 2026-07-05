@@ -10,7 +10,6 @@ export interface InvoiceTotalsSummary {
   grandTotal: number;
   paymentStatus?: SalesPaymentStatus | string;
   invoiceStatus?: SalesInvoiceStatus | string;
-  printedCount?: number;
   lineCount?: number;
 }
 
@@ -74,11 +73,6 @@ export function InvoiceTotalsCard({
           {summary.paymentStatus ? (
             <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass(summary.paymentStatus)}`}>
               {summary.paymentStatus}
-            </span>
-          ) : null}
-          {typeof summary.printedCount === "number" ? (
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-              Printed {summary.printedCount}x
             </span>
           ) : null}
           {typeof summary.lineCount === "number" ? (

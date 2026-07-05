@@ -397,7 +397,9 @@ model Purchase {
   supplierId    String
   invoiceNumber String?        @unique
   invoiceDate   DateTime
+  dueDate       DateTime?
   currency      String         @default("NPR")
+  discountAmount Decimal       @default(0)
   totalAmount   Decimal        @default(0)
   createdBy     Int?
   createdAt     DateTime       @default(now())

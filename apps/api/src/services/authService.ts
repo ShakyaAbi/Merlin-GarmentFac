@@ -17,7 +17,7 @@ const sanitizeUser = (user: any) => ({
   organizationId: user.organizationId,
   name: user.name ?? null,
   jobTitle: user.jobTitle ?? null,
-  organization: user.organization ?? null,
+  organization: user.organization?.name ?? user.organization ?? null,
   timezone: user.timezone ?? null,
   avatar: user.avatar ?? null,
   notificationPreferences: user.notificationPreferences ?? null,
@@ -85,6 +85,11 @@ const loginOrCreateGoogleUser = async (payload: {
     if (Object.keys(updates).length > 0) {
       user = await userRepo.updateById(user.id, updates);
     }
+  }
+
+  const refreshed = await userRepo.findById(user.id);
+  if (refreshed) {
+    user = refreshed;
   }
 
   const token = signAccessToken({
@@ -225,8 +230,28 @@ export const updateCurrentUser = async (
     notificationPreferences: Record<string, any> | null;
   }>
 ) => {
-  const user = await userRepo.updateById(id, data);
-  return sanitizeUser(user);
+  const { organization, ...userUpdates } = data as Partial<{
+    name: string | null;
+    jobTitle: string | null;
+    organization: string | null;
+    timezone: string | null;
+    avatar: string | null;
+    notificationPreferences: Record<string, any> | null;
+  }>;
+
+  const user = await userRepo.updateById(id, userUpdates);
+
+  if (organization !== undefined) {
+    await orgRepo.updateById(user.organizationId, {
+      name: organization?.trim() || 'Organization',
+    });
+  }
+
+  const refreshed = await userRepo.findById(id);
+  if (!refreshed) {
+    throw new NotFoundError('USER_NOT_FOUND', 'User not found');
+  }
+  return sanitizeUser(refreshed);
 };
 
 // Changes the user's password after verifying current

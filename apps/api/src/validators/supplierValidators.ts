@@ -24,3 +24,8 @@ export const createSupplierPaymentSchema = z.object({
   note: z.string().trim().optional(),
   fiscalYear: z.string().trim().optional(),
 })
+
+export const updateSupplierPaymentSchema = createSupplierPaymentSchema.partial().extend({
+  amount: z.coerce.number().positive('Payment amount is required').optional(),
+  paymentMethod: z.string().trim().min(1, 'Payment method is required').optional(),
+})

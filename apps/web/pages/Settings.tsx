@@ -9,6 +9,10 @@ export const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'system'>('profile');
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [organizationName, setOrganizationName] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -20,7 +24,10 @@ export const Settings: React.FC = () => {
 
   useEffect(() => {
     api.me()
-      .then((data) => setUser(data))
+      .then((data) => {
+        setUser(data);
+        setOrganizationName(data?.organization || '');
+      })
       .catch((error) => {
         console.error('Failed to load user profile', error);
         setUser(null);
@@ -82,50 +89,112 @@ export const Settings: React.FC = () => {
                   )}
 
                   {user && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={user.email}
-                            disabled
-                            className="w-full pl-9 px-3 py-2 border border-slate-200 bg-slate-50 rounded-md text-slate-600"
-                          />
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <div className="space-y-6">
+                      <form
+                        className="rounded-xl border border-slate-200 bg-slate-50 p-4 md:p-5 space-y-4"
+                        onSubmit={async (event) => {
+                          event.preventDefault();
+                          setProfileError(null);
+                          setProfileSuccess(null);
+                          const nextName = organizationName.trim();
+                          if (!nextName) {
+                            setProfileError('Organization name is required.');
+                            return;
+                          }
+
+                          try {
+                            setProfileSaving(true);
+                            const updated = await api.updateMe({ organization: nextName });
+                            setUser(updated);
+                            setOrganizationName(updated.organization || nextName);
+                            setProfileSuccess('Organization name updated.');
+                          } catch (error: any) {
+                            setProfileError(error?.message || 'Failed to update organization name.');
+                          } finally {
+                            setProfileSaving(false);
+                          }
+                        }}
+                      >
+                        <div>
+                          <h3 className="text-sm font-semibold text-slate-900">Organization branding</h3>
+                          <p className="text-sm text-slate-500">This name appears on invoices and other organization-facing documents.</p>
                         </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
-                        <div className="relative">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Organization name</label>
                           <input
                             type="text"
-                            value={user.role}
-                            disabled
-                            className="w-full pl-9 px-3 py-2 border border-slate-200 bg-slate-50 rounded-md text-slate-600"
+                            value={organizationName}
+                            onChange={(event) => setOrganizationName(event.target.value)}
+                            className="w-full px-3 py-2 border border-slate-200 bg-white rounded-md text-slate-900"
+                            placeholder="Enter organization name"
                           />
-                          <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">User ID</label>
-                        <input
-                          type="text"
-                          value={user.id}
-                          disabled
-                          className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-md text-slate-600"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Joined</label>
-                        <div className="relative">
+                        {profileError ? (
+                          <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+                            {profileError}
+                          </div>
+                        ) : null}
+                        {profileSuccess ? (
+                          <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">
+                            {profileSuccess}
+                          </div>
+                        ) : null}
+                        <div className="flex items-center justify-end">
+                          <button
+                            type="submit"
+                            disabled={profileSaving}
+                            className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+                          >
+                            {profileSaving ? 'Saving...' : 'Save organization name'}
+                          </button>
+                        </div>
+                      </form>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={user.email}
+                              disabled
+                              className="w-full pl-9 px-3 py-2 border border-slate-200 bg-slate-50 rounded-md text-slate-600"
+                            />
+                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={user.role}
+                              disabled
+                              className="w-full pl-9 px-3 py-2 border border-slate-200 bg-slate-50 rounded-md text-slate-600"
+                            />
+                            <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">User ID</label>
                           <input
                             type="text"
-                            value={formatDate(user.createdAt)}
+                            value={user.id}
                             disabled
-                            className="w-full pl-9 px-3 py-2 border border-slate-200 bg-slate-50 rounded-md text-slate-600"
+                            className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-md text-slate-600"
                           />
-                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Joined</label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={formatDate(user.createdAt)}
+                              disabled
+                              className="w-full pl-9 px-3 py-2 border border-slate-200 bg-slate-50 rounded-md text-slate-600"
+                            />
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          </div>
                         </div>
                       </div>
                     </div>

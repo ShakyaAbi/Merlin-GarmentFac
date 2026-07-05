@@ -32,6 +32,11 @@ export const salesInvoicePaymentSchema = z.object({
   note: z.string().trim().optional(),
 })
 
+export const updateSalesInvoicePaymentSchema = salesInvoicePaymentSchema.partial().extend({
+  amount: z.coerce.number().positive().optional(),
+  paymentMethod: z.string().trim().min(1).optional(),
+})
+
 export const cancelSalesInvoiceSchema = z.object({
   reason: z.string().trim().min(1, 'Cancellation reason is required'),
 })

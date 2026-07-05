@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../../services/api'
 import { partyLedgerApi } from '../../services/partyLedgerApi'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
@@ -54,6 +54,7 @@ const emptySupplierForm: SupplierForm = {
 
 export default function SupplierDetailPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [supplier, setSupplier] = useState<any | null>(null)
   const [ledgerEntries, setLedgerEntries] = useState<any[]>([])
   const [ledgerSearch, setLedgerSearch] = useState('')
@@ -203,6 +204,21 @@ export default function SupplierDetailPage() {
     }
   }
 
+  const deleteSupplier = async () => {
+    if (!id) return
+    if (!window.confirm('Delete this supplier? This cannot be undone.')) return
+    setError(null)
+    setSavingProfile(true)
+    try {
+      await api.delete(`/inventory/suppliers/${id}`)
+      navigate('/inventory/suppliers')
+    } catch (err: any) {
+      setError(err?.message || 'Failed to delete supplier.')
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
   const submitPayment = async () => {
     if (!id) return
     if (!paymentForm.amount || Number(paymentForm.amount) <= 0) {
@@ -280,6 +296,7 @@ export default function SupplierDetailPage() {
       description="Supplier profile, ledger history, payment activity, and running payable balance."
       backTo={{ to: '/inventory/suppliers', label: 'Back to suppliers' }}
       actions={supplier ? [
+        { label: 'Delete Supplier', variant: 'danger', onClick: deleteSupplier },
         { label: 'Purchase Invoices', variant: 'outline', to: '/inventory/purchases' },
         isEditing
           ? { label: 'Cancel', variant: 'outline', onClick: cancelEdit }

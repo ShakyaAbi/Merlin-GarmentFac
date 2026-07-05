@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../../services/api'
 import { partyLedgerApi } from '../../services/partyLedgerApi'
 import { salesInvoiceApi } from '../../services/salesInvoiceApi'
@@ -53,6 +53,7 @@ const money = (value: number | string | null | undefined) =>
 
 export default function CustomerDetailPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [customer, setCustomer] = useState<any | null>(null)
   const [ledgerEntries, setLedgerEntries] = useState<any[]>([])
   const [ledgerSummary, setLedgerSummary] = useState<any | null>(null)
@@ -329,6 +330,21 @@ export default function CustomerDetailPage() {
     }
   }
 
+  const deleteCustomer = async () => {
+    if (!id) return
+    if (!window.confirm('Delete this customer? This cannot be undone.')) return
+    setSaving(true)
+    setError(null)
+    try {
+      await api.delete(`/customers/${id}`)
+      navigate('/inventory/customers')
+    } catch (err: any) {
+      setError(err?.message || 'Failed to delete customer.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <>
     <InventoryPageShell
@@ -337,6 +353,7 @@ export default function CustomerDetailPage() {
       description="Customer relationship snapshot, sales history, payment history, and running ledger balance."
       backTo={{ to: '/inventory/customers', label: 'Back to customers' }}
       actions={customer ? [
+        { label: 'Delete Customer', variant: 'danger', onClick: deleteCustomer },
         isEditing
           ? { label: 'Cancel', variant: 'outline', onClick: cancelEdit }
           : { label: 'Edit Customer', onClick: () => setIsEditing(true) },

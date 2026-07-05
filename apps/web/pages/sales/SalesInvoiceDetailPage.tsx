@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Ban, Download, ReceiptText, Send, WalletCards } from 'lucide-react'
+import { api } from '../../services/api'
 import { salesInvoiceApi } from '../../services/salesInvoiceApi'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
@@ -78,12 +79,20 @@ export default function SalesInvoiceDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentDate, setPaymentDate] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('Cash')
   const [paymentNote, setPaymentNote] = useState('')
   const [chequeNumber, setChequeNumber] = useState('')
   const [chequeDate, setChequeDate] = useState('')
   const [bankName, setBankName] = useState('')
   const [cancelReason, setCancelReason] = useState('')
+  const [organizationName, setOrganizationName] = useState('Merlin Lite')
+  const canEditInvoice = invoice ? ['DRAFT', 'PENDING_APPROVAL'].includes(String(invoice.invoiceStatus || '')) : false
+  const invoiceStatus = String(invoice?.invoiceStatus || '')
+  const canSubmitInvoice = invoiceStatus === 'DRAFT'
+  const canIssueInvoice = invoiceStatus === 'PENDING_APPROVAL'
+  const canRecordPayment = invoiceStatus === 'ISSUED'
+  const canCancelInvoice = invoiceStatus !== 'CANCELLED'
 
   const loadInvoice = async () => {
     if (!id) return
@@ -93,6 +102,7 @@ export default function SalesInvoiceDetailPage() {
       const data = await salesInvoiceApi.get(id)
       setInvoice(data)
       setPaymentAmount(String(Math.max(Number(data.dueAmount ?? data.grandTotal ?? 0), 0)))
+      setPaymentDate('')
       setCancelReason('')
     } catch (err: any) {
       setError(err?.message || 'Failed to load invoice.')
@@ -104,6 +114,18 @@ export default function SalesInvoiceDetailPage() {
   useEffect(() => {
     void loadInvoice()
   }, [id])
+
+  useEffect(() => {
+    let alive = true
+    api.me()
+      .then((user) => {
+        if (alive) setOrganizationName(user.organization || 'Merlin Lite')
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const summary = useMemo(() => {
     const items = invoice?.items || []
@@ -131,14 +153,16 @@ export default function SalesInvoiceDetailPage() {
       dueAmount,
       invoiceStatus: invoice?.invoiceStatus || undefined,
       paymentStatus: invoice?.paymentStatus || undefined,
-      printedCount: invoice?.printedCount ?? 0,
       lineCount: items.length,
     }
   }, [invoice])
 
   const draftItems = useMemo(() => toDraftItems(invoice), [invoice])
   const customerName = invoice?.customer?.customerName || invoice?.customerName || 'Walk-in customer'
-  const paperDocument = useMemo(() => buildSalesInvoicePaperDocumentProps(invoice, customerName), [invoice, customerName])
+  const paperDocument = useMemo(
+    () => buildSalesInvoicePaperDocumentProps(invoice, customerName, organizationName),
+    [invoice, customerName, organizationName],
+  )
 
   const mutateInvoice = async (label: string, action: () => Promise<SalesInvoice>) => {
     if (!invoice) return
@@ -167,6 +191,19 @@ export default function SalesInvoiceDetailPage() {
     }
   }
 
+  const handleDownloadPdf = async () => {
+    if (!invoice) return
+    setBusy('pdf')
+    try {
+      const blob = await salesInvoiceApi.downloadPdf(invoice.id)
+      saveBlob(blob, `sales-invoice-${invoice.invoiceNumber || invoice.id}.pdf`)
+    } catch (err: any) {
+      setError(err?.message || 'Failed to download PDF.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const handleSubmit = async () => mutateInvoice('submit', () => salesInvoiceApi.submit(invoice!.id))
   const handleIssue = async () => mutateInvoice('issue', () => salesInvoiceApi.issue(invoice!.id))
 
@@ -183,10 +220,12 @@ export default function SalesInvoiceDetailPage() {
       salesInvoiceApi.payment(invoice!.id, {
         amount: paymentAmount,
         paymentMethod: method,
+        paymentDate: paymentDate || undefined,
         note: note || undefined,
       }),
     )
     setPaymentNote('')
+    setPaymentDate('')
     setChequeNumber('')
     setChequeDate('')
     setBankName('')
@@ -232,6 +271,8 @@ export default function SalesInvoiceDetailPage() {
       backTo={{ to: '/sales-invoices', label: 'Back to invoices' }}
       actions={[
         { label: 'Download CSV', variant: 'outline', onClick: handleDownloadCsv },
+        { label: 'Download PDF', variant: 'outline', onClick: handleDownloadPdf },
+        ...(canEditInvoice && id ? [{ label: 'Edit Invoice', to: `/sales-invoices/${id}/edit` }] : []),
         { label: 'New Invoice', variant: 'secondary', onClick: () => navigate('/sales-invoices/create') },
       ]}
     >
@@ -241,12 +282,11 @@ export default function SalesInvoiceDetailPage() {
         </div>
       ) : null}
 
-          <InventoryStatGrid
+        <InventoryStatGrid
         stats={[
           { label: 'Grand total', value: money(summary.grandTotal) },
           { label: 'Paid amount', value: money(summary.paidAmount), tone: 'success' },
           { label: 'Due amount', value: money(summary.dueAmount), tone: 'warning' },
-          { label: 'Printed', value: `${summary.printedCount ?? 0}x` },
         ]}
       />
 
@@ -297,13 +337,25 @@ export default function SalesInvoiceDetailPage() {
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              <Button type="button" variant="outline" onClick={handleSubmit} isLoading={busy === 'submit'}>
-                <Send className="mr-2 h-4 w-4" />
-                Submit
-              </Button>
-              <Button type="button" onClick={handleIssue} isLoading={busy === 'issue'}>
-                <ReceiptText className="mr-2 h-4 w-4" />
-                Issue
+              {canEditInvoice && id ? (
+                <Button type="button" variant="outline" onClick={() => navigate(`/sales-invoices/${id}/edit`)}>
+                  Edit
+                </Button>
+              ) : null}
+              {canSubmitInvoice ? (
+                <Button type="button" variant="outline" onClick={handleSubmit} isLoading={busy === 'submit'}>
+                  <Send className="mr-2 h-4 w-4" />
+                  Submit
+                </Button>
+              ) : null}
+              {canIssueInvoice ? (
+                <Button type="button" onClick={handleIssue} isLoading={busy === 'issue'}>
+                  <ReceiptText className="mr-2 h-4 w-4" />
+                  Issue
+                </Button>
+              ) : null}
+              <Button type="button" variant="outline" onClick={handleDownloadPdf} isLoading={busy === 'pdf'}>
+                PDF
               </Button>
               <Button type="button" variant="outline" onClick={handleDownloadCsv} isLoading={busy === 'csv'}>
                 <Download className="mr-2 h-4 w-4" />
@@ -395,78 +447,93 @@ export default function SalesInvoiceDetailPage() {
 
         <div className="space-y-6">
           <InventorySectionCard title="Post Payment" description="Record collection against this invoice.">
-            <div className="space-y-4">
-              <label className="block text-sm">
-                <span className="mb-1 block text-slate-600">Amount</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={paymentAmount}
-                  onChange={(event) => setPaymentAmount(event.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                />
-              </label>
-              <label className="block text-sm">
-                <span className="mb-1 block text-slate-600">Method</span>
-                <select
-                  value={paymentMethod}
-                  onChange={(event) => setPaymentMethod(event.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                >
-                  <option value="Cash">Cash</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                  <option value="Card">Card</option>
-                  <option value="Mobile Banking">Mobile Banking</option>
-                  <option value="Other">Other</option>
-                </select>
-              </label>
-              {paymentMethod.toLowerCase().includes('cheque') || paymentMethod.toLowerCase().includes('check') ? (
-                <div className="grid grid-cols-1 gap-3">
-                  <label className="block text-sm">
-                    <span className="mb-1 block text-slate-600">Cheque number</span>
-                    <input
-                      value={chequeNumber}
-                      onChange={(event) => setChequeNumber(event.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                      placeholder="Cheque number"
-                    />
-                  </label>
-                  <label className="block text-sm">
-                    <span className="mb-1 block text-slate-600">Cheque date</span>
-                    <input
-                      type="date"
-                      value={chequeDate}
-                      onChange={(event) => setChequeDate(event.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                    />
-                  </label>
-                  <label className="block text-sm">
-                    <span className="mb-1 block text-slate-600">Bank name</span>
-                    <input
-                      value={bankName}
-                      onChange={(event) => setBankName(event.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                      placeholder="Bank name"
-                    />
-                  </label>
-                </div>
-              ) : null}
-              <label className="block text-sm">
-                <span className="mb-1 block text-slate-600">Note</span>
-                <textarea
-                  value={paymentNote}
-                  onChange={(event) => setPaymentNote(event.target.value)}
-                  className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2"
-                  placeholder="Optional payment note"
-                />
-              </label>
-              <Button type="button" onClick={handlePayment} isLoading={busy === 'payment'}>
-                <WalletCards className="mr-2 h-4 w-4" />
-                Record Payment
-              </Button>
-            </div>
+            {canRecordPayment ? (
+              <div className="space-y-4">
+                <label className="block text-sm">
+                  <span className="mb-1 block text-slate-600">Amount</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={paymentAmount}
+                    onChange={(event) => setPaymentAmount(event.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block text-slate-600">Payment date (optional)</span>
+                  <input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(event) => setPaymentDate(event.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block text-slate-600">Method</span>
+                  <select
+                    value={paymentMethod}
+                    onChange={(event) => setPaymentMethod(event.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Card">Card</option>
+                    <option value="Mobile Banking">Mobile Banking</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
+                {paymentMethod.toLowerCase().includes('cheque') || paymentMethod.toLowerCase().includes('check') ? (
+                  <div className="grid grid-cols-1 gap-3">
+                    <label className="block text-sm">
+                      <span className="mb-1 block text-slate-600">Cheque number</span>
+                      <input
+                        value={chequeNumber}
+                        onChange={(event) => setChequeNumber(event.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                        placeholder="Cheque number"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="mb-1 block text-slate-600">Cheque date</span>
+                      <input
+                        type="date"
+                        value={chequeDate}
+                        onChange={(event) => setChequeDate(event.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="mb-1 block text-slate-600">Bank name</span>
+                      <input
+                        value={bankName}
+                        onChange={(event) => setBankName(event.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                        placeholder="Bank name"
+                      />
+                    </label>
+                  </div>
+                ) : null}
+                <label className="block text-sm">
+                  <span className="mb-1 block text-slate-600">Note</span>
+                  <textarea
+                    value={paymentNote}
+                    onChange={(event) => setPaymentNote(event.target.value)}
+                    className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2"
+                    placeholder="Optional payment note"
+                  />
+                </label>
+                <Button type="button" onClick={handlePayment} isLoading={busy === 'payment'}>
+                  <WalletCards className="mr-2 h-4 w-4" />
+                  Record Payment
+                </Button>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                Payments can only be recorded after the invoice is issued.
+              </div>
+            )}
           </InventorySectionCard>
 
           <InventorySectionCard title="Cancellation" description="Cancel only when the sales invoice should be voided.">
@@ -480,10 +547,16 @@ export default function SalesInvoiceDetailPage() {
                   placeholder="Explain why the invoice is being cancelled"
                 />
               </label>
-              <Button type="button" variant="danger" onClick={handleCancel} isLoading={busy === 'cancel'}>
-                <Ban className="mr-2 h-4 w-4" />
-                Cancel Invoice
-              </Button>
+              {canCancelInvoice ? (
+                <Button type="button" variant="danger" onClick={handleCancel} isLoading={busy === 'cancel'}>
+                  <Ban className="mr-2 h-4 w-4" />
+                  Cancel Invoice
+                </Button>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                  This invoice has already been cancelled.
+                </div>
+              )}
             </div>
           </InventorySectionCard>
 

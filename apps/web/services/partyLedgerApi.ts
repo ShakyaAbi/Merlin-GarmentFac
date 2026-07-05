@@ -47,6 +47,12 @@ export const partyLedgerApi = {
     request<{ entries: LedgerEntry[]; summary: SupplierLedgerSummary; supplierId: string; supplierNumber?: string | null }>(`/inventory/suppliers/${id}/ledger`),
   getSupplierPayments: (id: string) =>
     request<{ payments: SupplierPayment[]; summary: SupplierLedgerSummary; supplierId: string; supplierNumber?: string | null }>(`/inventory/suppliers/${id}/payments`),
+  getSupplierPayment: (supplierId: string, paymentId: string) =>
+    request<SupplierPayment>(`/inventory/suppliers/${supplierId}/payments/${paymentId}`),
   createSupplierPayment: (id: string, body: { amount: number; paymentMethod: string; paymentDate?: string; note?: string }) =>
     request<SupplierPayment>(`/inventory/suppliers/${id}/payments`, { method: 'POST', body }),
+  updateSupplierPayment: (supplierId: string, paymentId: string, body: { amount?: number; paymentMethod?: string; paymentDate?: string; note?: string }) =>
+    request<SupplierPayment>(`/inventory/suppliers/${supplierId}/payments/${paymentId}`, { method: 'PATCH', body }),
+  deleteSupplierPayment: (supplierId: string, paymentId: string) =>
+    request<void>(`/inventory/suppliers/${supplierId}/payments/${paymentId}`, { method: 'DELETE' }),
 }

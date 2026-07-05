@@ -9,9 +9,11 @@ const source = fs.readFileSync(
 )
 
 test('reports page defines production orders before rendering the production section', () => {
-  assert.match(source, /const productionOrders = useMemo/)
+  assert.match(source, /const productionBatches = useMemo/)
 })
 
-test('reports page applies selected date filters to the refresh request immediately', () => {
-  assert.match(source, /loadDashboard\('refresh', \{ from: fromDate, to: toDate \}\)/)
+test('reports page exposes selectable reporting periods and granularity', () => {
+  assert.match(source, /periodOptions/)
+  assert.match(source, /granularityOptions/)
+  assert.match(source, /Profit \/ Loss Over Time/)
 })

@@ -1,5 +1,7 @@
 import { prisma } from '../prisma'
-import { listPurchasesForMaterial as listMaterialPurchases } from '../repositories/inventory/purchaseRepository'
+
+type ReportingPeriod = 'all' | 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
+type ReportingGranularity = 'day' | 'week' | 'month' | 'quarter' | 'year'
 
 function toNumber(value: any) {
   return Number(value ?? 0)
@@ -7,6 +9,104 @@ function toNumber(value: any) {
 
 function money(value: any) {
   return Number(value ?? 0)
+}
+
+function startOfDay(date: Date) {
+  const copy = new Date(date)
+  copy.setHours(0, 0, 0, 0)
+  return copy
+}
+
+function endOfDay(date: Date) {
+  const copy = new Date(date)
+  copy.setHours(23, 59, 59, 999)
+  return copy
+}
+
+function startOfWeek(date: Date) {
+  const copy = startOfDay(date)
+  const day = copy.getDay()
+  const offset = (day + 6) % 7
+  copy.setDate(copy.getDate() - offset)
+  return copy
+}
+
+function startOfMonth(date: Date) {
+  const copy = startOfDay(date)
+  copy.setDate(1)
+  return copy
+}
+
+function startOfQuarter(date: Date) {
+  const copy = startOfDay(date)
+  const quarterStartMonth = Math.floor(copy.getMonth() / 3) * 3
+  copy.setMonth(quarterStartMonth, 1)
+  return copy
+}
+
+function startOfYear(date: Date) {
+  const copy = startOfDay(date)
+  copy.setMonth(0, 1)
+  return copy
+}
+
+function resolvePeriodWindow(opts: { period?: ReportingPeriod; from?: string; to?: string }) {
+  const now = new Date()
+  const period = opts.period || 'all'
+
+  if (period === 'all') {
+    return { period, fromDate: null as Date | null, toDate: null as Date | null, label: 'All time' }
+  }
+
+  if (period === 'custom') {
+    const fromDate = opts.from ? startOfDay(new Date(opts.from)) : null
+    const toDate = opts.to ? endOfDay(new Date(opts.to)) : null
+    return {
+      period,
+      fromDate,
+      toDate,
+      label: fromDate || toDate
+        ? `${fromDate ? fromDate.toISOString().slice(0, 10) : 'Any'} to ${toDate ? toDate.toISOString().slice(0, 10) : 'Any'}`
+        : 'Custom range',
+    }
+  }
+
+  switch (period) {
+    case 'today':
+      return { period, fromDate: startOfDay(now), toDate: endOfDay(now), label: 'Today' }
+    case 'week': {
+      const fromDate = startOfWeek(now)
+      return { period, fromDate, toDate: endOfDay(now), label: 'This week' }
+    }
+    case 'month': {
+      const fromDate = startOfMonth(now)
+      return { period, fromDate, toDate: endOfDay(now), label: 'This month' }
+    }
+    case 'quarter': {
+      const fromDate = startOfQuarter(now)
+      return { period, fromDate, toDate: endOfDay(now), label: 'This quarter' }
+    }
+    case 'year': {
+      const fromDate = startOfYear(now)
+      return { period, fromDate, toDate: endOfDay(now), label: 'This year' }
+    }
+    default:
+      return { period: 'all' as const, fromDate: null, toDate: null, label: 'All time' }
+  }
+}
+
+function parseDate(value: Date | string | null | undefined) {
+  if (!value) return null
+  const date = value instanceof Date ? new Date(value) : new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function includesDateRange(dateField: string, fromDate: Date | null, toDate: Date | null) {
+  if (!fromDate && !toDate) return undefined
+  const where: any = {}
+  if (fromDate) where.gte = fromDate
+  if (toDate) where.lte = toDate
+  return { [dateField]: where }
 }
 
 function costFromBomItems(order: any) {
@@ -62,29 +162,172 @@ function classifyOverheadBucket(expense: any) {
   return 'Other overhead'
 }
 
-export async function getOperationsSummary(opts: { from?: string; to?: string } = {}) {
-  const fromDate = opts.from ? new Date(opts.from) : null
-  const toDate = opts.to ? new Date(opts.to) : null
-
-  const invoiceDateWhere: any = {}
-  const expenseDateWhere: any = {}
-  const productionDateWhere: any = {}
-  const purchaseDateWhere: any = {}
-
-  if (fromDate) {
-    invoiceDateWhere.gte = fromDate
-    expenseDateWhere.gte = fromDate
-    productionDateWhere.gte = fromDate
-    purchaseDateWhere.gte = fromDate
+function bucketStart(date: Date, granularity: ReportingGranularity) {
+  switch (granularity) {
+    case 'day':
+      return startOfDay(date)
+    case 'week':
+      return startOfWeek(date)
+    case 'month':
+      return startOfMonth(date)
+    case 'quarter':
+      return startOfQuarter(date)
+    case 'year':
+      return startOfYear(date)
   }
-  if (toDate) {
-    invoiceDateWhere.lte = toDate
-    expenseDateWhere.lte = toDate
-    productionDateWhere.lte = toDate
-    purchaseDateWhere.lte = toDate
+}
+
+function bucketLabel(date: Date, granularity: ReportingGranularity) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: granularity === 'year' ? 'numeric' : undefined,
+  })
+
+  switch (granularity) {
+    case 'day':
+      return formatter.format(date)
+    case 'week': {
+      const end = new Date(date)
+      end.setDate(end.getDate() + 6)
+      return `${formatter.format(date)} - ${formatter.format(end)}`
+    }
+    case 'month':
+      return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(date)
+    case 'quarter': {
+      const quarter = Math.floor(date.getMonth() / 3) + 1
+      return `Q${quarter} ${date.getFullYear()}`
+    }
+    case 'year':
+      return String(date.getFullYear())
+  }
+}
+
+function buildTrendBuckets(rows: Array<{ date: Date; sales: number; purchases: number; expenses: number }>, granularity: ReportingGranularity) {
+  const buckets = new Map<string, { period: string; sales: number; purchases: number; expenses: number; grossProfit: number; netProfit: number }>()
+
+  for (const row of rows) {
+    const keyDate = bucketStart(row.date, granularity)
+    const key = keyDate.toISOString()
+    const existing =
+      buckets.get(key) ||
+      {
+        period: bucketLabel(keyDate, granularity),
+        sales: 0,
+        purchases: 0,
+        expenses: 0,
+        grossProfit: 0,
+        netProfit: 0,
+      }
+    existing.sales += row.sales
+    existing.purchases += row.purchases
+    existing.expenses += row.expenses
+    existing.grossProfit = existing.sales - existing.purchases
+    existing.netProfit = existing.grossProfit - existing.expenses
+    buckets.set(key, existing)
   }
 
-  const [materials, finishedGoods, suppliers, customers, invoices, expenses, productionOrders, purchaseTotal] = await Promise.all([
+  return Array.from(buckets.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([, value]) => value)
+}
+
+function buildTransactionRows(input: {
+  invoices: any[]
+  purchases: any[]
+  expenses: any[]
+  productionOrders: any[]
+}) {
+  const rows: Array<{
+    id: string
+    entryDate: string
+    transactionType: string
+    transactionKey: string
+    name: string
+    totalAmount: number
+    recPaidAmount: number | null
+    balanceAmount: number | null
+    note?: string | null
+    href?: string
+    tone: 'slate' | 'emerald' | 'amber' | 'rose'
+  }> = []
+
+  for (const invoice of input.invoices) {
+    rows.push({
+      id: `invoice-${invoice.id}`,
+      entryDate: invoice.invoiceDate || invoice.createdAt || new Date().toISOString(),
+      transactionType: 'Sales Invoice',
+      transactionKey: 'SALES_INVOICE',
+      name: invoice.customer?.customerName || invoice.customerName || invoice.invoiceNumber || invoice.id,
+      totalAmount: Number(invoice.grandTotal ?? 0),
+      recPaidAmount: Number(invoice.paidAmount ?? 0),
+      balanceAmount: Number(invoice.dueAmount ?? 0),
+      note: invoice.invoiceNumber || null,
+      href: `/sales-invoices/${invoice.id}`,
+      tone: 'emerald',
+    })
+  }
+
+  for (const purchase of input.purchases) {
+    rows.push({
+      id: `purchase-${purchase.id}`,
+      entryDate: purchase.invoiceDate || purchase.createdAt || new Date().toISOString(),
+      transactionType: 'Purchase',
+      transactionKey: 'PURCHASE',
+      name: purchase.supplier?.name || purchase.supplierName || purchase.invoiceNumber || purchase.id,
+      totalAmount: Number(purchase.totalAmount ?? 0),
+      recPaidAmount: null,
+      balanceAmount: Number(purchase.totalAmount ?? 0),
+      note: purchase.invoiceNumber || null,
+      href: purchase.id ? `/inventory/purchases/${purchase.id}` : undefined,
+      tone: 'slate',
+    })
+  }
+
+  for (const expense of input.expenses) {
+    rows.push({
+      id: `expense-${expense.id}`,
+      entryDate: expense.expenseDate || expense.createdAt || new Date().toISOString(),
+      transactionType: 'Expense',
+      transactionKey: 'EXPENSE',
+      name: expense.description || expense.category || expense.vendor || expense.id,
+      totalAmount: Number(expense.amount ?? 0),
+      recPaidAmount: Number(expense.amount ?? 0),
+      balanceAmount: null,
+      note: expense.vendor || null,
+      tone: 'rose',
+    })
+  }
+
+  for (const order of input.productionOrders) {
+    rows.push({
+      id: `production-${order.id}`,
+      entryDate: order.createdAt || new Date().toISOString(),
+      transactionType: 'Production Batch',
+      transactionKey: 'PRODUCTION',
+      name: order.finishedGoodName || order.finishedGood?.name || order.orderNumber || order.id,
+      totalAmount: Number(order.fullyAbsorbedCost ?? order.baseCost ?? 0),
+      recPaidAmount: null,
+      balanceAmount: null,
+      note: order.status || null,
+      href: order.id ? `/inventory/production/${order.id}` : undefined,
+      tone: 'amber',
+    })
+  }
+
+  return rows.sort((a, b) => new Date(b.entryDate).getTime() - new Date(a.entryDate).getTime())
+}
+
+export async function getOperationsSummary(opts: { from?: string; to?: string; period?: ReportingPeriod; granularity?: ReportingGranularity } = {}) {
+  const resolved = resolvePeriodWindow({ period: opts.period, from: opts.from, to: opts.to })
+  const granularity = opts.granularity || (resolved.period === 'today' ? 'day' : resolved.period === 'week' ? 'day' : resolved.period === 'month' ? 'day' : resolved.period === 'quarter' ? 'week' : 'month')
+
+  const invoiceDateWhere = includesDateRange('invoiceDate', resolved.fromDate, resolved.toDate)
+  const expenseDateWhere = includesDateRange('expenseDate', resolved.fromDate, resolved.toDate)
+  const productionDateWhere = includesDateRange('createdAt', resolved.fromDate, resolved.toDate)
+  const purchaseDateWhere = includesDateRange('invoiceDate', resolved.fromDate, resolved.toDate)
+
+  const [materials, finishedGoods, suppliers, customers, invoices, purchases, expenses, productionOrders] = await Promise.all([
     prisma.rawMaterial.findMany({
       where: { deletedAt: null },
       select: { id: true, name: true, reorderLevel: true },
@@ -103,13 +346,18 @@ export async function getOperationsSummary(opts: { from?: string; to?: string } 
     }),
     prisma.salesInvoice.findMany({
       include: { customer: true },
-      where: Object.keys(invoiceDateWhere).length > 0 ? { invoiceDate: invoiceDateWhere } : undefined,
+      where: invoiceDateWhere ? { invoiceDate: invoiceDateWhere.invoiceDate } : undefined,
+      orderBy: { invoiceDate: 'desc' },
+    }),
+    prisma.purchase.findMany({
+      include: { supplier: true },
+      where: purchaseDateWhere ? { invoiceDate: purchaseDateWhere.invoiceDate } : undefined,
       orderBy: { invoiceDate: 'desc' },
     }),
     prisma.expense.findMany({
       where: {
         deletedAt: null,
-        ...(Object.keys(expenseDateWhere).length > 0 ? { expenseDate: expenseDateWhere } : {}),
+        ...(expenseDateWhere ? expenseDateWhere : {}),
       },
       orderBy: { expenseDate: 'desc' },
     }),
@@ -117,12 +365,8 @@ export async function getOperationsSummary(opts: { from?: string; to?: string } 
       include: {
         finishedGood: true,
       },
-      where: Object.keys(productionDateWhere).length > 0 ? { createdAt: productionDateWhere } : undefined,
+      where: productionDateWhere ? { createdAt: productionDateWhere.createdAt } : undefined,
       orderBy: { createdAt: 'desc' },
-    }),
-    prisma.purchase.aggregate({
-      where: Object.keys(purchaseDateWhere).length > 0 ? { createdAt: purchaseDateWhere } : undefined,
-      _sum: { totalAmount: true },
     }),
   ])
 
@@ -169,14 +413,14 @@ export async function getOperationsSummary(opts: { from?: string; to?: string } 
       allocations[bucket] = (allocations[bucket] || 0) + money(expense.amount)
       return allocations
     }, {})
-  const purchaseValue = money(purchaseTotal._sum.totalAmount)
+  const purchaseValue = purchases.reduce((sum, purchase) => sum + money(purchase.totalAmount), 0)
   const productionMaterialCost = productionOrders.reduce((sum, order) => sum + costFromBomItems(order), 0)
   const workInProgressCost = productionOrders
     .filter((order) => String(order.status || '').toUpperCase() !== 'COMPLETED')
     .reduce((sum, order) => sum + costFromBomItems(order), 0)
   const absorbedOverhead = overheadExpenseTotal
   const manufacturingMargin = salesTotal - productionMaterialCost - absorbedOverhead
-  const estimatedProfit = paidInvoiceTotal - purchaseValue - expenseTotal
+  const estimatedProfit = salesTotal - purchaseValue - expenseTotal
   const totalProductionBase = productionOrders.reduce((sum, order) => sum + productionCostBase(order), 0)
   const overheadRate = totalProductionBase > 0 ? absorbedOverhead / totalProductionBase : 0
   const productionOrderAllocations = productionOrders.map((order) => {
@@ -185,6 +429,7 @@ export async function getOperationsSummary(opts: { from?: string; to?: string } 
     const fullyAbsorbedCost = baseCost + overhead
     return {
       id: order.id,
+      createdAt: order.createdAt,
       orderNumber: order.orderNumber || order.id,
       finishedGoodName: order.finishedGoodName || order.finishedGood?.name || '-',
       status: order.status,
@@ -195,7 +440,29 @@ export async function getOperationsSummary(opts: { from?: string; to?: string } 
     }
   })
 
+  const transactions = buildTransactionRows({
+    invoices,
+    purchases,
+    expenses,
+    productionOrders: productionOrderAllocations,
+  })
+
+  const trendSource = transactions.map((row) => ({
+    date: parseDate(row.entryDate) || new Date(),
+    sales: row.transactionKey === 'SALES_INVOICE' ? row.totalAmount : 0,
+    purchases: row.transactionKey === 'PURCHASE' ? row.totalAmount : 0,
+    expenses: row.transactionKey === 'EXPENSE' ? row.totalAmount : 0,
+  }))
+  const trend = buildTrendBuckets(trendSource, granularity)
+
   return {
+    period: {
+      key: resolved.period,
+      label: resolved.label,
+      from: resolved.fromDate ? resolved.fromDate.toISOString() : null,
+      to: resolved.toDate ? resolved.toDate.toISOString() : null,
+      granularity,
+    },
     counts: {
       materials: normalizedMaterials.length,
       finishedGoods: normalizedFinishedGoods.length,
@@ -222,18 +489,11 @@ export async function getOperationsSummary(opts: { from?: string; to?: string } 
       overheadRate,
       estimatedProfit,
     },
+    trend,
+    transactions,
     recent: {
       invoices: invoices.slice(0, 8),
-      purchases: await Promise.all(
-        normalizedMaterials.slice(0, 10).map(async (material) => {
-          try {
-            const rows = await listMaterialPurchases(material.id, { page: 1, pageSize: 2 })
-            return Array.isArray(rows) ? rows : []
-          } catch {
-            return []
-          }
-        }),
-      ).then((rows) => rows.flat().slice(0, 8)),
+      purchases: purchases.slice(0, 8),
       productionOrders: productionOrders.slice(0, 8),
     },
     lists: {

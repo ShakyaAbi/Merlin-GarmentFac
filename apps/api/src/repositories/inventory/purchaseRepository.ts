@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client'
 import { appendSupplierLedgerEntry } from '../../services/ledgerService'
 import { allocateDocumentNumber } from '../../services/sequenceService'
+import { calculatePurchaseTotalsWithDiscount } from '../../services/inventory/purchaseTotals'
 
 const prisma = new PrismaClient()
 
@@ -15,13 +16,11 @@ export const createPurchaseTransactional = async (purchaseData: any, items: any[
       }))
     const purchase = await tx.purchase.create({ data: { ...purchaseData, invoiceNumber, createdBy: userId } })
     const createdItems: any[] = []
-    let total = 0
 
     for (const it of items) {
       const quantity = Number(it.quantity)
       const unitPrice = Number(it.unitPrice)
       const lineTotal = quantity * unitPrice
-      total += lineTotal
 
       const created = await tx.purchaseItem.create({
         data: {
@@ -51,7 +50,15 @@ export const createPurchaseTransactional = async (purchaseData: any, items: any[
       await tx.rawMaterial.update({ where: { id: it.rawMaterialId }, data: { costPrice: unitPrice } })
     }
 
-    await tx.purchase.update({ where: { id: purchase.id }, data: { totalAmount: total } })
+    const totals = calculatePurchaseTotalsWithDiscount(items.map((item) => ({
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+    })), Number(purchaseData.discountAmount ?? 0))
+
+    await tx.purchase.update({
+      where: { id: purchase.id },
+      data: { totalAmount: totals.grandTotal, discountAmount: totals.discountAmount } as any,
+    })
     await appendSupplierLedgerEntry({
       tx,
       supplierId: purchase.supplierId,
@@ -62,10 +69,10 @@ export const createPurchaseTransactional = async (purchaseData: any, items: any[
       documentNumber: invoiceNumber,
       description: `Purchase invoice ${invoiceNumber}`,
       debit: 0,
-      credit: total,
+      credit: totals.grandTotal,
       createdBy: userId ?? null,
     })
-    return { purchaseId: purchase.id, total, items: createdItems }
+    return { purchaseId: purchase.id, total: totals.grandTotal, items: createdItems }
   })
 }
 
@@ -92,7 +99,9 @@ export const listPurchasesForMaterial = async (rawMaterialId: string, opts: any 
     supplierId: string
     invoiceNumber: string | null
     invoiceDate: Date
+    dueDate: Date | null
     currency: string
+    discountAmount: Prisma.Decimal
     totalAmount: Prisma.Decimal
     createdBy: number | null
     createdAt: Date
@@ -106,7 +115,9 @@ export const listPurchasesForMaterial = async (rawMaterialId: string, opts: any 
         p."supplierId",
         p."invoiceNumber",
         p."invoiceDate",
+        p."dueDate",
         p.currency,
+        p."discountAmount",
         p."totalAmount",
         p."createdBy",
         p."createdAt",

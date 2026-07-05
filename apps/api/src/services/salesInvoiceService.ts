@@ -1,5 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { stringify } from 'csv-stringify/sync'
+import { existsSync } from 'node:fs'
+import { chromium } from 'playwright'
 import { prisma } from '../prisma'
 import * as repo from '../repositories/salesInvoiceRepository'
 import { AppError } from '../utils/errors'
@@ -14,18 +16,55 @@ type InvoiceItemInput = {
 }
 
 const VAT_RATE = new Prisma.Decimal('0.13')
+const EDGE_EXECUTABLE_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
+const PDF_BROWSER_PATH = existsSync(EDGE_EXECUTABLE_PATH) ? EDGE_EXECUTABLE_PATH : undefined
 
 function toDate(value?: string | Date | null) {
   if (!value) return null
-  return value instanceof Date ? value : new Date(value)
+  const date = value instanceof Date ? value : new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
 }
 
 function decimal(value: number | string | Prisma.Decimal | null | undefined, fallback = 0) {
   return new Prisma.Decimal(value ?? fallback)
 }
 
+function escapeHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function formatMoney(value: Prisma.Decimal | number | string | null | undefined) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'NPR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value ?? 0))
+}
+
+function formatDate(value?: Date | string | null) {
+  if (!value) return '-'
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date)
+}
+
 function deriveLineTaxableAmount(quantity: Prisma.Decimal, unitPrice: Prisma.Decimal, discountAmount: Prisma.Decimal) {
-  const taxableAmount = quantity.mul(unitPrice).minus(discountAmount)
+  const lineSubtotal = quantity.mul(unitPrice)
+  if (discountAmount.greaterThan(lineSubtotal)) {
+    throw new AppError(400, 'INVALID_DISCOUNT', 'Line discount cannot exceed the line subtotal')
+  }
+
+  const taxableAmount = lineSubtotal.minus(discountAmount)
   return taxableAmount.lessThan(0) ? new Prisma.Decimal(0) : taxableAmount
 }
 
@@ -58,9 +97,306 @@ function sumExistingItemTaxableAmount(item: any) {
   return deriveLineTaxableAmount(decimal(item.quantity), decimal(item.unitPrice), decimal(item.discountAmount))
 }
 
+function buildInvoicePdfHtml(invoice: any, companyName: string) {
+  const items = Array.isArray(invoice.items) ? invoice.items : []
+  const subtotal = items.reduce(
+    (sum: Prisma.Decimal, item: any) => sum.plus(decimal(item.quantity).mul(decimal(item.unitPrice))),
+    new Prisma.Decimal(0),
+  )
+  const discountAmount = items.length > 0
+    ? items.reduce((sum: Prisma.Decimal, item: any) => sum.plus(decimal(item.discountAmount)), new Prisma.Decimal(0))
+    : decimal(invoice.discountAmount)
+  const taxableAmount = subtotal.minus(discountAmount)
+  const taxAmount = decimal(invoice.taxAmount ?? taxableAmount.mul(VAT_RATE))
+  const grandTotal = decimal(invoice.grandTotal ?? taxableAmount.plus(taxAmount))
+  const paidAmount = decimal(invoice.paidAmount)
+  const dueAmount = decimal(invoice.dueAmount ?? grandTotal.minus(paidAmount))
+
+  const lineRows = items
+    .map(
+      (item: any, index: number) => `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${escapeHtml(item.productCode || item.product?.productCode || item.productId || '-')}</td>
+          <td>
+            <div class="desc">${escapeHtml(item.productName || item.product?.name || 'Untitled item')}</div>
+            <div class="muted">${escapeHtml(item.warehouseId || item.product?.unit || '')}</div>
+          </td>
+          <td class="right">${Number(item.quantity ?? 0).toLocaleString('en-US')}</td>
+          <td class="right">${formatMoney(item.unitPrice)}</td>
+          <td class="right">${formatMoney(item.lineTotal ?? sumExistingItemTaxableAmount(item).plus(decimal(item.taxAmount)))}</td>
+        </tr>`,
+    )
+    .join('')
+
+  const paymentRows = Array.isArray(invoice.payments) && invoice.payments.length > 0
+    ? invoice.payments
+        .map(
+          (payment: any) => `
+            <tr>
+              <td>${escapeHtml(payment.paymentNumber || payment.id)}</td>
+              <td>${formatDate(payment.paymentDate || payment.createdAt || payment.paidAt)}</td>
+              <td>${escapeHtml(payment.paymentMethod || payment.method || '-')}</td>
+              <td>${escapeHtml(payment.note || payment.notes || '')}</td>
+              <td class="right">${formatMoney(payment.amount)}</td>
+            </tr>`,
+        )
+        .join('')
+    : ''
+
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          @page { size: A4; margin: 12mm; }
+          * { box-sizing: border-box; }
+          body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #0f172a;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .sheet {
+            border: 1px solid #cbd5e1;
+            border-radius: 18px;
+            overflow: hidden;
+          }
+          .header {
+            padding: 24px;
+            background: linear-gradient(135deg, #fff7ed, #ffffff 55%, #eff6ff);
+            border-bottom: 1px solid #cbd5e1;
+          }
+          .header-row, .info-grid, .totals-grid {
+            display: grid;
+            gap: 16px;
+          }
+          .header-row {
+            grid-template-columns: 1fr 280px;
+            align-items: start;
+          }
+          .title {
+            font-size: 30px;
+            font-weight: 800;
+            margin: 6px 0 8px;
+          }
+          .muted {
+            color: #64748b;
+            font-size: 12px;
+          }
+          .panel {
+            background: #f8fafc;
+            border-radius: 14px;
+            padding: 14px;
+          }
+          .info-grid {
+            grid-template-columns: 1.2fr 0.8fr;
+            padding: 18px 24px;
+            border-bottom: 1px solid #e2e8f0;
+          }
+          .items {
+            padding: 18px 24px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+          }
+          th, td {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 10px 8px;
+            vertical-align: top;
+          }
+          th {
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font-size: 10px;
+            color: #64748b;
+            text-align: left;
+          }
+          .right { text-align: right; white-space: nowrap; }
+          .desc { font-weight: 600; }
+          .totals {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+            border-top: 1px solid #e2e8f0;
+            padding: 18px 24px 24px;
+          }
+          .summary {
+            background: #f8fafc;
+            border-radius: 14px;
+            padding: 14px;
+          }
+          .summary-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 4px 0;
+            font-size: 13px;
+          }
+          .summary-row.total {
+            border-top: 1px solid #cbd5e1;
+            margin-top: 6px;
+            padding-top: 10px;
+            font-size: 15px;
+            font-weight: 700;
+          }
+          .chip {
+            display: inline-block;
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            margin-right: 8px;
+            margin-bottom: 8px;
+          }
+          .section-title {
+            font-size: 13px;
+            font-weight: 700;
+            margin: 0 0 8px;
+          }
+          .payments {
+            padding: 0 24px 24px;
+          }
+          .payments table td { font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="sheet">
+          <div class="header">
+            <div class="header-row">
+              <div>
+                <div class="muted">Sales Invoice</div>
+                <div class="title">${escapeHtml(invoice.invoiceNumber || invoice.id)}</div>
+                <div class="muted">${escapeHtml(companyName)}</div>
+                <div class="muted">Customer: ${escapeHtml(invoice.customer?.customerName || 'Walk-in customer')}</div>
+              </div>
+              <div class="panel" style="text-align:right">
+                <div class="muted">Invoice Date</div>
+                <div style="font-weight:700">${formatDate(invoice.invoiceDate || invoice.createdAt)}</div>
+                <div class="muted" style="margin-top:8px">Due Date</div>
+                <div style="font-weight:700">${formatDate(invoice.dueDate)}</div>
+                <div class="muted" style="margin-top:8px">Payment Status</div>
+                <div style="font-weight:700">${escapeHtml(invoice.paymentStatus || 'UNKNOWN')}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="info-grid">
+            <div class="panel">
+              <div class="section-title">Customer</div>
+              <div style="font-weight:700; font-size:16px">${escapeHtml(invoice.customer?.customerName || 'Walk-in customer')}</div>
+              <div class="muted">${escapeHtml(invoice.customer?.address || '')}</div>
+              <div class="muted">${escapeHtml(invoice.customer?.phone || '')}</div>
+              <div class="muted">${escapeHtml(invoice.customer?.email || '')}</div>
+            </div>
+            <div class="panel">
+              <div class="section-title">Invoice Meta</div>
+              <div class="muted">Fiscal Year</div>
+              <div style="font-weight:700; margin-bottom:8px">${escapeHtml(invoice.fiscalYear || '-')}</div>
+              <div class="muted">Invoice Status</div>
+              <div style="font-weight:700; margin-bottom:8px">${escapeHtml(invoice.invoiceStatus || 'UNKNOWN')}</div>
+              <div class="muted">Remarks</div>
+              <div style="font-weight:700">${escapeHtml(invoice.remarks || '-')}</div>
+            </div>
+          </div>
+
+          <div class="items">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:48px">SN</th>
+                  <th style="width:120px">Code</th>
+                  <th>Description</th>
+                  <th class="right" style="width:72px">Qty</th>
+                  <th class="right" style="width:100px">Rate</th>
+                  <th class="right" style="width:120px">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${lineRows || `<tr><td colspan="6" style="padding:16px; color:#64748b;">No item lines.</td></tr>`}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="totals">
+            <div class="panel">
+              <div class="section-title">Notes</div>
+              <div class="muted">${escapeHtml(invoice.remarks || 'No notes provided.')}</div>
+              <div style="margin-top:16px">
+                <span class="chip">Issued: ${escapeHtml(formatDate(invoice.issuedAt))}</span>
+                <span class="chip">Paid: ${formatMoney(paidAmount)}</span>
+                <span class="chip">Due: ${formatMoney(dueAmount)}</span>
+              </div>
+            </div>
+            <div class="summary">
+              <div class="summary-row"><span>Subtotal</span><span>${formatMoney(subtotal)}</span></div>
+              <div class="summary-row"><span>Discount</span><span>${formatMoney(discountAmount)}</span></div>
+              <div class="summary-row"><span>Taxable</span><span>${formatMoney(taxableAmount)}</span></div>
+              <div class="summary-row"><span>VAT 13%</span><span>${formatMoney(taxAmount)}</span></div>
+              <div class="summary-row total"><span>Grand Total</span><span>${formatMoney(grandTotal)}</span></div>
+            </div>
+          </div>
+
+          ${paymentRows ? `
+            <div class="payments">
+              <div class="section-title">Payment Activity</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Payment No.</th>
+                    <th>Date</th>
+                    <th>Method</th>
+                    <th>Note</th>
+                    <th class="right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>${paymentRows}</tbody>
+              </table>
+            </div>
+          ` : ''}
+        </div>
+      </body>
+    </html>
+  `
+}
+
+async function htmlToPdfBuffer(html: string) {
+  const browser = await chromium.launch({
+    headless: true,
+    executablePath: PDF_BROWSER_PATH,
+  })
+  try {
+    const page = await browser.newPage({ viewport: { width: 1240, height: 1754 } })
+    await page.setContent(html, { waitUntil: 'networkidle' })
+    await page.emulateMedia({ media: 'print' })
+    return await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: {
+        top: '0',
+        right: '0',
+        bottom: '0',
+        left: '0',
+      },
+    })
+  } finally {
+    await browser.close()
+  }
+}
+
 function buildInvoiceTotalsFromItems(items: any[], invoiceDiscountValue: number | string | Prisma.Decimal | null | undefined) {
-  const subtotal = items.reduce((sum, item) => sum.plus(sumExistingItemTaxableAmount(item)), new Prisma.Decimal(0))
-  const invoiceDiscount = decimal(invoiceDiscountValue)
+  const subtotal = items.reduce(
+    (sum, item) => sum.plus(decimal(item.quantity).mul(decimal(item.unitPrice))),
+    new Prisma.Decimal(0),
+  )
+  const lineDiscountAmount = items.reduce((sum, item) => sum.plus(decimal(item.discountAmount)), new Prisma.Decimal(0))
+  const invoiceDiscount = lineDiscountAmount.plus(decimal(invoiceDiscountValue))
 
   if (invoiceDiscount.greaterThan(subtotal)) {
     throw new AppError(400, 'INVALID_DISCOUNT', 'Invoice discount cannot exceed the subtotal')
@@ -279,6 +615,16 @@ export async function exportInvoice(id: string) {
   })
 }
 
+export async function exportInvoicePdf(id: string, companyName = 'Merlin Lite') {
+  const invoice = await repo.getInvoice(id)
+  if (!invoice) {
+    throw new AppError(404, 'NOT_FOUND', 'Sales invoice not found')
+  }
+
+  const html = buildInvoicePdfHtml(invoice, companyName)
+  return htmlToPdfBuffer(html)
+}
+
 export async function listCustomers(opts: { search?: string } = {}) {
   const where: any = { deletedAt: null }
   if (opts.search) {
@@ -316,6 +662,12 @@ export async function getInvoice(id: string) {
   const invoice = await repo.getInvoice(id)
   if (!invoice) return null
   return invoice
+}
+
+export async function listInvoicePayments(id: string) {
+  const invoice = await repo.getInvoice(id)
+  if (!invoice) throw new AppError(404, 'NOT_FOUND', 'Sales invoice not found')
+  return repo.listInvoicePayments(id)
 }
 
 export async function previewNextInvoiceNumber(invoiceDate: Date) {
@@ -379,6 +731,28 @@ export async function recordPayment(id: string, payload: any, userId?: number) {
     },
     userId,
   )
+}
+
+export async function updatePayment(id: string, paymentId: string, payload: any, userId?: number) {
+  const invoice = await repo.getInvoice(id)
+  if (!invoice) throw new AppError(404, 'NOT_FOUND', 'Sales invoice not found')
+  return repo.updatePayment(
+    id,
+    paymentId,
+    {
+      amount: payload.amount,
+      paymentMethod: payload.paymentMethod,
+      paymentDate: toDate(payload.paymentDate) || undefined,
+      note: payload.note,
+    },
+    userId,
+  )
+}
+
+export async function deletePayment(id: string, paymentId: string) {
+  const invoice = await repo.getInvoice(id)
+  if (!invoice) throw new AppError(404, 'NOT_FOUND', 'Sales invoice not found')
+  return repo.deletePayment(id, paymentId)
 }
 
 export async function cancelInvoice(id: string, payload: any, userId?: number) {

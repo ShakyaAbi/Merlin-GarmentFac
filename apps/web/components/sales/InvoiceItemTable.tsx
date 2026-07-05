@@ -97,25 +97,24 @@ export function InvoiceItemTable({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1100px] text-left text-sm">
+        <table className="w-full min-w-[1040px] text-left text-sm">
           <caption className="sr-only">Sales invoice item lines</caption>
           <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
             <tr>
-              <th className="px-4 py-3 font-semibold">Article</th>
-              <th className="px-4 py-3 font-semibold">Selected Product</th>
+              <th className="w-56 px-4 py-3 font-semibold">Article</th>
               {showWarehouse ? <th className="px-4 py-3 font-semibold">Warehouse</th> : null}
-              <th className="px-4 py-3 font-semibold">Qty</th>
-              <th className="px-4 py-3 font-semibold">Unit Price</th>
-              <th className="px-4 py-3 font-semibold">Discount</th>
-              <th className="px-4 py-3 font-semibold">VAT 13%</th>
-              <th className="px-4 py-3 font-semibold">Line Total</th>
-              {!readOnly ? <th className="px-4 py-3 font-semibold">Actions</th> : null}
+              <th className="w-28 px-4 py-3 font-semibold text-center">Qty</th>
+              <th className="w-36 px-4 py-3 font-semibold text-center">Unit Price</th>
+              <th className="w-32 px-4 py-3 font-semibold text-center">Discount</th>
+              <th className="w-28 px-4 py-3 font-semibold text-center">VAT 13%</th>
+              <th className="w-32 px-4 py-3 font-semibold text-right">Line Total</th>
+              {!readOnly ? <th className="w-24 px-4 py-3 font-semibold text-center">Actions</th> : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={readOnly ? (showWarehouse ? 8 : 7) : showWarehouse ? 9 : 8} className="px-6 py-12 text-center text-sm text-slate-500">
+                <td colSpan={readOnly ? (showWarehouse ? 7 : 6) : showWarehouse ? 8 : 7} className="px-6 py-12 text-center text-sm text-slate-500">
                   No item lines yet.
                 </td>
               </tr>
@@ -129,7 +128,7 @@ export function InvoiceItemTable({
                       {readOnly ? (
                         <span className="text-slate-700">{item.productCode || "-"}</span>
                       ) : (
-                        <div className="min-w-[16rem]">
+                        <div className="min-w-[16rem] max-w-[18rem]">
                           <select
                             value={item.productId}
                             onChange={(event) => applyProductToItem(item, event.target.value, products, onChangeItem)}
@@ -142,28 +141,7 @@ export function InvoiceItemTable({
                               </option>
                             ))}
                           </select>
-                          <div className="mt-1 text-xs text-slate-500">
-                            {item.productCode || "Choose from finished goods"}
-                          </div>
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      {readOnly ? (
-                        <div>
-                          <div className="font-medium text-slate-900">{item.productName || "Untitled item"}</div>
-                          {item.productId ? (
-                            <div className="text-xs text-slate-500">ID: {item.productId}</div>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <div className="min-w-[14rem] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                          <div className="truncate font-medium text-slate-900">
-                            {item.productName || "No article selected"}
-                          </div>
-                          <div className="truncate text-xs text-slate-500">
-                            {item.productId ? `ID: ${item.productId}` : "Product details fill automatically"}
-                          </div>
+                          <div className="mt-1 text-xs text-slate-500">{item.productCode || "Choose from finished goods"}</div>
                         </div>
                       )}
                     </td>
@@ -181,37 +159,33 @@ export function InvoiceItemTable({
                         )}
                       </td>
                     ) : null}
-                    <td className="px-4 py-4 align-top">
+                    <td className="w-24 px-4 py-4 align-top">
                       {readOnly ? (
-                        <span className="font-medium text-slate-900">{Number(item.quantity || 0)}</span>
+                        <span className="block text-center font-medium tabular-nums text-slate-900">{Number(item.quantity || 0)}</span>
                       ) : (
                         <input
                           type="number"
                           min="0"
                           step="0.01"
                           value={item.quantity}
+                          placeholder="1"
                           onChange={(event) => onChangeItem?.(item.id, { quantity: event.target.value })}
-                          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-center text-sm tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
                       )}
                     </td>
                     <td className="px-4 py-4 align-top">
                       {readOnly ? (
-                        <span className="font-medium text-slate-900">{money(Number(item.unitPrice || 0))}</span>
+                        <span className="block text-center font-medium tabular-nums text-slate-900">{money(Number(item.unitPrice || 0))}</span>
                       ) : (
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={item.unitPrice}
-                          onChange={(event) => onChangeItem?.(item.id, { unitPrice: event.target.value })}
-                          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                        />
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-medium tabular-nums text-slate-900">
+                          {money(Number(item.unitPrice || 0))}
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-4 align-top">
                       {readOnly ? (
-                        <span className="font-medium text-slate-900">{money(Number(item.discountAmount || 0))}</span>
+                        <span className="block text-center font-medium tabular-nums text-slate-900">{money(Number(item.discountAmount || 0))}</span>
                       ) : (
                         <input
                           type="number"
@@ -219,13 +193,13 @@ export function InvoiceItemTable({
                           step="0.01"
                           value={item.discountAmount}
                           onChange={(event) => onChangeItem?.(item.id, { discountAmount: event.target.value })}
-                          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-center text-sm tabular-nums"
                         />
                       )}
                     </td>
                     <td className="px-4 py-4 align-top">
                       {readOnly ? (
-                        <span className="font-medium text-slate-900">{money(Number(item.taxAmount || 0))}</span>
+                        <span className="block text-center font-medium tabular-nums text-slate-900">{money(Number(item.taxAmount || 0))}</span>
                       ) : (
                         taxEditable ? (
                           <input
@@ -234,20 +208,20 @@ export function InvoiceItemTable({
                             step="0.01"
                             value={item.taxAmount}
                             onChange={(event) => onChangeItem?.(item.id, { taxAmount: event.target.value })}
-                            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-center text-sm tabular-nums"
                           />
                         ) : (
-                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-900">
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-medium tabular-nums text-slate-900">
                             {money(Number(item.taxAmount || 0))}
                           </div>
                         )
                       )}
                     </td>
                     <td className="px-4 py-4 align-top">
-                      <span className="font-semibold text-slate-900">{money(total)}</span>
+                      <span className="block text-right font-semibold tabular-nums text-slate-900">{money(total)}</span>
                     </td>
                     {!readOnly ? (
-                      <td className="px-4 py-4 align-top">
+                      <td className="px-4 py-4 align-top text-center">
                         <Button type="button" variant="outline" size="sm" onClick={() => onRemoveItem?.(item.id)}>
                           Remove
                         </Button>

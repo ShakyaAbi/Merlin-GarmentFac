@@ -185,7 +185,7 @@ export const salesInvoiceApi = {
     const token = getToken()
     let response: Response
     try {
-      response = await fetch(`${API_BASE}/sales-invoices/${id}/export`, {
+      response = await fetch(`${API_BASE}/sales-invoices/${id}/pdf`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -196,7 +196,7 @@ export const salesInvoiceApi = {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      throw new Error(error?.error?.message || 'Download failed')
+      throw new Error(error?.error?.message || 'PDF download failed')
     }
 
     return response.blob()
@@ -206,5 +206,10 @@ export const salesInvoiceApi = {
   submit: (id: string) => request(`/sales-invoices/${id}/submit`, { method: 'POST' }),
   issue: (id: string) => request(`/sales-invoices/${id}/issue`, { method: 'POST' }),
   payment: (id: string, body: any) => request(`/sales-invoices/${id}/payment`, { method: 'POST', body }),
+  listPayments: (id: string) => request<{ payments?: SalesInvoicePayment[] }>(`/sales-invoices/${id}/payments`),
+  updatePayment: (invoiceId: string, paymentId: string, body: any) =>
+    request(`/sales-invoices/${invoiceId}/payments/${paymentId}`, { method: 'PATCH', body }),
+  deletePayment: (invoiceId: string, paymentId: string) =>
+    request<void>(`/sales-invoices/${invoiceId}/payments/${paymentId}`, { method: 'DELETE' }),
   cancel: (id: string, body: any) => request(`/sales-invoices/${id}/cancel`, { method: 'POST', body }),
 }

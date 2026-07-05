@@ -1,4 +1,5 @@
 import { CurrentUser } from "../types";
+import { showApiErrorToast } from "./toast";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api/v1";
 const tokenKey = "merlin_token";
@@ -43,6 +44,12 @@ export const request = async <T>(
       body: isFormData ? options.body : (options.body ? JSON.stringify(options.body) : undefined),
     });
   } catch (error) {
+    showApiErrorToast(
+      error instanceof Error
+        ? error
+        : { message: `Unable to reach the API server at ${API_BASE}. Make sure the backend is running.` },
+      'Network error',
+    );
     throw new ApiError(
       `Unable to reach the API server at ${API_BASE}. Make sure the backend is running.`,
       0,
@@ -63,6 +70,9 @@ export const request = async <T>(
 
     const data = await res.json().catch(() => ({}));
     const message = data?.error?.message || res.statusText;
+    if (!((res.status === 401 || res.status === 404) && path === "/auth/me")) {
+      showApiErrorToast({ message, details: data?.error?.details }, `Request failed (${res.status})`);
+    }
     throw new ApiError(message, res.status, data?.error?.details);
   }
 

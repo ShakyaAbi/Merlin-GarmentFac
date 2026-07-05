@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Search, ShoppingCart, Plus } from 'lucide-react'
 import { salesInvoiceApi, SalesInvoiceCustomer, SalesInvoiceProduct, SalesInvoicePayload } from '../../services/salesInvoiceApi'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
@@ -8,6 +8,7 @@ import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { Button } from '../../components/ui/Button'
 import { InvoiceItemTable, InvoiceDraftItem } from '../../components/sales/InvoiceItemTable'
 import { InvoiceTotalsCard } from '../../components/sales/InvoiceTotalsCard'
+import { showErrorToast } from '../../services/toast'
 
 const today = new Date().toISOString().slice(0, 10)
 const VAT_RATE = 0.13
@@ -71,9 +72,12 @@ const formatCustomer = (customer: SalesInvoiceCustomer) => {
 }
 
 const formatProductPrice = (product: SalesInvoiceProduct) => money(product.sellingPrice ?? product.costPrice ?? 0)
+type SalesInvoiceDetail = Awaited<ReturnType<typeof salesInvoiceApi.get>>
 
 export default function SalesInvoiceCreatePage() {
   const navigate = useNavigate()
+  const { id: invoiceId } = useParams<{ id?: string }>()
+  const isEditing = Boolean(invoiceId)
   const [customers, setCustomers] = useState<SalesInvoiceCustomer[]>([])
   const [products, setProducts] = useState<SalesInvoiceProduct[]>([])
   const [invoiceNumber, setInvoiceNumber] = useState('')
@@ -99,32 +103,84 @@ export default function SalesInvoiceCreatePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loadedInvoice, setLoadedInvoice] = useState<SalesInvoiceDetail | null>(null)
 
-  const loadCatalog = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const [customerData, productData] = await Promise.all([
-        salesInvoiceApi.listCustomers(),
-        salesInvoiceApi.listProducts(),
-      ])
-      setCustomers(Array.isArray(customerData) ? customerData : [])
-      setProducts(Array.isArray(productData) ? productData : [])
-      if (!customerId && customerData?.[0]?.id) {
-        setCustomerId(customerData[0].id)
+  useEffect(() => {
+    let alive = true
+
+    const loadData = async () => {
+      setLoading(true)
+      setError(null)
+
+      try {
+        const [customerData, productData, invoiceData] = await Promise.all([
+          salesInvoiceApi.listCustomers(),
+          salesInvoiceApi.listProducts(),
+          invoiceId ? salesInvoiceApi.get(invoiceId) : Promise.resolve(null),
+        ])
+
+        if (!alive) return
+
+        setCustomers(Array.isArray(customerData) ? customerData : [])
+        setProducts(Array.isArray(productData) ? productData : [])
+
+        if (invoiceData) {
+          const invoiceDateValue = invoiceData.invoiceDate ? invoiceData.invoiceDate.slice(0, 10) : today
+          const invoiceNumberValue =
+            invoiceData.invoiceNumber ||
+            (await salesInvoiceApi.previewNextInvoiceNumber(invoiceDateValue))
+
+          setLoadedInvoice(invoiceData)
+          setInvoiceNumber(invoiceNumberValue)
+          setCustomerId(invoiceData.customerId || '')
+          setInvoiceDate(invoiceDateValue)
+          setDueDate(invoiceData.dueDate ? invoiceData.dueDate.slice(0, 10) : '')
+          setRemarks(invoiceData.remarks || '')
+          setItems(
+            (invoiceData.items || []).map((item) => ({
+              id: item.id,
+              productId: item.productId || '',
+              productCode: item.productCode || '',
+              productName: item.productName || '',
+              quantity: String(item.quantity ?? 0),
+              unitPrice: String(item.unitPrice ?? 0),
+              discountAmount: String(item.discountAmount ?? 0),
+              taxAmount: String(item.taxAmount ?? 0),
+              warehouseId: item.warehouseId || '',
+            })),
+          )
+          if (invoiceData.invoiceStatus && !['DRAFT', 'PENDING_APPROVAL'].includes(String(invoiceData.invoiceStatus))) {
+            setError('This invoice is no longer editable. Duplicate it instead.')
+          }
+        } else {
+          setLoadedInvoice(null)
+          if (customerId) return
+          if (customerData?.[0]?.id) {
+            setCustomerId(customerData[0].id)
+          }
+          const nextInvoiceNumber = await salesInvoiceApi.previewNextInvoiceNumber(today)
+          if (!invoiceNumber) {
+            setInvoiceNumber(nextInvoiceNumber)
+          }
+        }
+      } catch (err: any) {
+        if (!alive) return
+        setError(err?.message || 'Failed to load customers and articles.')
+      } finally {
+        if (alive) setLoading(false)
       }
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load customers and articles.')
-    } finally {
-      setLoading(false)
     }
-  }
+
+    void loadData()
+
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoiceId])
 
   useEffect(() => {
-    void loadCatalog()
-  }, [])
-
-  useEffect(() => {
+    if (isEditing) return
     let alive = true
     void (async () => {
       try {
@@ -141,7 +197,7 @@ export default function SalesInvoiceCreatePage() {
     return () => {
       alive = false
     }
-  }, [invoiceDate])
+  }, [invoiceDate, isEditing])
 
   const filteredCustomers = useMemo(() => {
     const query = customerSearch.trim().toLowerCase()
@@ -251,32 +307,46 @@ export default function SalesInvoiceCreatePage() {
     const validationMessage = validate()
     if (validationMessage) {
       setError(validationMessage)
+      showErrorToast('Cannot save invoice', validationMessage)
       return
     }
 
-    setSaving(nextSteps.join('+') || 'draft')
+    setSaving(nextSteps.join('+') || (isEditing ? 'update' : 'draft'))
     setError(null)
     try {
-      let invoice = await salesInvoiceApi.create(buildPayload())
+      let invoice = isEditing && invoiceId
+        ? await salesInvoiceApi.update(invoiceId, buildPayload())
+        : await salesInvoiceApi.create(buildPayload())
       for (const step of nextSteps) {
         invoice = step === 'submit' ? await salesInvoiceApi.submit(invoice.id) : await salesInvoiceApi.issue(invoice.id)
       }
       navigate(`/sales-invoices/${invoice.id}`)
     } catch (err: any) {
-      setError(err?.message || 'Failed to save invoice.')
+      const message = err?.message || 'Failed to save invoice.'
+      setError(message)
     } finally {
       setSaving(null)
     }
   }
 
   const selectedCustomer = customers.find((customer) => customer.id === customerId)
+  const pageTitle = isEditing ? 'Edit Sales Invoice' : 'New Sales Invoice'
+  const pageDescription = isEditing
+    ? 'Update a draft or pending-approval invoice before it is issued.'
+    : 'Build invoices around articles and let Merlin manage the sales workflow.'
+  const saveLabel = isEditing ? 'Save Changes' : 'Save Draft'
+  const currentInvoiceStatus = String(loadedInvoice?.invoiceStatus || '')
+  const isPendingApproval = currentInvoiceStatus === 'PENDING_APPROVAL'
+  const submitLabel = isEditing ? 'Save & Submit' : 'Submit'
+  const issueLabel = isEditing ? 'Save & Issue' : 'Save & Issue'
+  const editLocked = Boolean(loadedInvoice && !['DRAFT', 'PENDING_APPROVAL'].includes(String(loadedInvoice.invoiceStatus || '')))
 
   return (
     <InventoryPageShell
       eyebrow="Sales"
-      title="New Sales Invoice"
-      description="Build invoices around articles and let Merlin manage the sales workflow."
-      backTo={{ to: '/sales-invoices', label: 'Back to invoices' }}
+      title={pageTitle}
+      description={pageDescription}
+      backTo={{ to: isEditing && invoiceId ? `/sales-invoices/${invoiceId}` : '/sales-invoices', label: isEditing ? 'Back to invoice' : 'Back to invoices' }}
       actions={[
         { label: 'Invoices', variant: 'outline', to: '/sales-invoices' },
         { label: 'New Line', variant: 'secondary', onClick: addBlankItem },
@@ -296,6 +366,12 @@ export default function SalesInvoiceCreatePage() {
           { label: 'Due amount', value: money(summary.dueAmount), tone: 'warning' },
         ]}
       />
+
+      {editLocked ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="alert">
+          This invoice is already {String(loadedInvoice?.invoiceStatus || '').toLowerCase()} and should be duplicated instead of edited in place.
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
@@ -356,7 +432,7 @@ export default function SalesInvoiceCreatePage() {
                 </label>
 
                 <label className="block text-sm">
-                  <span className="mb-1 block text-slate-600">Due date</span>
+                  <span className="mb-1 block text-slate-600">Due date (optional)</span>
                   <input
                     type="date"
                     value={dueDate}
@@ -394,15 +470,23 @@ export default function SalesInvoiceCreatePage() {
             summary={summary}
             footer={
               <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" onClick={() => saveInvoice()} isLoading={saving === 'draft'}>
-                  Save Draft
+                <Button type="button" variant="outline" onClick={() => saveInvoice()} isLoading={saving === (isEditing ? 'update' : 'draft')} disabled={editLocked}>
+                  {saveLabel}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => saveInvoice(['submit'])} isLoading={saving === 'submit'}>
-                  Submit
-                </Button>
-                <Button type="button" onClick={() => saveInvoice(['submit', 'issue'])} isLoading={saving === 'submit+issue'}>
-                  Save &amp; Issue
-                </Button>
+                {isEditing && isPendingApproval ? (
+                  <Button type="button" onClick={() => saveInvoice(['issue'])} isLoading={saving === 'issue'} disabled={editLocked}>
+                    Issue
+                  </Button>
+                ) : (
+                  <>
+                    <Button type="button" variant="outline" onClick={() => saveInvoice(['submit'])} isLoading={saving === 'submit'} disabled={editLocked}>
+                      {submitLabel}
+                    </Button>
+                    <Button type="button" onClick={() => saveInvoice(['submit', 'issue'])} isLoading={saving === 'submit+issue'} disabled={editLocked}>
+                      {issueLabel}
+                    </Button>
+                  </>
+                )}
               </div>
             }
           />
