@@ -231,7 +231,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         {/* Navigation */}
-        <nav ref={sidebarNavRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
+        <nav
+          ref={sidebarNavRef}
+          className="sidebar-scrollbar flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4"
+        >
           {sidebarSections.map((section) => (
             <SidebarSection
               key={section.key}

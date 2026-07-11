@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -89,7 +89,7 @@ model Project {
   status         ProjectStatus  @default(DRAFT)
   startDate      DateTime?
   endDate        DateTime?
-  sectors        String[]       @default([])
+  sectors        Json?
   location       String?
   donor          String?
   budgetAmount   Float?
@@ -772,8 +772,8 @@ model sales_customers {
   contact_person   String?
   notes            String?
   created_by       Int?
-  created_at       DateTime         @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime         @default(now()) @db.Timestamptz(6)
+  created_at       DateTime         @default(now())
+  updated_at       DateTime         @default(now())
   sales_invoices   sales_invoices[]
 }
 
@@ -792,19 +792,19 @@ model sales_invoice_items {
   cost_price      Decimal        @default(0) @db.Decimal(14, 2)
   profit_amount   Decimal        @default(0) @db.Decimal(14, 2)
   warehouse_id    String?
-  created_at      DateTime       @default(now()) @db.Timestamptz(6)
+  created_at      DateTime       @default(now())
   sales_invoices  sales_invoices @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 model sales_invoice_payments {
   id               String         @id
   invoice_id       String
-  payment_date     DateTime       @db.Timestamptz(6)
+  payment_date     DateTime
   amount           Decimal        @db.Decimal(14, 2)
   method           String
   reference_number String?
   notes            String?
-  created_at       DateTime       @default(now()) @db.Timestamptz(6)
+  created_at       DateTime       @default(now())
   sales_invoices   sales_invoices @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
@@ -813,8 +813,8 @@ model sales_invoices {
   invoice_number         String                   @unique
   fiscal_year            String?
   customer_id            String
-  invoice_date           DateTime                 @db.Timestamptz(6)
-  due_date               DateTime?                @db.Timestamptz(6)
+  invoice_date           DateTime
+  due_date               DateTime?
   subtotal               Decimal                  @default(0) @db.Decimal(14, 2)
   discount_amount        Decimal                  @default(0) @db.Decimal(14, 2)
   taxable_amount         Decimal                  @default(0) @db.Decimal(14, 2)
@@ -834,11 +834,11 @@ model sales_invoices {
   approved_by            Int?
   issued_by              Int?
   cancelled_by           Int?
-  created_at             DateTime                 @default(now()) @db.Timestamptz(6)
-  updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
-  approved_at            DateTime?                @db.Timestamptz(6)
-  issued_at              DateTime?                @db.Timestamptz(6)
-  cancelled_at           DateTime?                @db.Timestamptz(6)
+  created_at             DateTime                 @default(now())
+  updated_at             DateTime                 @default(now())
+  approved_at            DateTime?
+  issued_at              DateTime?
+  cancelled_at           DateTime?
   sales_invoice_items    sales_invoice_items[]
   sales_invoice_payments sales_invoice_payments[]
   sales_customers        sales_customers          @relation(fields: [customer_id], references: [id], onUpdate: NoAction)

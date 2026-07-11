@@ -4,7 +4,6 @@ import { Search, ShoppingCart, Plus } from 'lucide-react'
 import { salesInvoiceApi, SalesInvoiceCustomer, SalesInvoiceProduct, SalesInvoicePayload } from '../../services/salesInvoiceApi'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
-import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { Button } from '../../components/ui/Button'
 import { InvoiceItemTable, InvoiceDraftItem } from '../../components/sales/InvoiceItemTable'
 import { InvoiceTotalsCard } from '../../components/sales/InvoiceTotalsCard'
@@ -32,20 +31,33 @@ const toNumber = (value: string | number | null | undefined) => Number(value ?? 
 
 const toMoneyString = (value: number) => value.toFixed(2)
 
+const calculateLineSubtotal = (item: Pick<InvoiceDraftItem, 'quantity' | 'unitPrice'>) =>
+  Math.max(toNumber(item.quantity) * toNumber(item.unitPrice), 0)
+
+const calculateLineDiscount = (item: Pick<InvoiceDraftItem, 'quantity' | 'unitPrice' | 'discountAmount'>) => {
+  const subtotal = calculateLineSubtotal(item)
+  return Math.min(Math.max(toNumber(item.discountAmount), 0), subtotal)
+}
+
+const calculateLineTaxableAmount = (item: Pick<InvoiceDraftItem, 'quantity' | 'unitPrice' | 'discountAmount'>) => {
+  const subtotal = calculateLineSubtotal(item)
+  const discount = calculateLineDiscount(item)
+  return Math.max(subtotal - discount, 0)
+}
+
 const calculateLineTax = (item: Pick<InvoiceDraftItem, 'quantity' | 'unitPrice' | 'discountAmount'>) => {
-  const subtotal = toNumber(item.quantity) * toNumber(item.unitPrice)
-  const taxable = Math.max(subtotal - toNumber(item.discountAmount), 0)
-  return taxable * VAT_RATE
+  return calculateLineTaxableAmount(item) * VAT_RATE
 }
 
 const normalizeItem = (item: InvoiceDraftItem): InvoiceDraftItem => ({
   ...item,
+  discountAmount: toMoneyString(calculateLineDiscount(item)),
   taxAmount: toMoneyString(calculateLineTax(item)),
 })
 
 const calculateSummary = (items: InvoiceDraftItem[]) => {
-  const subtotal = items.reduce((sum, item) => sum + toNumber(item.quantity) * toNumber(item.unitPrice), 0)
-  const discountAmount = items.reduce((sum, item) => sum + toNumber(item.discountAmount), 0)
+  const subtotal = items.reduce((sum, item) => sum + calculateLineSubtotal(item), 0)
+  const discountAmount = items.reduce((sum, item) => sum + calculateLineDiscount(item), 0)
   const taxableAmount = Math.max(subtotal - discountAmount, 0)
   const taxAmount = taxableAmount * VAT_RATE
   const grandTotal = Math.max(taxableAmount + taxAmount, 0)
@@ -104,6 +116,10 @@ export default function SalesInvoiceCreatePage() {
   const [saving, setSaving] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loadedInvoice, setLoadedInvoice] = useState<SalesInvoiceDetail | null>(null)
+  const saleableProducts = useMemo(
+    () => products.filter((product) => !/^bom[-_]/i.test((product.productCode || product.sku || '').trim())),
+    [products],
+  )
 
   useEffect(() => {
     let alive = true
@@ -211,13 +227,13 @@ export default function SalesInvoiceCreatePage() {
 
   const filteredProducts = useMemo(() => {
     const query = productSearch.trim().toLowerCase()
-    if (!query) return products
-    return products.filter((product) =>
+    if (!query) return saleableProducts
+    return saleableProducts.filter((product) =>
       [product.name, product.productCode, product.sku, product.category, product.description]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query)),
     )
-  }, [productSearch, products])
+  }, [productSearch, saleableProducts])
 
   const summary = useMemo(() => calculateSummary(items), [items])
 
@@ -250,7 +266,7 @@ export default function SalesInvoiceCreatePage() {
 
   const addProductLine = (product: SalesInvoiceProduct) => {
     const existingCode = product.productCode || product.sku || product.id
-    const unitPrice = String(product.sellingPrice ?? 0)
+    const unitPrice = String(product.sellingPrice ?? product.costPrice ?? 0)
     setItems((current) => [
       ...current,
       {
@@ -282,9 +298,9 @@ export default function SalesInvoiceCreatePage() {
       productName: item.productName.trim(),
       quantity: Number(item.quantity || 0),
       unitPrice: Number(item.unitPrice || 0),
-      discountAmount: Number(item.discountAmount || 0),
+      discountAmount: calculateLineDiscount(item),
       taxAmount: calculateLineTax(item),
-      lineTotal: Math.max(Number(item.quantity || 0) * Number(item.unitPrice || 0) - Number(item.discountAmount || 0) + calculateLineTax(item), 0),
+      lineTotal: Math.max(calculateLineTaxableAmount(item) + calculateLineTax(item), 0),
       warehouseId: item.warehouseId || undefined,
     })),
     invoiceStatus: 'DRAFT',
@@ -299,6 +315,7 @@ export default function SalesInvoiceCreatePage() {
       if (!item.productId && !item.productName.trim()) return 'Every line needs an article product.'
       if (Number(item.quantity || 0) <= 0) return 'Each line must have a positive quantity.'
       if (Number(item.unitPrice || 0) < 0) return 'Unit prices cannot be negative.'
+      if (calculateLineDiscount(item) > calculateLineSubtotal(item)) return 'Discount cannot exceed the line amount.'
     }
     return null
   }
@@ -332,14 +349,37 @@ export default function SalesInvoiceCreatePage() {
   const selectedCustomer = customers.find((customer) => customer.id === customerId)
   const pageTitle = isEditing ? 'Edit Sales Invoice' : 'New Sales Invoice'
   const pageDescription = isEditing
-    ? 'Update a draft or pending-approval invoice before it is issued.'
-    : 'Build invoices around articles and let Merlin manage the sales workflow.'
+    ? 'Refine a draft or pending-approval invoice before it is issued.'
+    : 'Build a sales invoice with live totals, customer lookup, and finished-goods lines.'
   const saveLabel = isEditing ? 'Save Changes' : 'Save Draft'
   const currentInvoiceStatus = String(loadedInvoice?.invoiceStatus || '')
   const isPendingApproval = currentInvoiceStatus === 'PENDING_APPROVAL'
   const submitLabel = isEditing ? 'Save & Submit' : 'Submit'
   const issueLabel = isEditing ? 'Save & Issue' : 'Save & Issue'
   const editLocked = Boolean(loadedInvoice && !['DRAFT', 'PENDING_APPROVAL'].includes(String(loadedInvoice.invoiceStatus || '')))
+  const heroStats = [
+    {
+      label: 'Customer',
+      value: selectedCustomer?.customerName || 'Choose one',
+      hint: selectedCustomer ? formatCustomer(selectedCustomer) : 'Ready to bill',
+    },
+    {
+      label: 'Lines',
+      value: items.length,
+      hint: 'Article rows in the draft',
+    },
+    {
+      label: 'Grand total',
+      value: money(summary.grandTotal),
+      hint: 'VAT included',
+    },
+    {
+      label: 'Due amount',
+      value: money(summary.dueAmount),
+      hint: summary.dueAmount > 0 ? 'Outstanding balance' : 'Settled',
+      tone: 'warning' as const,
+    },
+  ]
 
   return (
     <InventoryPageShell
@@ -358,24 +398,51 @@ export default function SalesInvoiceCreatePage() {
         </div>
       ) : null}
 
-      <InventoryStatGrid
-        stats={[
-          { label: 'Customer selected', value: selectedCustomer?.customerName || 'Choose one' },
-          { label: 'Lines', value: items.length },
-          { label: 'Grand total', value: money(summary.grandTotal) },
-          { label: 'Due amount', value: money(summary.dueAmount), tone: 'warning' },
-        ]}
-      />
-
       {editLocked ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="alert">
           This invoice is already {String(loadedInvoice?.invoiceStatus || '').toLowerCase()} and should be duplicated instead of edited in place.
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-2xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                {isEditing ? 'Editing draft' : 'New draft'}
+              </span>
+              <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                {invoiceNumber || 'Previewing next invoice number'}
+              </span>
+              <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                Live totals update as you type
+              </span>
+            </div>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
+              Select the customer, add finished-goods lines, and use the totals rail to save, submit, or issue without losing context.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[520px]">
+            {heroStats.map((stat) => (
+              <div key={stat.label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{stat.label}</div>
+                <div className={`mt-1 text-lg font-bold ${stat.tone === 'warning' ? 'text-amber-700' : 'text-slate-950'}`}>
+                  {stat.value}
+                </div>
+                <div className="mt-1 text-xs text-slate-500">{stat.hint}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_360px]">
         <div className="space-y-6">
-      <InventorySectionCard title="Invoice Header" description="Choose the customer and invoice dates before adding article lines.">
+          <InventorySectionCard
+            title="Invoice Header"
+            description="Choose the customer and invoice dates before adding article lines."
+          >
             {loading ? (
               <div className="py-10 text-center text-sm text-slate-500" role="status" aria-live="polite">
                 Loading customers and articles...
@@ -400,7 +467,7 @@ export default function SalesInvoiceCreatePage() {
                   <select
                     value={customerId}
                     onChange={(event) => setCustomerId(event.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2"
                   >
                     <option value="">Select customer</option>
                     {filteredCustomers.map((customer) => (
@@ -454,10 +521,10 @@ export default function SalesInvoiceCreatePage() {
             )}
           </InventorySectionCard>
 
-          <InventorySectionCard title="Invoice Items" description="Use the catalog on the right to add article lines quickly.">
+          <InventorySectionCard title="Invoice Items" description="Use the catalog on the right to add finished-goods lines quickly.">
             <InvoiceItemTable
               items={items}
-              products={products}
+              products={saleableProducts}
               taxEditable={false}
               showWarehouse={false}
               onAddItem={addBlankItem}
@@ -465,9 +532,12 @@ export default function SalesInvoiceCreatePage() {
               onChangeItem={updateItem}
             />
           </InventorySectionCard>
+        </div>
 
+        <div className="space-y-6 xl:sticky xl:top-6 self-start">
           <InvoiceTotalsCard
             summary={summary}
+            className="shadow-sm"
             footer={
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" onClick={() => saveInvoice()} isLoading={saving === (isEditing ? 'update' : 'draft')} disabled={editLocked}>
@@ -490,14 +560,12 @@ export default function SalesInvoiceCreatePage() {
               </div>
             }
           />
-        </div>
 
-        <div className="space-y-6">
           <InventorySectionCard
             title="Finished-Goods Catalog"
-            description="Pick ready-to-sell products. This replaces the old raw-material purchase mindset."
+            description="Pick ready-to-sell products. This keeps sales entries separate from raw-material purchase thinking."
           >
-            <div className="mb-3 flex items-center gap-2 rounded-2xl bg-blue-50 px-3 py-2 text-sm text-blue-700">
+            <div className="mb-4 flex items-center gap-2 rounded-2xl bg-blue-50 px-3 py-2 text-sm text-blue-700">
               <ShoppingCart className="h-4 w-4" />
               Add products from the catalog to build the invoice.
             </div>
@@ -521,7 +589,7 @@ export default function SalesInvoiceCreatePage() {
                   key={product.id}
                   type="button"
                   onClick={() => addProductLine(product)}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50/40"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition-colors hover:border-blue-200 hover:bg-blue-50/40"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>

@@ -16,7 +16,14 @@ const app = express();
 app.set('trust proxy', 1);
 
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || config.corsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error("Origin is not allowed by CORS"));
+  },
+}));
 app.use(express.json({ limit: '1mb' }));
 app.use(requestLogger);
 if (config.rateLimitEnabled) {

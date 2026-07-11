@@ -4,7 +4,7 @@ type Stat = {
   label: string
   value: React.ReactNode
   hint?: React.ReactNode
-  tone?: 'default' | 'warning' | 'success'
+  tone?: 'default' | 'warning' | 'success' | 'slate' | 'amber' | 'emerald' | 'rose'
 }
 
 type Props = {
@@ -16,10 +16,16 @@ type Props = {
 export function InventoryStatGrid({ stats, layoutClassName, density = 'default' }: Props) {
   const toneClass = (tone: Stat['tone']) => {
     switch (tone) {
+      case 'amber':
       case 'warning':
         return 'text-amber-700'
+      case 'emerald':
       case 'success':
         return 'text-emerald-700'
+      case 'rose':
+        return 'text-rose-700'
+      case 'slate':
+      case 'default':
       default:
         return 'text-slate-900'
     }

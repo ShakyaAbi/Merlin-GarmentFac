@@ -420,30 +420,30 @@ const salesTableNames = {
 const createSalesTables = async (prisma: PrismaClient) => {
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS ${salesTableNames.customers} (
-      id TEXT PRIMARY KEY,
-      customer_code TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL,
-      pan_vat_number TEXT,
-      phone TEXT,
-      email TEXT,
+      id VARCHAR(191) PRIMARY KEY,
+      customer_code VARCHAR(191) NOT NULL UNIQUE,
+      name VARCHAR(255) NOT NULL,
+      pan_vat_number VARCHAR(191),
+      phone VARCHAR(191),
+      email VARCHAR(255),
       billing_address TEXT,
       shipping_address TEXT,
-      contact_person TEXT,
+      contact_person VARCHAR(255),
       notes TEXT,
       created_by INTEGER,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `)
 
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS ${salesTableNames.invoices} (
-      id TEXT PRIMARY KEY,
-      invoice_number TEXT NOT NULL UNIQUE,
-      fiscal_year TEXT,
-      customer_id TEXT NOT NULL REFERENCES ${salesTableNames.customers}(id) ON DELETE RESTRICT,
-      invoice_date TIMESTAMPTZ NOT NULL,
-      due_date TIMESTAMPTZ,
+      id VARCHAR(191) PRIMARY KEY,
+      invoice_number VARCHAR(191) NOT NULL UNIQUE,
+      fiscal_year VARCHAR(64),
+      customer_id VARCHAR(191) NOT NULL,
+      invoice_date DATETIME NOT NULL,
+      due_date DATETIME,
       subtotal NUMERIC(14,2) NOT NULL DEFAULT 0,
       discount_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
       taxable_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
@@ -452,32 +452,33 @@ const createSalesTables = async (prisma: PrismaClient) => {
       grand_total NUMERIC(14,2) NOT NULL DEFAULT 0,
       paid_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
       due_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
-      payment_status TEXT NOT NULL DEFAULT 'UNPAID',
-      invoice_status TEXT NOT NULL DEFAULT 'DRAFT',
+      payment_status VARCHAR(32) NOT NULL DEFAULT 'UNPAID',
+      invoice_status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
       printed_count INTEGER NOT NULL DEFAULT 0,
-      sync_status TEXT,
-      sync_reference TEXT,
+      sync_status VARCHAR(191),
+      sync_reference VARCHAR(191),
       cancellation_reason TEXT,
       remarks TEXT,
       created_by INTEGER,
       approved_by INTEGER,
       issued_by INTEGER,
       cancelled_by INTEGER,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      approved_at TIMESTAMPTZ,
-      issued_at TIMESTAMPTZ,
-      cancelled_at TIMESTAMPTZ
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      approved_at DATETIME,
+      issued_at DATETIME,
+      cancelled_at DATETIME,
+      CONSTRAINT fk_sales_invoices_customer FOREIGN KEY (customer_id) REFERENCES ${salesTableNames.customers}(id) ON DELETE RESTRICT
     );
   `)
 
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS ${salesTableNames.items} (
-      id TEXT PRIMARY KEY,
-      invoice_id TEXT NOT NULL REFERENCES ${salesTableNames.invoices}(id) ON DELETE CASCADE,
-      product_id TEXT NOT NULL,
-      product_code TEXT,
-      product_name TEXT NOT NULL,
+      id VARCHAR(191) PRIMARY KEY,
+      invoice_id VARCHAR(191) NOT NULL,
+      product_id VARCHAR(191) NOT NULL,
+      product_code VARCHAR(191),
+      product_name VARCHAR(255) NOT NULL,
       quantity NUMERIC(14,2) NOT NULL,
       unit_price NUMERIC(14,2) NOT NULL,
       discount_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
@@ -486,21 +487,23 @@ const createSalesTables = async (prisma: PrismaClient) => {
       line_total NUMERIC(14,2) NOT NULL,
       cost_price NUMERIC(14,2) NOT NULL DEFAULT 0,
       profit_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
-      warehouse_id TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      warehouse_id VARCHAR(191),
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_sales_invoice_items_invoice FOREIGN KEY (invoice_id) REFERENCES ${salesTableNames.invoices}(id) ON DELETE CASCADE
     );
   `)
 
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS ${salesTableNames.payments} (
-      id TEXT PRIMARY KEY,
-      invoice_id TEXT NOT NULL REFERENCES ${salesTableNames.invoices}(id) ON DELETE CASCADE,
-      payment_date TIMESTAMPTZ NOT NULL,
+      id VARCHAR(191) PRIMARY KEY,
+      invoice_id VARCHAR(191) NOT NULL,
+      payment_date DATETIME NOT NULL,
       amount NUMERIC(14,2) NOT NULL,
-      method TEXT NOT NULL,
-      reference_number TEXT,
+      method VARCHAR(191) NOT NULL,
+      reference_number VARCHAR(191),
       notes TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_sales_invoice_payments_invoice FOREIGN KEY (invoice_id) REFERENCES ${salesTableNames.invoices}(id) ON DELETE CASCADE
     );
   `)
 }
@@ -541,16 +544,16 @@ const upsertCustomer = async (
       NOW(),
       NOW()
     )
-    ON CONFLICT (customer_code) DO UPDATE SET
-      name = EXCLUDED.name,
-      pan_vat_number = EXCLUDED.pan_vat_number,
-      phone = EXCLUDED.phone,
-      email = EXCLUDED.email,
-      billing_address = EXCLUDED.billing_address,
-      shipping_address = EXCLUDED.shipping_address,
-      contact_person = EXCLUDED.contact_person,
-      notes = EXCLUDED.notes,
-      updated_at = NOW();
+    ON DUPLICATE KEY UPDATE
+      name = VALUES(name),
+      pan_vat_number = VALUES(pan_vat_number),
+      phone = VALUES(phone),
+      email = VALUES(email),
+      billing_address = VALUES(billing_address),
+      shipping_address = VALUES(shipping_address),
+      contact_person = VALUES(contact_person),
+      notes = VALUES(notes),
+      updated_at = VALUES(updated_at);
   `
 }
 
@@ -755,34 +758,34 @@ const seedInvoices = async (tx: Prisma.TransactionClient, createdByUserId?: numb
         ${invoice.invoiceStatus === 'DRAFT' ? null : invoice.invoiceDate},
         ${invoice.invoiceStatus === 'CANCELLED' ? invoice.stockMovements.at(-1)?.createdAt ?? null : null}
       )
-      ON CONFLICT (invoice_number) DO UPDATE SET
-        fiscal_year = EXCLUDED.fiscal_year,
-        customer_id = EXCLUDED.customer_id,
-        invoice_date = EXCLUDED.invoice_date,
-        due_date = EXCLUDED.due_date,
-        subtotal = EXCLUDED.subtotal,
-        discount_amount = EXCLUDED.discount_amount,
-        taxable_amount = EXCLUDED.taxable_amount,
-        non_taxable_amount = EXCLUDED.non_taxable_amount,
-        tax_amount = EXCLUDED.tax_amount,
-        grand_total = EXCLUDED.grand_total,
-        paid_amount = EXCLUDED.paid_amount,
-        due_amount = EXCLUDED.due_amount,
-        payment_status = EXCLUDED.payment_status,
-        invoice_status = EXCLUDED.invoice_status,
-        printed_count = EXCLUDED.printed_count,
-        sync_status = EXCLUDED.sync_status,
-        sync_reference = EXCLUDED.sync_reference,
-        cancellation_reason = EXCLUDED.cancellation_reason,
-        remarks = EXCLUDED.remarks,
-        created_by = EXCLUDED.created_by,
-        approved_by = EXCLUDED.approved_by,
-        issued_by = EXCLUDED.issued_by,
-        cancelled_by = EXCLUDED.cancelled_by,
-        updated_at = NOW(),
-        approved_at = EXCLUDED.approved_at,
-        issued_at = EXCLUDED.issued_at,
-        cancelled_at = EXCLUDED.cancelled_at;
+      ON DUPLICATE KEY UPDATE
+        fiscal_year = VALUES(fiscal_year),
+        customer_id = VALUES(customer_id),
+        invoice_date = VALUES(invoice_date),
+        due_date = VALUES(due_date),
+        subtotal = VALUES(subtotal),
+        discount_amount = VALUES(discount_amount),
+        taxable_amount = VALUES(taxable_amount),
+        non_taxable_amount = VALUES(non_taxable_amount),
+        tax_amount = VALUES(tax_amount),
+        grand_total = VALUES(grand_total),
+        paid_amount = VALUES(paid_amount),
+        due_amount = VALUES(due_amount),
+        payment_status = VALUES(payment_status),
+        invoice_status = VALUES(invoice_status),
+        printed_count = VALUES(printed_count),
+        sync_status = VALUES(sync_status),
+        sync_reference = VALUES(sync_reference),
+        cancellation_reason = VALUES(cancellation_reason),
+        remarks = VALUES(remarks),
+        created_by = VALUES(created_by),
+        approved_by = VALUES(approved_by),
+        issued_by = VALUES(issued_by),
+        cancelled_by = VALUES(cancelled_by),
+        updated_at = VALUES(updated_at),
+        approved_at = VALUES(approved_at),
+        issued_at = VALUES(issued_at),
+        cancelled_at = VALUES(cancelled_at);
     `
 
     for (const item of invoice.items) {
@@ -828,21 +831,21 @@ const seedInvoices = async (tx: Prisma.TransactionClient, createdByUserId?: numb
           ${item.warehouseId},
           ${invoice.invoiceDate}
         )
-        ON CONFLICT (id) DO UPDATE SET
-          invoice_id = EXCLUDED.invoice_id,
-          product_id = EXCLUDED.product_id,
-          product_code = EXCLUDED.product_code,
-          product_name = EXCLUDED.product_name,
-          quantity = EXCLUDED.quantity,
-          unit_price = EXCLUDED.unit_price,
-          discount_amount = EXCLUDED.discount_amount,
-          taxable_amount = EXCLUDED.taxable_amount,
-          tax_amount = EXCLUDED.tax_amount,
-          line_total = EXCLUDED.line_total,
-          cost_price = EXCLUDED.cost_price,
-          profit_amount = EXCLUDED.profit_amount,
-          warehouse_id = EXCLUDED.warehouse_id,
-          created_at = EXCLUDED.created_at;
+        ON DUPLICATE KEY UPDATE
+          invoice_id = VALUES(invoice_id),
+          product_id = VALUES(product_id),
+          product_code = VALUES(product_code),
+          product_name = VALUES(product_name),
+          quantity = VALUES(quantity),
+          unit_price = VALUES(unit_price),
+          discount_amount = VALUES(discount_amount),
+          taxable_amount = VALUES(taxable_amount),
+          tax_amount = VALUES(tax_amount),
+          line_total = VALUES(line_total),
+          cost_price = VALUES(cost_price),
+          profit_amount = VALUES(profit_amount),
+          warehouse_id = VALUES(warehouse_id),
+          created_at = VALUES(created_at);
       `
     }
 
@@ -870,14 +873,14 @@ const seedInvoices = async (tx: Prisma.TransactionClient, createdByUserId?: numb
           ${payment.notes},
           ${payment.paymentDate}
         )
-        ON CONFLICT (id) DO UPDATE SET
-          invoice_id = EXCLUDED.invoice_id,
-          payment_date = EXCLUDED.payment_date,
-          amount = EXCLUDED.amount,
-          method = EXCLUDED.method,
-          reference_number = EXCLUDED.reference_number,
-          notes = EXCLUDED.notes,
-          created_at = EXCLUDED.created_at;
+        ON DUPLICATE KEY UPDATE
+          invoice_id = VALUES(invoice_id),
+          payment_date = VALUES(payment_date),
+          amount = VALUES(amount),
+          method = VALUES(method),
+          reference_number = VALUES(reference_number),
+          notes = VALUES(notes),
+          created_at = VALUES(created_at);
       `
     }
 

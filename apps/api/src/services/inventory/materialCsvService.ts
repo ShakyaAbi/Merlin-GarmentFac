@@ -83,8 +83,8 @@ const buildWhere = (filters: MaterialCsvFilters) => {
 
   if (filters.search) {
     where.OR = [
-      { name: { contains: filters.search, mode: 'insensitive' } },
-      { sku: { contains: filters.search, mode: 'insensitive' } },
+      { name: { contains: filters.search } },
+      { sku: { contains: filters.search } },
     ]
   }
 
@@ -104,7 +104,7 @@ const resolveCategoryId = async (categoryId?: string, categoryName?: string) => 
   if (!categoryName) return undefined
 
   const category = await prisma.rawMaterialCategory.findFirst({
-    where: { categoryName: { equals: categoryName, mode: 'insensitive' }, deletedAt: null },
+    where: { categoryName: { equals: categoryName }, deletedAt: null },
   })
 
   return category?.id

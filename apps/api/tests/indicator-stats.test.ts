@@ -199,7 +199,7 @@ describe("Indicator Statistics", () => {
           },
       });
 
-      const values = [50, 52, 48, 51, 49, 50, 51];
+      const values = [50, 52, 48, 51, 49, 50, 49];
       for (let i = 0; i < values.length; i++) {
         await prisma.submission.create({
           data: {

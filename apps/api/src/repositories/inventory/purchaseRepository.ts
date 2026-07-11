@@ -110,31 +110,32 @@ export const listPurchasesForMaterial = async (rawMaterialId: string, opts: any 
     supplierName: string | null
   }>>(Prisma.sql`
     WITH purchases AS (
-      SELECT DISTINCT ON (p.id)
+      SELECT
         p.id,
-        p."supplierId",
-        p."invoiceNumber",
-        p."invoiceDate",
-        p."dueDate",
+        p.supplierId,
+        p.invoiceNumber,
+        p.invoiceDate,
+        p.dueDate,
         p.currency,
-        p."discountAmount",
-        p."totalAmount",
-        p."createdBy",
-        p."createdAt",
+        p.discountAmount,
+        p.totalAmount,
+        p.createdBy,
+        p.createdAt,
         p.status,
         p.notes,
-        s.name AS "supplierName"
-      FROM "Purchase" p
-      INNER JOIN "PurchaseItem" pi ON pi."purchaseId" = p.id
-      LEFT JOIN "Supplier" s ON s.id = p."supplierId"
-      WHERE pi."rawMaterialId" = ${rawMaterialId}
-      ORDER BY p.id, p."createdAt" DESC
+        s.name AS supplierName
+      FROM Purchase p
+      INNER JOIN (
+        SELECT DISTINCT pi.purchaseId
+        FROM PurchaseItem pi
+        WHERE pi.rawMaterialId = ${rawMaterialId}
+      ) material_purchases ON material_purchases.purchaseId = p.id
+      LEFT JOIN Supplier s ON s.id = p.supplierId
     )
     SELECT *
     FROM purchases
-    ORDER BY "createdAt" DESC
-    OFFSET ${skip}
-    LIMIT ${take}
+    ORDER BY createdAt DESC
+    LIMIT ${take} OFFSET ${skip}
   `)
 
   return rows.map((row) => ({
@@ -154,17 +155,17 @@ export const listPriceHistory = async (rawMaterialId: string) => {
     supplierName: string | null
   }>>(Prisma.sql`
     SELECT
-      p.id AS "purchaseId",
-      p."createdAt" AS date,
-      pi."unitPrice",
+      p.id AS purchaseId,
+      p.createdAt AS date,
+      pi.unitPrice,
       pi.quantity,
-      p."supplierId",
-      s.name AS "supplierName"
-    FROM "Purchase" p
-    INNER JOIN "PurchaseItem" pi ON pi."purchaseId" = p.id
-    LEFT JOIN "Supplier" s ON s.id = p."supplierId"
-    WHERE pi."rawMaterialId" = ${rawMaterialId}
-    ORDER BY p."createdAt" DESC
+      p.supplierId,
+      s.name AS supplierName
+    FROM Purchase p
+    INNER JOIN PurchaseItem pi ON pi.purchaseId = p.id
+    LEFT JOIN Supplier s ON s.id = p.supplierId
+    WHERE pi.rawMaterialId = ${rawMaterialId}
+    ORDER BY p.createdAt DESC
     LIMIT 50
   `)
 

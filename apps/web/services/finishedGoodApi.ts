@@ -1,4 +1,4 @@
-import { request, getToken } from './apiClient'
+import { request, getAuthHeader } from './apiClient'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1'
 
@@ -16,12 +16,11 @@ export const finishedGoodApi = {
   get: (id: string) => request<any>(`/inventory/finished-goods/${id}`),
 
   exportCSV: async (filters?: Record<string, any>): Promise<Blob> => {
-    const token = getToken()
     const response = await fetch(`${API_BASE}/inventory/finished-goods/export`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        ...getAuthHeader(),
       },
       body: JSON.stringify({ filters: filters || {} }),
     })
@@ -35,11 +34,8 @@ export const finishedGoodApi = {
   },
 
   downloadImportTemplate: async (): Promise<Blob> => {
-    const token = getToken()
     const response = await fetch(`${API_BASE}/inventory/finished-goods/import-template-sample`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: getAuthHeader(),
     })
 
     if (!response.ok) {
@@ -51,15 +47,12 @@ export const finishedGoodApi = {
   },
 
   uploadCSV: async (file: File): Promise<any> => {
-    const token = getToken()
     const formData = new FormData()
     formData.append('file', file)
 
     const response = await fetch(`${API_BASE}/inventory/finished-goods/import`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: getAuthHeader(),
       body: formData,
     })
 

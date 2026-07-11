@@ -91,9 +91,9 @@ const buildWhere = (filters: FinishedGoodCsvFilters) => {
 
   if (filters.search) {
     where.OR = [
-      { name: { contains: filters.search, mode: 'insensitive' } },
-      { sku: { contains: filters.search, mode: 'insensitive' } },
-      { productCode: { contains: filters.search, mode: 'insensitive' } },
+      { name: { contains: filters.search } },
+      { sku: { contains: filters.search } },
+      { productCode: { contains: filters.search } },
     ]
   }
 
@@ -113,7 +113,7 @@ const resolveArticleCategoryId = async (articleCategoryId?: string, articleCateg
   if (!articleCategoryName) return undefined
 
   const category = await prisma.articleCategory.findFirst({
-    where: { name: { equals: articleCategoryName, mode: 'insensitive' }, deletedAt: null },
+    where: { name: { equals: articleCategoryName }, deletedAt: null },
   })
 
   return category?.id

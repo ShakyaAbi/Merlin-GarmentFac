@@ -45,6 +45,15 @@ venv/
 .PROJECT_FEATURES.md
 .AGENTS.md
 .github/
+.pnpm-store/
+apps/api/uploads/*
+!apps/api/uploads/.gitkeep
+apps/api/jest-results.json
+graphify-out/
+.agents/
+.codex/
+.opencode/
+mysql-ready/mysql.env
 .gitignore
 AGENTS.md
 .gitignore

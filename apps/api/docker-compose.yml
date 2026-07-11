@@ -1,15 +1,21 @@
 version: '3.9'
 services:
-  postgres:
-    image: postgres:15
+  mysql:
+    image: mysql:8.4
+    command:
+      [
+        "--character-set-server=utf8mb4",
+        "--collation-server=utf8mb4_unicode_ci"
+      ]
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: merlin_lite
+      MYSQL_DATABASE: merlin_lite
+      MYSQL_ROOT_PASSWORD: postgres
+      MYSQL_USER: merlin
+      MYSQL_PASSWORD: postgres
     ports:
-      - "5433:5432"
+      - "3306:3306"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - mysqldata:/var/lib/mysql
 volumes:
-  pgdata:
+  mysqldata:

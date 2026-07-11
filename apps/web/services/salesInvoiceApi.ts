@@ -1,4 +1,4 @@
-import { getToken, request } from './apiClient'
+import { getAuthHeader, request } from './apiClient'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1'
 
@@ -141,14 +141,11 @@ export const salesInvoiceApi = {
     if (params?.search) q.set('search', params.search)
     if (params?.status && params.status !== 'ALL') q.set('invoiceStatus', params.status)
     if (params?.paymentStatus && params.paymentStatus !== 'ALL') q.set('paymentStatus', params.paymentStatus)
-    const token = getToken()
     let response: Response
     try {
       response = await fetch(`${API_BASE}/sales-invoices/export${q.toString() ? `?${q.toString()}` : ''}`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: getAuthHeader(),
       })
     } catch (error) {
       throw new Error(`Unable to reach the API server at ${API_BASE}. Make sure the backend is running.`)
@@ -162,12 +159,11 @@ export const salesInvoiceApi = {
     return response.blob()
   },
   downloadCsv: async (id: string) => {
-    const token = getToken()
     let response: Response
     try {
       response = await fetch(`${API_BASE}/sales-invoices/${id}/export`, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          ...getAuthHeader(),
         },
       })
     } catch (error) {
@@ -182,12 +178,11 @@ export const salesInvoiceApi = {
     return response.blob()
   },
   downloadPdf: async (id: string) => {
-    const token = getToken()
     let response: Response
     try {
       response = await fetch(`${API_BASE}/sales-invoices/${id}/pdf`, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          ...getAuthHeader(),
         },
       })
     } catch (error) {

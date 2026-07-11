@@ -1,4 +1,4 @@
-import { request, getToken } from "./apiClient";
+import { request, getAuthHeader } from "./apiClient";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api/v1";
 
@@ -12,12 +12,9 @@ export const importApi = {
     formData.append("file", file);
     if (templateId) formData.append("templateId", String(templateId));
 
-    const token = getToken();
     const response = await fetch(`${API_BASE}/indicators/${indicatorId}/import`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: getAuthHeader(),
       body: formData,
     });
 
@@ -67,13 +64,10 @@ export const importApi = {
   cloneImportTemplate: async (templateId: number): Promise<any> =>
     request(`/import-templates/${templateId}/clone`, { method: "POST" }),
   downloadImportTemplateSample: async (indicatorId: string): Promise<Blob> => {
-    const token = getToken();
     const response = await fetch(
       `${API_BASE}/indicators/${indicatorId}/import-template-sample`,
       {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: getAuthHeader(),
       },
     );
 
@@ -91,7 +85,6 @@ export const exportApi = {
     indicatorId: string,
     filters?: Record<string, any>,
   ): Promise<Blob> => {
-    const token = getToken();
     const templateId = filters?.templateId ? Number(filters.templateId) : undefined;
     const normalizedFilters = { ...(filters || {}) };
     delete (normalizedFilters as any).templateId;
@@ -100,7 +93,7 @@ export const exportApi = {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+        ...getAuthHeader(),
       },
       body: JSON.stringify({
         templateId,

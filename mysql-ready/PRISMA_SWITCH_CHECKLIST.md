@@ -1,6 +1,6 @@
 # PostgreSQL to MySQL switch checklist
 
-This is the minimal checklist for the future migration.
+This is the minimal checklist for the migration.
 
 1. Update `apps/api/prisma/schema.prisma`
 2. Replace PostgreSQL-only array fields with MySQL-safe alternatives
@@ -19,7 +19,5 @@ This is the minimal checklist for the future migration.
 
 ## Recommended approach
 
-Keep the current PostgreSQL app as the source of truth for now. When you are
-ready, create a separate MySQL migration branch and test against an empty
-database before switching any production environment.
-
+Create a separate MySQL migration branch and test against an empty database
+before switching any production environment.

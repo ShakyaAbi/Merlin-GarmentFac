@@ -1,2 +1,0 @@
-ALTER TABLE "FinishedGoodProduct"
-ADD COLUMN IF NOT EXISTS "bomData" JSONB;

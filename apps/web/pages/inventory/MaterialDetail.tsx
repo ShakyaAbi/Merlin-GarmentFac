@@ -27,6 +27,7 @@ export default function MaterialDetail() {
   const [pageSize, setPageSize] = useState(10)
   const [currentPage, setCurrentPage] = useState(1)
   const [error, setError] = useState<string | null>(null)
+  const canRenderStockChart = typeof window !== 'undefined' && typeof ResizeObserver !== 'undefined' && typeof requestAnimationFrame !== 'undefined'
 
   useEffect(() => {
     if (!id) return
@@ -84,9 +85,10 @@ export default function MaterialDetail() {
       }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
-    let running = Number(material?.currentStock ?? 0)
+    const totalChange = sorted.reduce((sum, tx) => sum + tx.change, 0)
+    let running = Number(material?.currentStock ?? 0) - totalChange
     return sorted.map((tx) => {
-      running -= tx.change
+      running += tx.change
       return {
         ...tx,
         stock: Math.max(running, 0),
@@ -191,7 +193,11 @@ export default function MaterialDetail() {
         />
 
         <InventorySectionCard title="Stock Trend" description="Movement history shown as a running stock line, similar to an indicator trend.">
-          {stockSeries.length === 0 ? (
+          {!canRenderStockChart ? (
+            <div className="py-10 text-center text-sm text-slate-500">
+              Stock trend chart is unavailable in this browser.
+            </div>
+          ) : stockSeries.length === 0 ? (
             <div className="py-10 text-center text-sm text-slate-500">No stock history yet.</div>
           ) : (
             <div className="h-72">

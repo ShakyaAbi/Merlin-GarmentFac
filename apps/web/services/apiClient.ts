@@ -7,6 +7,10 @@ const tokenKey = "merlin_token";
 export const getToken = () => localStorage.getItem(tokenKey);
 export const setToken = (token: string) => localStorage.setItem(tokenKey, token);
 export const clearToken = () => localStorage.removeItem(tokenKey);
+export const getAuthHeader = () => {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 type RequestOptions = {
   method?: string;
@@ -28,8 +32,7 @@ export const request = async <T>(
     "Content-Type": "application/json",
   };
 
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  Object.assign(headers, getAuthHeader());
 
   const isFormData = options.body instanceof FormData;
   if (isFormData) {
@@ -58,19 +61,21 @@ export const request = async <T>(
   }
 
   if (!res.ok) {
-    if (res.status === 401) {
-      if (path === "/auth/me") {
-        clearToken();
-        window.location.hash = "/";
-      }
-    } else if (res.status === 404 && path === "/auth/me") {
+    const isAuthFailure = res.status === 401 || res.status === 403;
+    const isSessionCheck = path === "/auth/me";
+    const isLoginAttempt = path === "/auth/login";
+
+    if (isAuthFailure && !isLoginAttempt) {
+      clearToken();
+      window.location.hash = "/";
+    } else if (res.status === 404 && isSessionCheck) {
       clearToken();
       window.location.hash = "/";
     }
 
     const data = await res.json().catch(() => ({}));
     const message = data?.error?.message || res.statusText;
-    if (!((res.status === 401 || res.status === 404) && path === "/auth/me")) {
+    if (!(isAuthFailure || (res.status === 404 && isSessionCheck))) {
       showApiErrorToast({ message, details: data?.error?.details }, `Request failed (${res.status})`);
     }
     throw new ApiError(message, res.status, data?.error?.details);

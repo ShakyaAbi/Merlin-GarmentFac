@@ -1,9 +1,8 @@
 # MySQL Ready
 
-This folder is a separate, thin switch-over area for a future MySQL migration.
-It does not change the current PostgreSQL app.
+This folder is the MySQL switch-over area for the app.
 
-Use this only when you are ready to move the API off PostgreSQL.
+Use this when you are ready to run the API on MySQL.
 
 ## Draft schema
 
@@ -11,29 +10,26 @@ Use this only when you are ready to move the API off PostgreSQL.
   current API schema
 - It keeps the current model shape as much as possible while removing the
   PostgreSQL-only provider and timestamp annotations
-- Treat it as a starting point for a future migration branch, not a finished
-  production migration
+- Treat it as a reference while rebuilding migrations for a fresh MySQL
+  database
 
 ## Current MySQL setup
 
 This folder also includes a standalone MySQL container setup so you can run a
-MySQL database now without changing the app:
+MySQL database now:
 
 - [`docker-compose.yml`](docker-compose.yml) starts MySQL on port `3306`
 - [`mysql.env.example`](mysql.env.example) holds the local database password
-- The app does not connect to this database yet
+- Point `DATABASE_URL` at this database when you want to run locally
 
 ## What changes later
 
-- Change Prisma datasource provider from `postgresql` to `mysql`
-- Replace PostgreSQL-only schema features
-- Create new migrations for MySQL
-- Point `DATABASE_URL` to a MySQL instance
+- Rebuild Prisma migrations for MySQL if you are starting from a fresh DB
+- Keep `DATABASE_URL` pointed at a MySQL instance
 
 ## Current blocker list
 
-The live app is still PostgreSQL-based. The biggest schema items that need
-attention before a real MySQL cutover are:
+The biggest schema items that need attention before a real MySQL cutover are:
 
 - `String[]` fields such as `Project.sectors`
 - `@db.Timestamptz(6)` fields in the legacy sales models

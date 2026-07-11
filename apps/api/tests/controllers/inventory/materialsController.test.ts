@@ -28,13 +28,65 @@ describe('materialsController', () => {
     await prisma.$disconnect()
   })
 
+  test('GET /api/v1/inventory/materials/:id/purchases returns purchase history for a material', async () => {
+    const token = await createToken()
+
+    const supplierRes = await request(app)
+      .post('/api/v1/inventory/suppliers')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Purchase History Supplier' })
+    expect(supplierRes.status).toBe(201)
+
+    const materialRes = await request(app)
+      .post('/api/v1/inventory/materials')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Purchase History Cloth', sku: `PHC-${Date.now()}`, defaultUnit: 'meter' })
+    expect(materialRes.status).toBe(201)
+
+    const purchaseRes = await request(app)
+      .post('/api/v1/inventory/purchases')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        supplierId: supplierRes.body.id,
+        invoiceNumber: `PH-${Date.now()}`,
+        invoiceDate: new Date().toISOString(),
+        items: [{ rawMaterialId: materialRes.body.id, quantity: 12, unit: 'meter', unitPrice: '25.00' }],
+      })
+
+    expect(purchaseRes.status).toBe(201)
+
+    const historyRes = await request(app)
+      .get(`/api/v1/inventory/materials/${materialRes.body.id}/purchases`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(historyRes.status).toBe(200)
+    expect(historyRes.body).toEqual([
+      expect.objectContaining({
+        id: purchaseRes.body.purchaseId || purchaseRes.body.id,
+        supplier: expect.objectContaining({ id: supplierRes.body.id, name: 'Purchase History Supplier' }),
+      }),
+    ])
+
+    const pricesRes = await request(app)
+      .get(`/api/v1/inventory/materials/${materialRes.body.id}/prices`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(pricesRes.status).toBe(200)
+    expect(pricesRes.body).toEqual([
+      expect.objectContaining({
+        purchaseId: purchaseRes.body.purchaseId || purchaseRes.body.id,
+        supplier: expect.objectContaining({ id: supplierRes.body.id, name: 'Purchase History Supplier' }),
+      }),
+    ])
+  })
+
   test('GET /api/v1/inventory/materials/:id/boms returns article BOM usages for a raw material', async () => {
     const token = await createToken()
 
     const materialRes = await request(app)
       .post('/api/v1/inventory/materials')
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'BOM Usage Cloth', defaultUnit: 'meter' })
+      .send({ name: 'BOM Usage Cloth', sku: `BOM-${Date.now()}`, defaultUnit: 'meter' })
 
     expect(materialRes.status).toBe(201)
 

@@ -386,46 +386,46 @@ export default function CustomerDetailPage() {
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
             <InventorySectionCard title="Relationship Snapshot" description="Fast CRM context for this customer.">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-wide text-slate-500">Customer Number</div>
-                  <div className="font-medium text-slate-900">{customerNumber}</div>
+                  <div className="break-words font-medium text-slate-900">{customerNumber}</div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-wide text-slate-500">Phone</div>
-                  <div className="font-medium text-slate-900">{customer.phone || '-'}</div>
+                  <div className="break-words font-medium text-slate-900">{customer.phone || '-'}</div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-wide text-slate-500">Email</div>
-                  <div className="font-medium text-slate-900">{customer.email || '-'}</div>
+                  <div className="break-words font-medium text-slate-900">{customer.email || '-'}</div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-wide text-slate-500">Type</div>
-                  <div className="font-medium text-slate-900">{customer.customerType || '-'}</div>
+                  <div className="break-words font-medium text-slate-900">{customer.customerType || '-'}</div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-wide text-slate-500">Last Invoice</div>
-                  <div className="font-medium text-slate-900">
+                  <div className="break-words font-medium text-slate-900">
                     {latestInvoiceEntry ? formatNepaliDate(latestInvoiceEntry.invoiceDate || latestInvoiceEntry.createdAt) : ledgerSummary?.lastInvoiceDate ? formatNepaliDate(ledgerSummary.lastInvoiceDate) : '-'}
                   </div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-wide text-slate-500">Last Payment</div>
-                  <div className="font-medium text-slate-900">
+                  <div className="break-words font-medium text-slate-900">
                     {latestPaymentEntry ? formatNepaliDate(latestPaymentEntry.paymentDate || latestPaymentEntry.createdAt) : ledgerSummary?.lastPaymentDate ? formatNepaliDate(ledgerSummary.lastPaymentDate) : '-'}
                   </div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-wide text-slate-500">Total Sales</div>
-                  <div className="font-medium text-slate-900">{money(totalSales)}</div>
+                  <div className="break-words font-medium text-slate-900">{money(totalSales)}</div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-wide text-slate-500">Outstanding Amount</div>
-                  <div className="font-medium text-slate-900">{money(openBalance)}</div>
+                  <div className="break-words font-medium text-slate-900">{money(openBalance)}</div>
                 </div>
-                <div className="md:col-span-2">
+                <div className="min-w-0 md:col-span-2">
                   <div className="text-xs uppercase tracking-wide text-slate-500">Latest Document</div>
-                  <div className="font-medium text-slate-900">
+                  <div className="break-words font-medium text-slate-900">
                     {latestInvoiceEntry ? (
                       <Link to={`/sales-invoices/${latestInvoiceEntry.id}`} className="text-blue-700 hover:text-blue-800 hover:underline">
                         {latestInvoiceEntry.invoiceNumber || latestInvoiceEntry.id}
@@ -440,15 +440,39 @@ export default function CustomerDetailPage() {
 
             <InventorySectionCard title="Customer Details" description="Core customer master data used in sales documents.">
               {!isEditing ? (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Customer Number</div><div className="font-medium text-slate-900">{customerNumber}</div></div>
-                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Phone</div><div className="font-medium text-slate-900">{customer.phone || '-'}</div></div>
-                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Email</div><div className="font-medium text-slate-900">{customer.email || '-'}</div></div>
-                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Type</div><div className="font-medium text-slate-900">{customer.customerType || '-'}</div></div>
-                  <div><div className="text-xs uppercase tracking-wide text-slate-500">PAN / VAT</div><div className="font-medium text-slate-900">{customer.panVatNumber || '-'}</div></div>
-                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Opening Balance</div><div className="font-medium text-slate-900">{money(customer.openingBalance)}</div></div>
-                  <div className="md:col-span-2"><div className="text-xs uppercase tracking-wide text-slate-500">Address</div><div className="font-medium text-slate-900">{customer.address || '-'}</div></div>
-                  <div className="md:col-span-2"><div className="text-xs uppercase tracking-wide text-slate-500">Notes</div><div className="font-medium text-slate-900">{customer.notes || '-'}</div></div>
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="min-w-0">
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Customer Number</div>
+                    <div className="break-words font-medium text-slate-900">{customerNumber}</div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Phone</div>
+                    <div className="break-words font-medium text-slate-900">{customer.phone || '-'}</div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Email</div>
+                    <div className="break-words font-medium text-slate-900">{customer.email || '-'}</div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Type</div>
+                    <div className="break-words font-medium text-slate-900">{customer.customerType || '-'}</div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs uppercase tracking-wide text-slate-500">PAN / VAT</div>
+                    <div className="break-words font-medium text-slate-900">{customer.panVatNumber || '-'}</div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Opening Balance</div>
+                    <div className="break-words font-medium text-slate-900">{money(customer.openingBalance)}</div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Address</div>
+                    <div className="break-words font-medium leading-6 text-slate-900">{customer.address || '-'}</div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Notes</div>
+                    <div className="break-words font-medium leading-6 text-slate-900">{customer.notes || '-'}</div>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

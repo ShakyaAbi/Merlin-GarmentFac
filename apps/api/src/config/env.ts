@@ -13,6 +13,10 @@ export const config = {
   env: process.env.NODE_ENV ?? "development",
   port: parseInt(process.env.PORT ?? "4000", 10),
   appUrl: process.env.APP_URL ?? "http://localhost:5173",
+  corsOrigins: (process.env.CORS_ORIGINS ?? process.env.APP_URL ?? "http://localhost:5173")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
   jwtSecret: process.env.JWT_SECRET as string,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "1h",
   rateLimitEnabled: (process.env.RATE_LIMIT_ENABLED ?? "true") === "true",

@@ -17,10 +17,12 @@ test('invoice item table uses a product selector instead of manual product text 
   assert.match(tableSource, /<select/)
   assert.match(tableSource, /Select article/)
   assert.match(tableSource, /applyProductToItem/)
+  assert.match(tableSource, /readOnly/)
   assert.doesNotMatch(tableSource, /placeholder="FG-001"/)
   assert.doesNotMatch(tableSource, /placeholder="Product name"/)
 })
 
 test('sales invoice create page passes the loaded product catalog into invoice item rows', () => {
-  assert.match(createSource, /<InvoiceItemTable[\s\S]*products=\{products\}/)
+  assert.match(createSource, /saleableProducts/)
+  assert.match(createSource, /<InvoiceItemTable[\s\S]*products=\{saleableProducts\}/)
 })

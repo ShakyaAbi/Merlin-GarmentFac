@@ -31,12 +31,24 @@ const money = (value: number) =>
     maximumFractionDigits: 2,
   }).format(Number.isFinite(value) ? value : 0);
 
+const toNumber = (value: string | number | null | undefined) => Number(value ?? 0);
+
+const lineSubtotal = (item: InvoiceDraftItem) => {
+  const quantity = toNumber(item.quantity);
+  const unitPrice = toNumber(item.unitPrice);
+  return Math.max(quantity * unitPrice, 0);
+};
+
+const lineDiscountAmount = (item: InvoiceDraftItem) => {
+  const subtotal = lineSubtotal(item);
+  return Math.min(Math.max(toNumber(item.discountAmount), 0), subtotal);
+};
+
+const lineTaxableAmount = (item: InvoiceDraftItem) => Math.max(lineSubtotal(item) - lineDiscountAmount(item), 0);
+
 const lineTotal = (item: InvoiceDraftItem) => {
-  const quantity = Number(item.quantity || 0);
-  const unitPrice = Number(item.unitPrice || 0);
-  const discount = Number(item.discountAmount || 0);
   const tax = Number(item.taxAmount || 0);
-  return Math.max(quantity * unitPrice - discount + tax, 0);
+  return Math.max(lineTaxableAmount(item) + tax, 0);
 };
 
 const getProductCode = (product: SalesInvoiceProduct) => product.productCode || product.sku || product.id;
@@ -56,6 +68,8 @@ const applyProductToItem = (
       productCode: "",
       productName: "",
       unitPrice: "0",
+      discountAmount: "0",
+      taxAmount: "0",
       warehouseId: "",
     });
     return;
@@ -66,6 +80,7 @@ const applyProductToItem = (
     productCode: getProductCode(product),
     productName: product.name,
     unitPrice: getProductPrice(product),
+    discountAmount: "0",
     warehouseId: product.category || item.warehouseId || "Articles",
   });
 };
@@ -105,7 +120,7 @@ export function InvoiceItemTable({
               {showWarehouse ? <th className="px-4 py-3 font-semibold">Warehouse</th> : null}
               <th className="w-28 px-4 py-3 font-semibold text-center">Qty</th>
               <th className="w-36 px-4 py-3 font-semibold text-center">Unit Price</th>
-              <th className="w-32 px-4 py-3 font-semibold text-center">Discount</th>
+              <th className="w-32 px-4 py-3 font-semibold text-center">Line Discount</th>
               <th className="w-28 px-4 py-3 font-semibold text-center">VAT 13%</th>
               <th className="w-32 px-4 py-3 font-semibold text-right">Line Total</th>
               {!readOnly ? <th className="w-24 px-4 py-3 font-semibold text-center">Actions</th> : null}
@@ -178,9 +193,15 @@ export function InvoiceItemTable({
                       {readOnly ? (
                         <span className="block text-center font-medium tabular-nums text-slate-900">{money(Number(item.unitPrice || 0))}</span>
                       ) : (
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-medium tabular-nums text-slate-900">
-                          {money(Number(item.unitPrice || 0))}
-                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.unitPrice}
+                          readOnly
+                          className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-center text-sm tabular-nums text-slate-900"
+                          aria-label={`Unit price for ${item.productName || item.productCode || 'article'}`}
+                        />
                       )}
                     </td>
                     <td className="px-4 py-4 align-top">
@@ -194,6 +215,7 @@ export function InvoiceItemTable({
                           value={item.discountAmount}
                           onChange={(event) => onChangeItem?.(item.id, { discountAmount: event.target.value })}
                           className="w-full rounded-xl border border-slate-300 px-3 py-2 text-center text-sm tabular-nums"
+                          aria-label={`Line discount for ${item.productName || item.productCode || 'article'}`}
                         />
                       )}
                     </td>

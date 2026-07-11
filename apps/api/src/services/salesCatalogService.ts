@@ -101,9 +101,10 @@ export async function listSalesCatalogProducts(opts: SalesCatalogSearchOpts = {}
     orderBy: { name: 'asc' },
     select: salesCatalogSelect,
   })
-  const stockByProductId = await currentStockByProductIds(products.map((product) => product.id))
+  const saleableProducts = products.filter((product) => !product.bomData)
+  const stockByProductId = await currentStockByProductIds(saleableProducts.map((product) => product.id))
 
-  return products.map((product) => buildCatalogProduct(product, stockByProductId.get(product.id) || 0))
+  return saleableProducts.map((product) => buildCatalogProduct(product, stockByProductId.get(product.id) || 0))
 }
 
 export async function getSalesCatalogProductsByIds(productIds: string[]) {
@@ -114,13 +115,14 @@ export async function getSalesCatalogProductsByIds(productIds: string[]) {
     where: { id: { in: distinctIds }, deletedAt: null },
     select: salesCatalogSelect,
   })
+  const saleableProducts = products.filter((product) => !product.bomData)
 
-  if (products.length !== distinctIds.length) {
-    const found = new Set(products.map((product) => product.id))
+  if (saleableProducts.length !== distinctIds.length) {
+    const found = new Set(saleableProducts.map((product) => product.id))
     const missing = distinctIds.filter((id) => !found.has(id))
     throw new AppError(400, 'INVALID_PRODUCT', `Unknown article product(s): ${missing.join(', ')}`)
   }
 
   const stockByProductId = await currentStockByProductIds(distinctIds)
-  return new Map(products.map((product) => [product.id, buildCatalogProduct(product, stockByProductId.get(product.id) || 0)]))
+  return new Map(saleableProducts.map((product) => [product.id, buildCatalogProduct(product, stockByProductId.get(product.id) || 0)]))
 }

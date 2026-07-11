@@ -50,9 +50,9 @@ export async function listFinishedGoods(opts: {
 
   if (opts.search) {
     where.OR = [
-      { name: { contains: opts.search, mode: 'insensitive' } },
-      { sku: { contains: opts.search, mode: 'insensitive' } },
-      { productCode: { contains: opts.search, mode: 'insensitive' } },
+      { name: { contains: opts.search } },
+      { sku: { contains: opts.search } },
+      { productCode: { contains: opts.search } },
     ]
   }
 

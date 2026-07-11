@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { request } from '../../services/apiClient'
 import { InventoryDataTable } from '../../components/inventory/InventoryDataTable'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
@@ -78,7 +79,19 @@ export default function AlertsPage() {
             {alerts.map((alert) => (
               <tr key={alert.id} className="border-b border-slate-100 last:border-0">
                 <th className="py-2 font-medium text-slate-900" scope="row">
-                  {alert.rawMaterial?.name || 'Unknown material'}
+                  {alert.rawMaterialId ? (
+                    <Link
+                      to={`/inventory/materials/${alert.rawMaterialId}`}
+                      className="font-semibold text-blue-700 hover:text-blue-800 hover:underline"
+                    >
+                      {alert.rawMaterial?.name || 'Unknown material'}
+                    </Link>
+                  ) : (
+                    alert.rawMaterial?.name || 'Unknown material'
+                  )}
+                  {alert.rawMaterial?.sku ? (
+                    <div className="mt-0.5 text-xs text-slate-500">EXIM CODE: {alert.rawMaterial.sku}</div>
+                  ) : null}
                 </th>
                 <td className="py-2 text-slate-600">{alert.createdAt || '—'}</td>
                 <td className="py-2 text-slate-600">{alert.acknowledged ? 'Acknowledged' : 'Open'}</td>

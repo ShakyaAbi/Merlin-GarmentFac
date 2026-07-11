@@ -55,7 +55,6 @@ export const sidebarSections: SidebarSectionConfig[] = [
     collapsible: true,
     items: [
       { icon: Home, label: 'Home', path: '/projects' },
-      { icon: FolderKanban, label: 'Projects', path: '/projects/list' },
       { icon: BarChart3, label: 'Reports', path: '/reports' },
     ],
   },

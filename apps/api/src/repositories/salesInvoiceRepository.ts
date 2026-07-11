@@ -120,9 +120,9 @@ export async function listInvoices(opts: {
   }
   if (opts.search) {
     where.OR = [
-      { invoiceNumber: { contains: opts.search, mode: 'insensitive' } },
-      { remarks: { contains: opts.search, mode: 'insensitive' } },
-      { customer: { customerName: { contains: opts.search, mode: 'insensitive' } } },
+      { invoiceNumber: { contains: opts.search } },
+      { remarks: { contains: opts.search } },
+      { customer: { customerName: { contains: opts.search } } },
     ]
   }
 
