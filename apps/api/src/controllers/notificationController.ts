@@ -3,19 +3,18 @@ import * as notificationService from "../services/notificationService";
 
 // Gets anomaly notifications
 export const getAnomalyNotifications = asyncHandler(async (req, res) => {
-  const result = await notificationService.getAnomalyNotifications();
+  const result = await notificationService.getAnomalyNotifications(req.user!.organizationId);
   res.json(result);
 });
 
 // Marks all anomaly notifications as read
 export const markAllAnomaliesRead = asyncHandler(async (req, res) => {
-  const userId = (req as any).user?.sub;
-  await notificationService.markAllAnomaliesRead(userId);
+  await notificationService.markAllAnomaliesRead(req.user!.id, req.user!.organizationId);
   res.status(204).end();
 });
 
 // Gets overdue submission notifications
 export const getOverdueNotifications = asyncHandler(async (req, res) => {
-  const result = await notificationService.getOverdueNotifications();
+  const result = await notificationService.getOverdueNotifications(req.user!.organizationId);
   res.json(result);
 });

@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { Prisma, PrismaClient, Role } from "@prisma/client";
 import { hashPassword } from "../src/utils/password";
 import { seedInventory } from "./seed_inventory";
@@ -5,9 +6,8 @@ import { seedSalesInvoices } from "./seed_sales_invoices";
 
 const prisma = new PrismaClient();
 
-// Static seed credentials so reseeding doesn't depend on .env
-const SEED_ADMIN_EMAIL = "admin@gmail.com";
-const SEED_ADMIN_PASSWORD = "admin1234";
+const SEED_ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "admin@gmail.com";
+const SEED_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "admin1234";
 
 async function main() {
   const email = SEED_ADMIN_EMAIL;
@@ -24,22 +24,23 @@ async function main() {
 
   const orgId = seedOrg.id;
 
-  let adminUser = await prisma.user.findUnique({ where: { email } });
-  if (!adminUser) {
-    const passwordHash = await hashPassword(password);
-    adminUser = await prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        role: Role.ADMIN,
-        organizationId: orgId,
-        name: "Seed Admin",
-      },
-    });
-    console.log(`Seeded admin user ${email}`);
-  } else {
-    console.log(`Admin user exists: ${email}`);
-  }
+  const passwordHash = await hashPassword(password);
+  const adminUser = await prisma.user.upsert({
+    where: { email },
+    update: {
+      passwordHash,
+      role: Role.ADMIN,
+      organizationId: orgId,
+    },
+    create: {
+      email,
+      passwordHash,
+      role: Role.ADMIN,
+      organizationId: orgId,
+      name: "Seed Admin",
+    },
+  });
+  console.log(`Seeded admin user ${email}`);
 
   console.log("Seeding inventory demo data...");
   await seedInventory({ prisma, createdByUserId: adminUser.id });

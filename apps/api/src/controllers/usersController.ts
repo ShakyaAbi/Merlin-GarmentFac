@@ -19,6 +19,6 @@ export const updateUserRole = asyncHandler(async (req: Request, res: Response) =
 // Removes a user from the organization
 export const removeUser = asyncHandler(async (req: Request, res: Response) => {
   const userId = parseInt(req.params.id);
-  await authService.removeUser(userId, req.user!.organizationId);
+  await authService.removeUser(userId, req.user!.organizationId, req.user!.id);
   res.status(204).send();
 });

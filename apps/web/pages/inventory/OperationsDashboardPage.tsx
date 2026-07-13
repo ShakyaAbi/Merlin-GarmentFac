@@ -803,13 +803,13 @@ export default function OperationsDashboardPage() {
                   <div className="text-sm text-slate-500">No invoices yet.</div>
                 ) : (
                   recentInvoices.map((invoice: any) => (
-                    <div key={invoice.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <Link key={invoice.id} to={`/sales-invoices/${invoice.id}/edit`} className="group block rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-blue-300 hover:bg-blue-50">
                       <div className="flex items-center justify-between gap-3">
-                        <div className="font-medium text-slate-900">{invoice.invoiceNumber || invoice.id}</div>
+                        <div className="font-medium text-slate-900 group-hover:text-blue-700">{invoice.invoiceNumber || invoice.id}</div>
                         <div className="text-sm text-emerald-700">{money(invoice.grandTotal)}</div>
                       </div>
-                      <div className="mt-1 text-xs text-slate-500">{invoice.customer?.customerName || invoice.customerName || '-'}</div>
-                    </div>
+                      <div className="mt-1 flex items-center justify-between gap-3 text-xs text-slate-500"><span>{invoice.customer?.customerName || invoice.customerName || '-'}</span><span className="font-semibold text-blue-700 opacity-0 transition group-hover:opacity-100">Edit invoice →</span></div>
+                    </Link>
                   ))
                 )}
               </div>
@@ -821,13 +821,13 @@ export default function OperationsDashboardPage() {
                   <div className="text-sm text-slate-500">No purchase history yet.</div>
                 ) : (
                   recentPurchases.map((purchase: any) => (
-                    <div key={purchase.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <Link key={purchase.id} to={`/inventory/purchases/${purchase.id}`} className="group block rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-blue-300 hover:bg-blue-50">
                       <div className="flex items-center justify-between gap-3">
-                        <div className="font-medium text-slate-900">{purchase.supplierName || purchase.supplier?.name || purchase.invoiceNumber || purchase.id}</div>
+                        <div className="font-medium text-slate-900 group-hover:text-blue-700">{purchase.supplierName || purchase.supplier?.name || purchase.invoiceNumber || purchase.id}</div>
                         <div className="text-sm text-slate-700">{money(purchase.totalAmount)}</div>
                       </div>
-                      <div className="mt-1 text-xs text-slate-500">{formatDate(purchase.invoiceDate || purchase.createdAt)}</div>
-                    </div>
+                      <div className="mt-1 flex items-center justify-between gap-3 text-xs text-slate-500"><span>{formatDate(purchase.invoiceDate || purchase.createdAt)}</span><span className="font-semibold text-blue-700 opacity-0 transition group-hover:opacity-100">Open purchase →</span></div>
+                    </Link>
                   ))
                 )}
               </div>
@@ -839,13 +839,13 @@ export default function OperationsDashboardPage() {
                   <div className="text-sm text-slate-500">No production batches yet.</div>
                 ) : (
                   productionBatches.map((order: any) => (
-                    <div key={order.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <Link key={order.id} to={`/inventory/production/${order.id}`} className="group block rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-blue-300 hover:bg-blue-50">
                       <div className="flex items-center justify-between gap-3">
-                        <div className="font-medium text-slate-900">{order.orderNumber || order.id}</div>
+                        <div className="font-medium text-slate-900 group-hover:text-blue-700">{order.orderNumber || order.id}</div>
                         <div className="text-sm text-slate-700">{money(order.fullyAbsorbedCost ?? order.baseCost)}</div>
                       </div>
-                      <div className="mt-1 text-xs text-slate-500">{order.finishedGoodName || order.finishedGood?.name || '-'}</div>
-                    </div>
+                      <div className="mt-1 flex items-center justify-between gap-3 text-xs text-slate-500"><span>{order.finishedGoodName || order.finishedGood?.name || '-'}</span><span className="font-semibold text-blue-700 opacity-0 transition group-hover:opacity-100">Edit batch →</span></div>
+                    </Link>
                   ))
                 )}
               </div>

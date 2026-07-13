@@ -12,6 +12,7 @@ type SequenceEntity =
 
 type SequenceOptions = {
   fiscalYear?: string | null
+  resetByFiscalYear?: boolean
   tx?: any
 }
 
@@ -34,13 +35,17 @@ export function buildDocumentNumber(prefix: string, sequence: number, fiscalYear
   return fiscalYear ? `${prefix}-${fiscalYear}-${padSequence(sequence)}` : `${prefix}-${padSequence(sequence)}`
 }
 
-export function getFiscalSequenceSegment(_date: Date, fiscalYear?: string | null) {
-  return fiscalYear?.trim() || String(new Date().getFullYear())
+export function getFiscalSequenceSegment(date: Date, fiscalYear?: string | null) {
+  if (fiscalYear?.trim()) return fiscalYear.trim()
+  const fiscalYearStart = date.getMonth() > 6 || (date.getMonth() === 6 && date.getDate() >= 17)
+  return String(date.getFullYear() - (fiscalYearStart ? 0 : 1))
 }
 
 export async function allocateDocumentNumber(entity: SequenceEntity, options: SequenceOptions = {}) {
   const config = sequenceConfig[entity]
-  const fiscalYear = config.usesFiscalYear ? getFiscalSequenceSegment(new Date(), options.fiscalYear) : null
+  const fiscalYear = config.usesFiscalYear && options.resetByFiscalYear !== false
+    ? getFiscalSequenceSegment(new Date(), options.fiscalYear)
+    : null
   const sequenceKey = fiscalYear ? `${entity}:${fiscalYear}` : entity
   const execute = async (tx: any) =>
     tx.documentSequence.upsert({
@@ -62,7 +67,9 @@ export async function allocateDocumentNumber(entity: SequenceEntity, options: Se
 
 export async function previewDocumentNumber(entity: SequenceEntity, options: SequenceOptions = {}) {
   const config = sequenceConfig[entity]
-  const fiscalYear = config.usesFiscalYear ? getFiscalSequenceSegment(new Date(), options.fiscalYear) : null
+  const fiscalYear = config.usesFiscalYear && options.resetByFiscalYear !== false
+    ? getFiscalSequenceSegment(new Date(), options.fiscalYear)
+    : null
   const sequenceKey = fiscalYear ? `${entity}:${fiscalYear}` : entity
   const record = await prisma.documentSequence.findUnique({
     where: { key: sequenceKey },

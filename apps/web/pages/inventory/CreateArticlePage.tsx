@@ -17,7 +17,6 @@ const money = (value: number) => `NPR ${value.toFixed(2)}`
 
 export default function CreateArticlePage() {
   const navigate = useNavigate()
-  const [showAdvanced, setShowAdvanced] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [articleNumber, setArticleNumber] = useState('')
@@ -76,8 +75,13 @@ export default function CreateArticlePage() {
   }, [materials])
 
   const canSave = useMemo(
-    () => Boolean(name.trim() && unit.trim() && items.some((item) => item.rawMaterialId && Number(item.consumption) > 0)),
-    [items, name, unit],
+    () => Boolean(
+      name.trim()
+      && unit.trim()
+      && Number(sellingPrice) > 0
+      && items.some((item) => item.rawMaterialId && Number(item.consumption) > 0),
+    ),
+    [items, name, sellingPrice, unit],
   )
 
   const totalLines = useMemo(() => items.filter((item) => item.rawMaterialId).length, [items])
@@ -101,7 +105,7 @@ export default function CreateArticlePage() {
 
   const save = async () => {
     if (!canSave) {
-      setError('Name, unit, and at least one raw material line are required.')
+      setError('Name, unit, selling price, and at least one raw material line are required.')
       return
     }
 
@@ -210,15 +214,15 @@ export default function CreateArticlePage() {
               <textarea className="min-h-28 w-full rounded-xl border border-slate-300 px-3 py-2" value={description} onChange={(e) => setDescription(e.target.value)} />
             </label>
 
-            <details className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3" open={showAdvanced} onToggle={(e) => setShowAdvanced((e.target as HTMLDetailsElement).open)}>
-              <summary className="cursor-pointer list-none text-sm font-semibold text-slate-700">
-                Advanced details
-                <span className="ml-2 text-xs font-normal text-slate-500">SKU, code, pricing, and reorder settings</span>
-              </summary>
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-4">
+              <div className="text-sm font-semibold text-slate-700">
+                Pricing and article settings
+                <span className="ml-2 text-xs font-normal text-slate-500">Required pricing, SKU, code, and reorder settings</span>
+              </div>
               <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label className="space-y-1 text-sm font-medium text-slate-700">
-                  <span>Selling price</span>
-                  <input className="w-full rounded-xl border border-slate-300 px-3 py-2" type="number" value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} />
+                  <span>Selling price <span className="text-red-600">*</span></span>
+                  <input className="w-full rounded-xl border border-slate-300 px-3 py-2" type="number" min="0.01" step="0.01" required value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} />
                 </label>
                 <label className="space-y-1 text-sm font-medium text-slate-700">
                   <span>Material cost</span>
@@ -237,7 +241,7 @@ export default function CreateArticlePage() {
                   <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={articleCode} onChange={(e) => setArticleCode(e.target.value)} />
                 </label>
               </div>
-            </details>
+            </div>
           </InventorySectionCard>
 
           <InventorySectionCard

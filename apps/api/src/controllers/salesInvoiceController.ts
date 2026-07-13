@@ -56,7 +56,12 @@ export const nextNumber = asyncHandler(async (req: Request, res: Response) => {
     throw new AppError(400, 'INVALID_INPUT', 'Invalid invoice date')
   }
 
-  const invoiceNumber = await svc.previewNextInvoiceNumber(invoiceDate)
+  const organizationId = (req as any).user?.organizationId as number | undefined
+  const organization = organizationId ? await orgRepo.findById(organizationId) : null
+  const invoiceNumber = await svc.previewNextInvoiceNumber(
+    invoiceDate,
+    organization?.resetSalesInvoiceSequenceEachFiscalYear ?? true,
+  )
   res.json({ invoiceNumber })
 })
 

@@ -279,8 +279,8 @@ export default function CustomersPage() {
               <div className="mt-1 text-2xl font-bold text-slate-900">{stats.total}</div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-sm text-slate-500">Invoices linked</div>
-              <div className="mt-1 text-2xl font-bold text-slate-900">{stats.totalSales}</div>
+              <div className="text-sm text-slate-500">Total invoiced</div>
+              <div className="mt-1 text-2xl font-bold text-slate-900">{money(stats.totalSales)}</div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-sm text-slate-500">Open balance</div>

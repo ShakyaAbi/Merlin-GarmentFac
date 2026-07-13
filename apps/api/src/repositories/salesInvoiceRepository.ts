@@ -5,7 +5,7 @@ import {
   removeCustomerLedgerEntry,
   replaceCustomerLedgerEntry,
 } from '../services/ledgerService'
-import { allocateDocumentNumber } from '../services/sequenceService'
+import { allocateDocumentNumber, getFiscalSequenceSegment, previewDocumentNumber } from '../services/sequenceService'
 import { AppError } from '../utils/errors'
 
 const userSelect = {
@@ -149,8 +149,11 @@ export async function listInvoicePayments(id: string) {
   return invoice?.payments || []
 }
 
-export async function previewNextInvoiceNumber(invoiceDate: Date) {
-  return allocateDocumentNumber('sales_invoice', { fiscalYear: String(invoiceDate.getFullYear()) })
+export async function previewNextInvoiceNumber(invoiceDate: Date, resetByFiscalYear = true) {
+  return previewDocumentNumber('sales_invoice', {
+    fiscalYear: getFiscalSequenceSegment(invoiceDate),
+    resetByFiscalYear,
+  })
 }
 
 export async function createDraftInvoice(

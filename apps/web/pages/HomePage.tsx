@@ -231,14 +231,6 @@ export default function HomePage() {
                 <span className="rounded-full bg-slate-100 px-3 py-1">{loading ? 'loading...' : lastRefreshedAt ? `updated ${formatTime(lastRefreshedAt)}` : 'just now'}</span>
               </div>
               <h2 className="mt-4 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Operations at a glance</h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                Use this page to check current performance, spot problems early, and jump straight into the next task.
-              </p>
-              <p className="mt-3 text-sm font-medium text-slate-500">
-                {summary?.period?.from && summary?.period?.to
-                  ? `Reporting window: ${formatNepaliDate(summary.period.from)} to ${formatNepaliDate(summary.period.to)}`
-                  : 'Showing the current month by default.'}
-              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 lg:min-w-[320px]">
@@ -319,13 +311,13 @@ export default function HomePage() {
                     recentInvoices.slice(0, 4).map((invoice) => (
                       <Link
                         key={invoice.id}
-                        to={`/sales-invoices/${invoice.id}`}
+                        to={`/sales-invoices/${invoice.id}/edit`}
                         className="block rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-200 hover:bg-blue-50"
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
                             <div className="truncate font-semibold text-slate-900">{invoice.invoiceNumber || invoice.id}</div>
-                            <div className="mt-1 text-xs text-slate-500">{invoice.customerName || '-'}</div>
+                            <div className="mt-1 flex items-center justify-between gap-2 text-xs text-slate-500"><span>{invoice.customerName || '-'}</span><span className="font-semibold text-blue-700">Edit</span></div>
                           </div>
                           <div className="text-right">
                             <div className="text-sm font-semibold text-slate-900">{money(invoice.grandTotal)}</div>

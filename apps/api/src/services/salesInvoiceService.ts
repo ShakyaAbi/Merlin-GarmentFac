@@ -47,6 +47,16 @@ function formatMoney(value: Prisma.Decimal | number | string | null | undefined)
   }).format(Number(value ?? 0))
 }
 
+function splitAmount(value: Prisma.Decimal | number | string | null | undefined) {
+  const rounded = Math.round((Number(value ?? 0) + Number.EPSILON) * 100) / 100
+  const [rupees, paisa = '00'] = Math.abs(rounded).toFixed(2).split('.')
+  const sign = rounded < 0 ? '-' : ''
+  return {
+    rupees: `${sign}${Number(rupees).toLocaleString('en-US')}`,
+    paisa,
+  }
+}
+
 function formatDate(value?: Date | string | null) {
   if (!value) return '-'
   const date = value instanceof Date ? value : new Date(value)
@@ -124,7 +134,8 @@ function buildInvoicePdfHtml(invoice: any, companyName: string) {
           </td>
           <td class="right">${Number(item.quantity ?? 0).toLocaleString('en-US')}</td>
           <td class="right">${formatMoney(item.unitPrice)}</td>
-          <td class="right">${formatMoney(item.lineTotal ?? sumExistingItemTaxableAmount(item).plus(decimal(item.taxAmount)))}</td>
+          <td class="right">${splitAmount(item.lineTotal ?? sumExistingItemTaxableAmount(item).plus(decimal(item.taxAmount))).rupees}</td>
+          <td class="right">${splitAmount(item.lineTotal ?? sumExistingItemTaxableAmount(item).plus(decimal(item.taxAmount))).paisa}</td>
         </tr>`,
     )
     .join('')
@@ -156,35 +167,36 @@ function buildInvoicePdfHtml(invoice: any, companyName: string) {
             margin: 0;
             font-family: Arial, Helvetica, sans-serif;
             color: #0f172a;
+            font-size: 11px;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
           .sheet {
             border: 1px solid #cbd5e1;
-            border-radius: 18px;
+            border-radius: 12px;
             overflow: hidden;
           }
           .header {
             padding: 24px;
-            background: linear-gradient(135deg, #fff7ed, #ffffff 55%, #eff6ff);
+            background: #ffffff;
             border-bottom: 1px solid #cbd5e1;
+            text-align: center;
           }
           .header-row, .info-grid, .totals-grid {
             display: grid;
             gap: 16px;
           }
           .header-row {
-            grid-template-columns: 1fr 280px;
-            align-items: start;
+            display: block;
           }
           .title {
-            font-size: 30px;
+            font-size: 22px;
             font-weight: 800;
-            margin: 6px 0 8px;
+            margin: 6px 0 4px;
           }
           .muted {
             color: #64748b;
-            font-size: 12px;
+            font-size: 11px;
           }
           .panel {
             background: #f8fafc;
@@ -192,8 +204,8 @@ function buildInvoicePdfHtml(invoice: any, companyName: string) {
             padding: 14px;
           }
           .info-grid {
-            grid-template-columns: 1.2fr 0.8fr;
-            padding: 18px 24px;
+            grid-template-columns: 1fr 1fr;
+            padding: 14px 20px;
             border-bottom: 1px solid #e2e8f0;
           }
           .items {
@@ -205,7 +217,7 @@ function buildInvoicePdfHtml(invoice: any, companyName: string) {
             font-size: 12px;
           }
           th, td {
-            border-bottom: 1px solid #e2e8f0;
+            border: 1px solid #cbd5e1;
             padding: 10px 8px;
             vertical-align: top;
           }
@@ -263,102 +275,79 @@ function buildInvoicePdfHtml(invoice: any, companyName: string) {
             padding: 0 24px 24px;
           }
           .payments table td { font-size: 12px; }
+          .amount-subhead { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #cbd5e1; margin-top: 4px; }
+          .amount-subhead span { padding-top: 4px; font-size: 10px; font-weight: 400; text-align: center; }
+          .amount-subhead span:first-child { border-right: 1px solid #cbd5e1; }
         </style>
       </head>
       <body>
         <div class="sheet">
           <div class="header">
             <div class="header-row">
-              <div>
-                <div class="muted">Sales Invoice</div>
-                <div class="title">${escapeHtml(invoice.invoiceNumber || invoice.id)}</div>
-                <div class="muted">${escapeHtml(companyName)}</div>
-                <div class="muted">Customer: ${escapeHtml(invoice.customer?.customerName || 'Walk-in customer')}</div>
-              </div>
-              <div class="panel" style="text-align:right">
-                <div class="muted">Invoice Date</div>
-                <div style="font-weight:700">${formatDate(invoice.invoiceDate || invoice.createdAt)}</div>
-                <div class="muted" style="margin-top:8px">Due Date</div>
-                <div style="font-weight:700">${formatDate(invoice.dueDate)}</div>
-                <div class="muted" style="margin-top:8px">Payment Status</div>
-                <div style="font-weight:700">${escapeHtml(invoice.paymentStatus || 'UNKNOWN')}</div>
-              </div>
+              <div class="muted" style="letter-spacing:0.2em; text-transform:uppercase; font-weight:700">TAX INVOICE</div>
+              <div class="title">${escapeHtml(companyName)}</div>
+              <div class="muted">Nepal</div>
+              <div class="muted">Sales Invoice</div>
             </div>
           </div>
 
           <div class="info-grid">
             <div class="panel">
-              <div class="section-title">Customer</div>
-              <div style="font-weight:700; font-size:16px">${escapeHtml(invoice.customer?.customerName || 'Walk-in customer')}</div>
-              <div class="muted">${escapeHtml(invoice.customer?.address || '')}</div>
-              <div class="muted">${escapeHtml(invoice.customer?.phone || '')}</div>
-              <div class="muted">${escapeHtml(invoice.customer?.email || '')}</div>
+              <div><strong>TPIN :</strong> -</div>
+              <div style="margin-top:12px"><strong>Buyer's Name :</strong> ${escapeHtml(invoice.customer?.customerName || 'Walk-in customer')}</div>
             </div>
             <div class="panel">
-              <div class="section-title">Invoice Meta</div>
-              <div class="muted">Fiscal Year</div>
-              <div style="font-weight:700; margin-bottom:8px">${escapeHtml(invoice.fiscalYear || '-')}</div>
-              <div class="muted">Invoice Status</div>
-              <div style="font-weight:700; margin-bottom:8px">${escapeHtml(invoice.invoiceStatus || 'UNKNOWN')}</div>
-              <div class="muted">Remarks</div>
-              <div style="font-weight:700">${escapeHtml(invoice.remarks || '-')}</div>
+              <div><strong>Date of Transaction</strong> : ${formatDate(invoice.invoiceDate || invoice.createdAt)}</div>
+              <div style="margin-top:6px"><strong>Date of Invoice Issue</strong> : ${formatDate(invoice.createdAt || invoice.invoiceDate)}</div>
             </div>
+          </div>
+
+          <div style="padding:10px 20px; border-bottom:1px solid #cbd5e1">
+            <div><strong>Address :</strong> ${escapeHtml(invoice.customer?.address || '-')} <strong style="margin-left:16px">Buyer's TPIN :</strong> ${escapeHtml(invoice.customer?.panVatNumber || '-')}</div>
+            <div style="margin-top:6px"><strong>Mode of Payment :</strong> ${escapeHtml(invoice.paymentMethod || invoice.paymentMode || '-')} <strong style="margin-left:16px">Invoice No.</strong> : ${escapeHtml(invoice.invoiceNumber || invoice.id)}</div>
           </div>
 
           <div class="items">
             <table>
               <thead>
                 <tr>
-                  <th style="width:48px">SN</th>
-                  <th style="width:120px">Code</th>
-                  <th>Description</th>
-                  <th class="right" style="width:72px">Qty</th>
-                  <th class="right" style="width:100px">Rate</th>
-                  <th class="right" style="width:120px">Amount</th>
+                  <th rowspan="2" style="width:48px">S.N.</th>
+                  <th rowspan="2" style="width:100px">H.S. Code</th>
+                  <th rowspan="2">Description</th>
+                  <th rowspan="2" class="right" style="width:60px">Qty.</th>
+                  <th rowspan="2" class="right" style="width:100px">Unit Price</th>
+                  <th colspan="2" style="text-align:center">Amount</th>
+                </tr>
+                <tr>
+                  <th class="right" style="width:60px">Rs.</th>
+                  <th class="right" style="width:60px">Ps.</th>
                 </tr>
               </thead>
               <tbody>
-                ${lineRows || `<tr><td colspan="6" style="padding:16px; color:#64748b;">No item lines.</td></tr>`}
+                ${lineRows || `<tr><td colspan="7" style="padding:16px; color:#64748b;">No item lines.</td></tr>`}
               </tbody>
             </table>
           </div>
 
           <div class="totals">
             <div class="panel">
-              <div class="section-title">Notes</div>
-              <div class="muted">${escapeHtml(invoice.remarks || 'No notes provided.')}</div>
-              <div style="margin-top:16px">
-                <span class="chip">Issued: ${escapeHtml(formatDate(invoice.issuedAt))}</span>
-                <span class="chip">Paid: ${formatMoney(paidAmount)}</span>
-                <span class="chip">Due: ${formatMoney(dueAmount)}</span>
-              </div>
+              <div class="section-title">Amount in words:</div>
+              <div class="muted">${formatMoney(grandTotal)} Rupees Only</div>
+              <div style="margin-top:16px"><strong>Notes:</strong> ${escapeHtml(invoice.remarks || 'No notes provided.')}</div>
             </div>
             <div class="summary">
-              <div class="summary-row"><span>Subtotal</span><span>${formatMoney(subtotal)}</span></div>
+              <div class="summary-row"><span>Total</span><span>${formatMoney(subtotal)}</span></div>
               <div class="summary-row"><span>Discount</span><span>${formatMoney(discountAmount)}</span></div>
-              <div class="summary-row"><span>Taxable</span><span>${formatMoney(taxableAmount)}</span></div>
+              <div class="summary-row"><span>Taxable Amount</span><span>${formatMoney(taxableAmount)}</span></div>
               <div class="summary-row"><span>VAT 13%</span><span>${formatMoney(taxAmount)}</span></div>
               <div class="summary-row total"><span>Grand Total</span><span>${formatMoney(grandTotal)}</span></div>
             </div>
           </div>
 
-          ${paymentRows ? `
-            <div class="payments">
-              <div class="section-title">Payment Activity</div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Payment No.</th>
-                    <th>Date</th>
-                    <th>Method</th>
-                    <th>Note</th>
-                    <th class="right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>${paymentRows}</tbody>
-              </table>
-            </div>
-          ` : ''}
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:40px; padding:34px 24px 12px; text-align:center">
+            <div><div style="border-top:1px dotted #64748b; width:140px; margin:0 auto 6px"></div><strong>Received by</strong></div>
+            <div><div style="border-top:1px dotted #64748b; width:140px; margin:0 auto 6px"></div><strong>Authorized Signature</strong><div style="margin-top:4px"><strong>For : ${escapeHtml(companyName)}</strong></div></div>
+          </div>
         </div>
       </body>
     </html>
@@ -670,8 +659,8 @@ export async function listInvoicePayments(id: string) {
   return repo.listInvoicePayments(id)
 }
 
-export async function previewNextInvoiceNumber(invoiceDate: Date) {
-  return repo.previewNextInvoiceNumber(invoiceDate)
+export async function previewNextInvoiceNumber(invoiceDate: Date, resetByFiscalYear = true) {
+  return repo.previewNextInvoiceNumber(invoiceDate, resetByFiscalYear)
 }
 
 export async function createInvoice(payload: any, userId?: number) {

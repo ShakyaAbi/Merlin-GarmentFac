@@ -1,0 +1,13 @@
+ALTER TABLE `Organization`
+  ADD COLUMN `taxpayerNumber` VARCHAR(100) NULL,
+  ADD COLUMN `registrationNumber` VARCHAR(100) NULL,
+  ADD COLUMN `address` VARCHAR(500) NULL,
+  ADD COLUMN `city` VARCHAR(100) NULL,
+  ADD COLUMN `district` VARCHAR(100) NULL,
+  ADD COLUMN `province` VARCHAR(100) NULL,
+  ADD COLUMN `postalCode` VARCHAR(30) NULL,
+  ADD COLUMN `country` VARCHAR(100) NULL DEFAULT 'Nepal',
+  ADD COLUMN `phone` VARCHAR(50) NULL,
+  ADD COLUMN `email` VARCHAR(191) NULL,
+  ADD COLUMN `invoiceFooter` VARCHAR(1000) NULL,
+  ADD COLUMN `resetSalesInvoiceSequenceEachFiscalYear` BOOLEAN NOT NULL DEFAULT true;

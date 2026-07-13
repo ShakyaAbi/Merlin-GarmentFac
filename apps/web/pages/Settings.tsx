@@ -10,6 +10,9 @@ export const Settings: React.FC = () => {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [organizationName, setOrganizationName] = useState('');
+  const [organizationProfile, setOrganizationProfile] = useState<NonNullable<CurrentUser['organizationProfile']>>({
+    name: '', taxpayerNumber: '', registrationNumber: '', address: '', city: '', district: '', province: '', postalCode: '', country: 'Nepal', phone: '', email: '', invoiceFooter: '', resetSalesInvoiceSequenceEachFiscalYear: true,
+  });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
@@ -27,6 +30,21 @@ export const Settings: React.FC = () => {
       .then((data) => {
         setUser(data);
         setOrganizationName(data?.organization || '');
+        setOrganizationProfile({
+          name: data?.organization || '',
+          taxpayerNumber: data?.organizationProfile?.taxpayerNumber || '',
+          registrationNumber: data?.organizationProfile?.registrationNumber || '',
+          address: data?.organizationProfile?.address || '',
+          city: data?.organizationProfile?.city || '',
+          district: data?.organizationProfile?.district || '',
+          province: data?.organizationProfile?.province || '',
+          postalCode: data?.organizationProfile?.postalCode || '',
+          country: data?.organizationProfile?.country || 'Nepal',
+          phone: data?.organizationProfile?.phone || '',
+          email: data?.organizationProfile?.email || '',
+          invoiceFooter: data?.organizationProfile?.invoiceFooter || '',
+          resetSalesInvoiceSequenceEachFiscalYear: data?.organizationProfile?.resetSalesInvoiceSequenceEachFiscalYear ?? true,
+        });
       })
       .catch((error) => {
         console.error('Failed to load user profile', error);
@@ -96,7 +114,7 @@ export const Settings: React.FC = () => {
                           event.preventDefault();
                           setProfileError(null);
                           setProfileSuccess(null);
-                          const nextName = organizationName.trim();
+                          const nextName = organizationProfile.name.trim();
                           if (!nextName) {
                             setProfileError('Organization name is required.');
                             return;
@@ -104,10 +122,15 @@ export const Settings: React.FC = () => {
 
                           try {
                             setProfileSaving(true);
-                            const updated = await api.updateMe({ organization: nextName });
+                            const updated = await api.updateMe({
+                              organization: nextName,
+                              ...organizationProfile,
+                              name: undefined,
+                            });
                             setUser(updated);
                             setOrganizationName(updated.organization || nextName);
-                            setProfileSuccess('Organization name updated.');
+                            setOrganizationProfile(updated.organizationProfile || organizationProfile);
+                            setProfileSuccess('Organization invoice settings updated.');
                           } catch (error: any) {
                             setProfileError(error?.message || 'Failed to update organization name.');
                           } finally {
@@ -123,12 +146,52 @@ export const Settings: React.FC = () => {
                           <label className="block text-sm font-medium text-slate-700 mb-1">Organization name</label>
                           <input
                             type="text"
-                            value={organizationName}
-                            onChange={(event) => setOrganizationName(event.target.value)}
+                            value={organizationProfile.name}
+                            onChange={(event) => setOrganizationProfile((current) => ({ ...current, name: event.target.value }))}
                             className="w-full px-3 py-2 border border-slate-200 bg-white rounded-md text-slate-900"
                             placeholder="Enter organization name"
                           />
                         </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {([
+                            ['taxpayerNumber', 'PAN / VAT / TPIN'], ['registrationNumber', 'Registration number'],
+                            ['address', 'Business address'], ['city', 'City'], ['district', 'District'],
+                            ['province', 'Province'], ['postalCode', 'Postal code'], ['country', 'Country'],
+                            ['phone', 'Phone'], ['email', 'Invoice email'],
+                          ] as const).map(([key, label]) => (
+                            <div key={key}>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+                              <input
+                                type={key === 'email' ? 'email' : 'text'}
+                                value={organizationProfile[key] || ''}
+                                onChange={(event) => setOrganizationProfile((current) => ({ ...current, [key]: event.target.value }))}
+                                className="w-full px-3 py-2 border border-slate-200 bg-white rounded-md text-slate-900"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Invoice footer</label>
+                          <textarea
+                            value={organizationProfile.invoiceFooter || ''}
+                            onChange={(event) => setOrganizationProfile((current) => ({ ...current, invoiceFooter: event.target.value }))}
+                            className="w-full px-3 py-2 border border-slate-200 bg-white rounded-md text-slate-900"
+                            rows={3}
+                            placeholder="Optional note printed at the bottom of invoices"
+                          />
+                        </div>
+                        <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3">
+                          <input
+                            type="checkbox"
+                            checked={organizationProfile.resetSalesInvoiceSequenceEachFiscalYear}
+                            onChange={(event) => setOrganizationProfile((current) => ({ ...current, resetSalesInvoiceSequenceEachFiscalYear: event.target.checked }))}
+                            className="mt-1 h-4 w-4"
+                          />
+                          <span>
+                            <span className="block text-sm font-semibold text-slate-900">Reset sales invoice numbering every fiscal year</span>
+                            <span className="block text-xs text-slate-500 mt-1">When enabled, numbering starts at 00001 for the next fiscal year. Existing invoices are unchanged.</span>
+                          </span>
+                        </label>
                         {profileError ? (
                           <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
                             {profileError}

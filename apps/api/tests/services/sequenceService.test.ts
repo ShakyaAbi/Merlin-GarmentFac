@@ -3,6 +3,9 @@ jest.mock('../../src/prisma', () => {
 
   return {
     prisma: {
+      documentSequence: {
+        findUnique: async ({ where }: any) => sequenceState.get(where.key) || null,
+      },
       $transaction: async (callback: (tx: any) => unknown) => callback({
         documentSequence: {
           upsert: async ({ where, create, update }: any) => {
@@ -16,6 +19,7 @@ jest.mock('../../src/prisma', () => {
             sequenceState.set(where.key, nextRecord)
             return nextRecord
           },
+          findUnique: async ({ where }: any) => sequenceState.get(where.key) || null,
         },
       }),
       __sequenceState: sequenceState,
@@ -24,7 +28,7 @@ jest.mock('../../src/prisma', () => {
 })
 
 import { prisma } from '../../src/prisma'
-import { allocateDocumentNumber, buildDocumentNumber, getFiscalSequenceSegment } from '../../src/services/sequenceService'
+import { allocateDocumentNumber, buildDocumentNumber, getFiscalSequenceSegment, previewDocumentNumber } from '../../src/services/sequenceService'
 
 describe('sequenceService', () => {
   beforeEach(() => {
@@ -46,6 +50,11 @@ describe('sequenceService', () => {
     expect(getFiscalSequenceSegment(new Date('2026-06-13T00:00:00.000Z'), '2081')).toBe('2081')
   })
 
+  test('getFiscalSequenceSegment follows Nepal fiscal year boundary', () => {
+    expect(getFiscalSequenceSegment(new Date('2026-07-16T00:00:00.000Z'))).toBe('2025')
+    expect(getFiscalSequenceSegment(new Date('2026-07-17T00:00:00.000Z'))).toBe('2026')
+  })
+
   test('allocateDocumentNumber increments non-fiscal sequences without reusing numbers', async () => {
     await expect(allocateDocumentNumber('customer')).resolves.toBe('CUS-00001')
     await expect(allocateDocumentNumber('customer')).resolves.toBe('CUS-00002')
@@ -56,5 +65,15 @@ describe('sequenceService', () => {
     await expect(allocateDocumentNumber('sales_invoice', { fiscalYear: '2081' })).resolves.toBe('INV-2081-00001')
     await expect(allocateDocumentNumber('sales_invoice', { fiscalYear: '2081' })).resolves.toBe('INV-2081-00002')
     await expect(allocateDocumentNumber('sales_invoice', { fiscalYear: '2082' })).resolves.toBe('INV-2082-00001')
+  })
+
+  test('sales invoice numbering can continue globally when fiscal-year reset is disabled', async () => {
+    await expect(allocateDocumentNumber('sales_invoice', { fiscalYear: '2081', resetByFiscalYear: false })).resolves.toBe('INV-00001')
+    await expect(allocateDocumentNumber('sales_invoice', { fiscalYear: '2082', resetByFiscalYear: false })).resolves.toBe('INV-00002')
+  })
+
+  test('preview does not consume the next sales invoice number', async () => {
+    await expect(previewDocumentNumber('sales_invoice', { fiscalYear: '2081' })).resolves.toBe('INV-2081-00001')
+    await expect(previewDocumentNumber('sales_invoice', { fiscalYear: '2081' })).resolves.toBe('INV-2081-00001')
   })
 })

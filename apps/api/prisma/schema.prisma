@@ -73,12 +73,24 @@ model User {
 }
 
 model Organization {
-  id          Int          @id @default(autoincrement())
-  name        String
-  createdAt   DateTime     @default(now())
-  invitations Invitation[]
-  projects    Project[]
-  users       User[]
+  id                                      Int          @id @default(autoincrement())
+  name                                    String
+  taxpayerNumber                          String?
+  registrationNumber                      String?
+  address                                 String?
+  city                                    String?
+  district                                String?
+  province                                String?
+  postalCode                              String?
+  country                                 String?      @default("Nepal")
+  phone                                   String?
+  email                                   String?
+  invoiceFooter                           String?
+  resetSalesInvoiceSequenceEachFiscalYear Boolean      @default(true)
+  createdAt                               DateTime     @default(now())
+  invitations                             Invitation[]
+  projects                                Project[]
+  users                                   User[]
 }
 
 model Project {

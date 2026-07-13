@@ -64,6 +64,17 @@ function materialRequirements(product: { bomData?: unknown }): SalesCatalogMater
   })).filter((item: SalesCatalogMaterialRequirement) => item.quantityPerUnit > 0)
 }
 
+export function isSalesCatalogProduct(product: {
+  productCode?: string | null
+  sku?: string | null
+  active?: boolean | null
+  bomData?: unknown
+}) {
+  if (product.active === false) return false
+  const identifier = String(product.productCode || product.sku || '').trim()
+  return !/^bom[-_]/i.test(identifier)
+}
+
 async function currentStockByProductIds(productIds: string[]) {
   if (productIds.length === 0) return new Map<string, number>()
   const stockRows = await prisma.finishedGoodStockTransaction.groupBy({
@@ -101,7 +112,7 @@ export async function listSalesCatalogProducts(opts: SalesCatalogSearchOpts = {}
     orderBy: { name: 'asc' },
     select: salesCatalogSelect,
   })
-  const saleableProducts = products.filter((product) => !product.bomData)
+  const saleableProducts = products.filter(isSalesCatalogProduct)
   const stockByProductId = await currentStockByProductIds(saleableProducts.map((product) => product.id))
 
   return saleableProducts.map((product) => buildCatalogProduct(product, stockByProductId.get(product.id) || 0))
@@ -115,7 +126,7 @@ export async function getSalesCatalogProductsByIds(productIds: string[]) {
     where: { id: { in: distinctIds }, deletedAt: null },
     select: salesCatalogSelect,
   })
-  const saleableProducts = products.filter((product) => !product.bomData)
+  const saleableProducts = products.filter(isSalesCatalogProduct)
 
   if (saleableProducts.length !== distinctIds.length) {
     const found = new Set(saleableProducts.map((product) => product.id))

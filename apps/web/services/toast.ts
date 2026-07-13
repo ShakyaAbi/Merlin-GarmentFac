@@ -51,10 +51,12 @@ export const showErrorToast = (title: string, description?: string) => {
   showToast({ title, description, tone: 'error' })
 }
 
-export const showApiErrorToast = (error: any, fallback = 'Request failed') => {
-  const title = error?.message || fallback
+export const showApiErrorToast = (error: any, fallback = 'Action could not be completed') => {
+  const rawTitle = asString(error?.message).trim()
+  const genericTitle = !rawTitle || /^(error|failed|request failed|bad request)$/i.test(rawTitle)
+  const title = genericTitle ? fallback : rawTitle
   const description = extractDetails(error?.details)
-  showErrorToast(title, description || undefined)
+  showErrorToast(title, description || (genericTitle ? undefined : rawTitle))
 }
 
 export const toastEventName = TOAST_EVENT

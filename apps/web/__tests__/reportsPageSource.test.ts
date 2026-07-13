@@ -36,3 +36,11 @@ test('reports page styles the graphs as reporting charts', () => {
   assert.match(source, /motion\.div/)
   assert.match(source, /bg-white p-4 shadow/)
 })
+
+test('reports recent records expose edit-capable navigation', () => {
+  assert.match(source, /to=\{`\/sales-invoices\/\$\{invoice\.id\}\/edit`\}/)
+  assert.match(source, /to=\{`\/inventory\/purchases\/\$\{purchase\.id\}`\}/)
+  assert.match(source, /to=\{`\/inventory\/production\/\$\{order\.id\}`\}/)
+  assert.match(source, /Edit invoice →/)
+  assert.match(source, /Edit batch →/)
+})

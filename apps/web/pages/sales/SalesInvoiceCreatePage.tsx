@@ -49,12 +49,6 @@ const calculateLineTax = (item: Pick<InvoiceDraftItem, 'quantity' | 'unitPrice' 
   return calculateLineTaxableAmount(item) * VAT_RATE
 }
 
-const normalizeItem = (item: InvoiceDraftItem): InvoiceDraftItem => ({
-  ...item,
-  discountAmount: toMoneyString(calculateLineDiscount(item)),
-  taxAmount: toMoneyString(calculateLineTax(item)),
-})
-
 const calculateSummary = (items: InvoiceDraftItem[]) => {
   const subtotal = items.reduce((sum, item) => sum + calculateLineSubtotal(item), 0)
   const discountAmount = items.reduce((sum, item) => sum + calculateLineDiscount(item), 0)
@@ -241,8 +235,12 @@ export default function SalesInvoiceCreatePage() {
     setItems((current) =>
       current.map((item) => {
         if (item.id !== id) return item
-        const next = normalizeItem({ ...item, ...patch })
-        return next
+        const next = { ...item, ...patch }
+        return {
+          ...next,
+          discountAmount: patch.discountAmount ?? next.discountAmount,
+          taxAmount: toMoneyString(calculateLineTax(next)),
+        }
       }),
     )
   }

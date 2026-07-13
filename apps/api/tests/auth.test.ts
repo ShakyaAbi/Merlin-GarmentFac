@@ -9,22 +9,21 @@ describe('Auth flows', () => {
   const password = 'Passw0rd!';
 
   beforeAll(async () => {
-    await prisma.submission.deleteMany();
-    await prisma.indicator.deleteMany();
-    await prisma.logframeNode.deleteMany();
-    await prisma.project.deleteMany();
-    // Invitations reference users; remove them first to avoid FK constraint errors
-    await prisma.invitation.deleteMany();
-    await prisma.user.deleteMany();
-
     const passwordHash = await hashPassword(password);
-    await prisma.user.create({
-      data: {
+    const organization = await prisma.organization.findFirst({ where: { name: "Auth Test Org" } })
+      ?? await prisma.organization.create({ data: { name: "Auth Test Org" } });
+    await prisma.user.upsert({
+      where: { email: adminEmail },
+      update: {
+        passwordHash,
+        role: Role.ADMIN,
+        organizationId: organization.id,
+      },
+      create: {
         email: adminEmail,
         passwordHash,
         role: Role.ADMIN,
-        // create a minimal organization required by the Prisma schema
-        organization: { create: { name: "Auth Test Org" } }
+        organizationId: organization.id,
       }
     });
   });

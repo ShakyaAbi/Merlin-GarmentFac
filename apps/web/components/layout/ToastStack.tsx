@@ -99,31 +99,34 @@ export function ToastStack() {
               exit={{ opacity: 0, y: -6, scale: 0.99 }}
               transition={{ duration: 0.16, ease: 'easeOut' }}
               className={`pointer-events-auto relative overflow-hidden rounded-2xl border ${styles.shell}`}
-              role="status"
-              aria-live="polite"
+              role={tone === 'error' ? 'alert' : 'status'}
+              aria-live={tone === 'error' ? 'assertive' : 'polite'}
+              aria-atomic="true"
+              data-tone={tone}
             >
               <div className={`absolute inset-y-0 left-0 w-1 ${styles.accent}`} />
-              <div className="relative px-4 py-3.5 sm:px-4">
+              <div className="relative px-4 py-3.5 sm:px-5">
                 <div className="flex items-start gap-3">
-                  <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${styles.icon}`}>
+                  <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${styles.icon}`}>
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
+                        {tone === 'error' ? <div className="mb-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-rose-700">Action blocked</div> : null}
                         <div className="text-sm font-semibold leading-5">{toast.title}</div>
                       </div>
                       <button
                         type="button"
                         onClick={() => (window as any).__merlinRemoveToast?.(toast.id)}
-                        className="rounded-full p-1 text-current/45 transition-colors hover:bg-black/5 hover:text-current"
+                        className="-mr-1 -mt-1 rounded-lg p-1.5 text-current/45 transition-colors hover:bg-black/5 hover:text-current focus:outline-none focus:ring-2 focus:ring-current/30"
                         aria-label="Dismiss notification"
                       >
                         <X className="h-4 w-4" />
                       </button>
                     </div>
                     {toast.description ? (
-                      <div className="mt-1.5 text-sm leading-5 text-current/70">{toast.description}</div>
+                      <div className="mt-1.5 text-[13px] leading-5 text-current/70">{toast.description}</div>
                     ) : null}
                   </div>
                 </div>

@@ -45,12 +45,22 @@ export function buildSalesInvoicePaperDocumentProps(
   invoice: any,
   customerName: string,
   organizationName = 'Merlin Lite',
+  organizationProfile?: {
+    address?: string | null
+    taxpayerNumber?: string | null
+    city?: string | null
+    district?: string | null
+    province?: string | null
+    country?: string | null
+    invoiceFooter?: string | null
+  } | null,
 ): InvoicePaperDocumentProps | null {
   if (!invoice) return null
 
   return {
     companyName: organizationName,
-    companyAddress: 'Nepal',
+    companyAddress: [organizationProfile?.address, organizationProfile?.city, organizationProfile?.district, organizationProfile?.province, organizationProfile?.country].filter(Boolean).join(', ') || 'Nepal',
+    companyPanVat: organizationProfile?.taxpayerNumber || '',
     invoiceTitle: 'Sales Invoice',
     invoiceNumber: invoice.invoiceNumber || invoice.id,
     invoiceDate: invoice.invoiceDate || invoice.createdAt || undefined,
@@ -63,7 +73,9 @@ export function buildSalesInvoicePaperDocumentProps(
       email: invoice.customer?.email || '',
     },
     meta: buildMeta([
-      { label: 'Invoice Date', value: formatNepaliDateTime(invoice.invoiceDate || invoice.createdAt) },
+      { label: 'Transaction Date', value: formatNepaliDateTime(invoice.invoiceDate || invoice.createdAt) },
+      { label: 'Invoice Issue Date', value: formatNepaliDateTime(invoice.createdAt || invoice.invoiceDate) },
+      { label: 'Mode of Payment', value: invoice.paymentMethod || invoice.paymentMode || '' },
       ...(invoice.dueDate ? [{ label: 'Due Date', value: formatNepaliDateTime(invoice.dueDate) }] : []),
       { label: 'Fiscal Year', value: invoice.fiscalYear || '-' },
       { label: 'Payment Status', value: invoice.paymentStatus || 'UNKNOWN' },
@@ -80,7 +92,7 @@ export function buildSalesInvoicePaperDocumentProps(
       }),
     ),
     discountAmount: (invoice.items || []).reduce((sum: number, item: any) => sum + Number(item.discountAmount ?? 0), 0),
-    notes: invoice.remarks || invoice.notes || invoice.memo || undefined,
+    notes: [invoice.remarks || invoice.notes || invoice.memo, organizationProfile?.invoiceFooter].filter(Boolean).join('\n') || undefined,
   }
 }
 
@@ -105,7 +117,9 @@ export function buildPurchaseInvoicePaperDocumentProps(
       email: purchase.supplier?.email || '',
     },
     meta: buildMeta([
-      { label: 'Invoice Date', value: formatNepaliDateTime(purchase.invoiceDate) },
+      { label: 'Transaction Date', value: formatNepaliDateTime(purchase.invoiceDate || purchase.createdAt) },
+      { label: 'Invoice Issue Date', value: formatNepaliDateTime(purchase.createdAt || purchase.invoiceDate) },
+      { label: 'Mode of Payment', value: purchase.paymentMethod || purchase.paymentMode || '' },
       ...(purchase.dueDate ? [{ label: 'Due Date', value: formatNepaliDateTime(purchase.dueDate) }] : []),
       { label: 'Status', value: purchase.status || '-' },
       { label: 'Currency', value: purchase.currency || 'NPR' },

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Ban, Download, ReceiptText, Send, WalletCards } from 'lucide-react'
+import { Ban, Download, Pencil, ReceiptText, Send, Trash2, WalletCards } from 'lucide-react'
 import { api } from '../../services/api'
 import { salesInvoiceApi } from '../../services/salesInvoiceApi'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
@@ -13,6 +13,7 @@ import { InvoicePaperDocument } from '../../components/invoices/InvoicePaperDocu
 import { buildSalesInvoicePaperDocumentProps } from '../../components/invoices/invoicePaperDocumentHelpers'
 import { calculateInvoiceTotals } from '../../components/invoices/invoiceTotals'
 import { formatNepaliDate, formatNepaliDateTime } from '../../utils/nepaliDate'
+import type { CurrentUser } from '../../types'
 
 type SalesInvoice = Awaited<ReturnType<typeof salesInvoiceApi.get>>
 
@@ -79,6 +80,7 @@ export default function SalesInvoiceDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [paymentAmount, setPaymentAmount] = useState('')
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
   const [paymentDate, setPaymentDate] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('Cash')
   const [paymentNote, setPaymentNote] = useState('')
@@ -87,6 +89,7 @@ export default function SalesInvoiceDetailPage() {
   const [bankName, setBankName] = useState('')
   const [cancelReason, setCancelReason] = useState('')
   const [organizationName, setOrganizationName] = useState('Merlin Lite')
+  const [organizationProfile, setOrganizationProfile] = useState<CurrentUser['organizationProfile']>(null)
   const canEditInvoice = invoice ? ['DRAFT', 'PENDING_APPROVAL'].includes(String(invoice.invoiceStatus || '')) : false
   const invoiceStatus = String(invoice?.invoiceStatus || '')
   const canSubmitInvoice = invoiceStatus === 'DRAFT'
@@ -119,7 +122,10 @@ export default function SalesInvoiceDetailPage() {
     let alive = true
     api.me()
       .then((user) => {
-        if (alive) setOrganizationName(user.organization || 'Merlin Lite')
+        if (alive) {
+          setOrganizationName(user.organization || 'Merlin Lite')
+          setOrganizationProfile(user.organizationProfile || null)
+        }
       })
       .catch(() => {})
     return () => {
@@ -160,8 +166,8 @@ export default function SalesInvoiceDetailPage() {
   const draftItems = useMemo(() => toDraftItems(invoice), [invoice])
   const customerName = invoice?.customer?.customerName || invoice?.customerName || 'Walk-in customer'
   const paperDocument = useMemo(
-    () => buildSalesInvoicePaperDocumentProps(invoice, customerName, organizationName),
-    [invoice, customerName, organizationName],
+    () => buildSalesInvoicePaperDocumentProps(invoice, customerName, organizationName, organizationProfile),
+    [invoice, customerName, organizationName, organizationProfile],
   )
 
   const mutateInvoice = async (label: string, action: () => Promise<SalesInvoice>) => {
@@ -216,19 +222,37 @@ export default function SalesInvoiceDetailPage() {
       if (chequeDate) details.push(`Cheque date: ${formatNepaliDate(chequeDate)}`)
     }
     const note = [paymentNote.trim(), ...details].filter(Boolean).join(' | ')
-    await mutateInvoice('payment', () =>
-      salesInvoiceApi.payment(invoice!.id, {
+    await mutateInvoice('payment', () => {
+      const payload = {
         amount: paymentAmount,
         paymentMethod: method,
         paymentDate: paymentDate || undefined,
         note: note || undefined,
-      }),
-    )
+      }
+      return editingPaymentId
+        ? salesInvoiceApi.updatePayment(invoice!.id, editingPaymentId, payload)
+        : salesInvoiceApi.payment(invoice!.id, payload)
+    })
+    setEditingPaymentId(null)
+    setPaymentAmount('')
     setPaymentNote('')
     setPaymentDate('')
     setChequeNumber('')
     setChequeDate('')
     setBankName('')
+  }
+
+  const editPayment = (payment: NonNullable<SalesInvoice['payments']>[number]) => {
+    setEditingPaymentId(payment.id)
+    setPaymentAmount(String(payment.amount ?? ''))
+    setPaymentDate(payment.paymentDate ? String(payment.paymentDate).slice(0, 10) : '')
+    setPaymentMethod(payment.paymentMethod || payment.method || 'Cash')
+    setPaymentNote(payment.note || payment.notes || '')
+  }
+
+  const deletePayment = async (paymentId: string) => {
+    if (!window.confirm('Delete this payment? The invoice balance and customer ledger will be recalculated.')) return
+    await mutateInvoice('delete-payment', () => salesInvoiceApi.deletePayment(invoice!.id, paymentId))
   }
 
   const handleCancel = async () => {
@@ -427,6 +451,12 @@ export default function SalesInvoiceDetailPage() {
                             Cheque #{payment.chequeNumber}
                           </span>
                         ) : null}
+                        {canRecordPayment ? (
+                          <>
+                            <Button type="button" variant="outline" size="sm" onClick={() => editPayment(payment)}><Pencil className="mr-1 h-3.5 w-3.5" />Edit</Button>
+                            <Button type="button" variant="danger" size="sm" onClick={() => deletePayment(payment.id)}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete</Button>
+                          </>
+                        ) : null}
                       </div>
                     </div>
                     <div className="mt-2 grid grid-cols-1 gap-2 text-sm text-slate-600 md:grid-cols-2">
@@ -446,7 +476,7 @@ export default function SalesInvoiceDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <InventorySectionCard title="Post Payment" description="Record collection against this invoice.">
+          <InventorySectionCard title={editingPaymentId ? 'Edit Payment' : 'Post Payment'} description="Record collection against this invoice.">
             {canRecordPayment ? (
               <div className="space-y-4">
                 <label className="block text-sm">
@@ -526,7 +556,7 @@ export default function SalesInvoiceDetailPage() {
                 </label>
                 <Button type="button" onClick={handlePayment} isLoading={busy === 'payment'}>
                   <WalletCards className="mr-2 h-4 w-4" />
-                  Record Payment
+                  {editingPaymentId ? 'Save Payment Changes' : 'Record Payment'}
                 </Button>
               </div>
             ) : (
