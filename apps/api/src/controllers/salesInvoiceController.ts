@@ -81,7 +81,7 @@ export const exportOne = asyncHandler(async (req: Request, res: Response) => {
 export const exportPdf = asyncHandler(async (req: Request, res: Response) => {
   const organizationId = (req as any).user?.organizationId as number | undefined
   const organization = organizationId ? await orgRepo.findById(organizationId) : null
-  const pdf = await svc.exportInvoicePdf(req.params.id, organization?.name || 'Merlin Lite')
+  const pdf = await svc.exportInvoicePdf(req.params.id, organization?.name || 'Merlin Lite', organization)
   res.setHeader('Content-Type', 'application/pdf')
   res.setHeader('Content-Disposition', `attachment; filename="sales-invoice-${req.params.id}.pdf"`)
   res.send(pdf)

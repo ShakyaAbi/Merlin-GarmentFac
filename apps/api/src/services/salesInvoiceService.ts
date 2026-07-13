@@ -107,7 +107,18 @@ function sumExistingItemTaxableAmount(item: any) {
   return deriveLineTaxableAmount(decimal(item.quantity), decimal(item.unitPrice), decimal(item.discountAmount))
 }
 
-function buildInvoicePdfHtml(invoice: any, companyName: string) {
+type InvoiceOrganizationProfile = {
+  name?: string | null
+  taxpayerNumber?: string | null
+  address?: string | null
+  city?: string | null
+  district?: string | null
+  province?: string | null
+  country?: string | null
+  invoiceFooter?: string | null
+}
+
+function buildInvoicePdfHtml(invoice: any, companyName: string, organizationProfile?: InvoiceOrganizationProfile | null) {
   const items = Array.isArray(invoice.items) ? invoice.items : []
   const subtotal = items.reduce(
     (sum: Prisma.Decimal, item: any) => sum.plus(decimal(item.quantity).mul(decimal(item.unitPrice))),
@@ -121,6 +132,13 @@ function buildInvoicePdfHtml(invoice: any, companyName: string) {
   const grandTotal = decimal(invoice.grandTotal ?? taxableAmount.plus(taxAmount))
   const paidAmount = decimal(invoice.paidAmount)
   const dueAmount = decimal(invoice.dueAmount ?? grandTotal.minus(paidAmount))
+  const companyAddress = [
+    organizationProfile?.address,
+    organizationProfile?.city,
+    organizationProfile?.district,
+    organizationProfile?.province,
+    organizationProfile?.country,
+  ].filter(Boolean).join(', ') || 'Nepal'
 
   const lineRows = items
     .map(
@@ -286,14 +304,14 @@ function buildInvoicePdfHtml(invoice: any, companyName: string) {
             <div class="header-row">
               <div class="muted" style="letter-spacing:0.2em; text-transform:uppercase; font-weight:700">TAX INVOICE</div>
               <div class="title">${escapeHtml(companyName)}</div>
-              <div class="muted">Nepal</div>
+              <div class="muted">${escapeHtml(companyAddress)}</div>
               <div class="muted">Sales Invoice</div>
             </div>
           </div>
 
           <div class="info-grid">
             <div class="panel">
-              <div><strong>TPIN :</strong> -</div>
+              <div><strong>TPIN :</strong> ${escapeHtml(organizationProfile?.taxpayerNumber || '-')}</div>
               <div style="margin-top:12px"><strong>Buyer's Name :</strong> ${escapeHtml(invoice.customer?.customerName || 'Walk-in customer')}</div>
             </div>
             <div class="panel">
@@ -333,7 +351,7 @@ function buildInvoicePdfHtml(invoice: any, companyName: string) {
             <div class="panel">
               <div class="section-title">Amount in words:</div>
               <div class="muted">${formatMoney(grandTotal)} Rupees Only</div>
-              <div style="margin-top:16px"><strong>Notes:</strong> ${escapeHtml(invoice.remarks || 'No notes provided.')}</div>
+              <div style="margin-top:16px"><strong>Notes:</strong> ${escapeHtml([invoice.remarks, organizationProfile?.invoiceFooter].filter(Boolean).join(' — ') || 'No notes provided.')}</div>
             </div>
             <div class="summary">
               <div class="summary-row"><span>Total</span><span>${formatMoney(subtotal)}</span></div>
@@ -604,13 +622,13 @@ export async function exportInvoice(id: string) {
   })
 }
 
-export async function exportInvoicePdf(id: string, companyName = 'Merlin Lite') {
+export async function exportInvoicePdf(id: string, companyName = 'Merlin Lite', organizationProfile?: InvoiceOrganizationProfile | null) {
   const invoice = await repo.getInvoice(id)
   if (!invoice) {
     throw new AppError(404, 'NOT_FOUND', 'Sales invoice not found')
   }
 
-  const html = buildInvoicePdfHtml(invoice, companyName)
+  const html = buildInvoicePdfHtml(invoice, companyName, organizationProfile)
   return htmlToPdfBuffer(html)
 }
 

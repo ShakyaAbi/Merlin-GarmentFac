@@ -119,6 +119,25 @@ export const Settings: React.FC = () => {
                             setProfileError('Organization name is required.');
                             return;
                           }
+                          const requiredFields: Array<[keyof typeof organizationProfile, string]> = [
+                            ['taxpayerNumber', 'PAN / VAT / TPIN'],
+                            ['address', 'Business address'],
+                            ['city', 'City'],
+                            ['district', 'District'],
+                            ['province', 'Province'],
+                            ['country', 'Country'],
+                            ['phone', 'Phone'],
+                            ['email', 'Invoice email'],
+                          ];
+                          const missingField = requiredFields.find(([key]) => !String(organizationProfile[key] || '').trim());
+                          if (missingField) {
+                            setProfileError(`${missingField[1]} is required.`);
+                            return;
+                          }
+                          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(organizationProfile.email).trim())) {
+                            setProfileError('Invoice email must be a valid email address.');
+                            return;
+                          }
 
                           try {
                             setProfileSaving(true);
@@ -143,7 +162,7 @@ export const Settings: React.FC = () => {
                           <p className="text-sm text-slate-500">This name appears on invoices and other organization-facing documents.</p>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Organization name</label>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Organization name <span className="text-red-600">*</span></label>
                           <input
                             type="text"
                             value={organizationProfile.name}
@@ -154,18 +173,19 @@ export const Settings: React.FC = () => {
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {([
-                            ['taxpayerNumber', 'PAN / VAT / TPIN'], ['registrationNumber', 'Registration number'],
-                            ['address', 'Business address'], ['city', 'City'], ['district', 'District'],
-                            ['province', 'Province'], ['postalCode', 'Postal code'], ['country', 'Country'],
-                            ['phone', 'Phone'], ['email', 'Invoice email'],
-                          ] as const).map(([key, label]) => (
+                            ['taxpayerNumber', 'PAN / VAT / TPIN', true], ['registrationNumber', 'Registration number', false],
+                            ['address', 'Business address', true], ['city', 'City', true], ['district', 'District', true],
+                            ['province', 'Province', true], ['postalCode', 'Postal code', false], ['country', 'Country', true],
+                            ['phone', 'Phone', true], ['email', 'Invoice email', true],
+                          ] as const).map(([key, label, required]) => (
                             <div key={key}>
-                              <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">{label} {required ? <span className="text-red-600">*</span> : null}</label>
                               <input
                                 type={key === 'email' ? 'email' : 'text'}
                                 value={organizationProfile[key] || ''}
                                 onChange={(event) => setOrganizationProfile((current) => ({ ...current, [key]: event.target.value }))}
                                 className="w-full px-3 py-2 border border-slate-200 bg-white rounded-md text-slate-900"
+                                required={required}
                               />
                             </div>
                           ))}
