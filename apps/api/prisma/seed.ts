@@ -14,11 +14,35 @@ async function main() {
   const password = SEED_ADMIN_PASSWORD;
 
   const ORG_NAME = "Seed Test Organization";
+  const organizationProfile = {
+    taxpayerNumber: "612368123138",
+    registrationNumber: "REG-DEMO-001",
+    address: "Durbar Marg",
+    city: "Kathmandu",
+    district: "Kathmandu",
+    province: "Bagmati",
+    postalCode: "44600",
+    country: "Nepal",
+    phone: "+977-1-5550100",
+    email: "billing@seedorganization.example",
+    invoiceFooter: "Thank you for your business.",
+    resetSalesInvoiceSequenceEachFiscalYear: true,
+  };
+
   let seedOrg = await prisma.organization.findFirst({ where: { name: ORG_NAME } });
   if (!seedOrg) {
-    seedOrg = await prisma.organization.create({ data: { name: ORG_NAME } });
+    seedOrg = await prisma.organization.create({
+      data: {
+        name: ORG_NAME,
+        ...organizationProfile,
+      },
+    });
     console.log(`Created seed organization: ${ORG_NAME}`);
   } else {
+    seedOrg = await prisma.organization.update({
+      where: { id: seedOrg.id },
+      data: organizationProfile,
+    });
     console.log(`Seed organization exists: ${ORG_NAME}`);
   }
 
