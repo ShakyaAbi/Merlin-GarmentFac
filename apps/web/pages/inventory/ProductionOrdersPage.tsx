@@ -7,7 +7,9 @@ import { InventoryDataTable } from '../../components/inventory/InventoryDataTabl
 import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
+import { SearchableSelect } from '../../components/ui/SearchableSelect'
 import { formatNepaliDate } from '../../utils/nepaliDate'
+import { useCurrentUser } from '../../components/auth/CurrentUserContext'
 
 type BatchStatus = 'ALL' | 'DRAFT' | 'MATERIAL_ISSUED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
 type QuickFilter = 'ALL' | 'READY_TO_ISSUE' | 'READY_TO_COMPLETE'
@@ -43,6 +45,7 @@ const compactBatchActionLabel = (action: string) => {
 
 export default function ProductionOrdersPage() {
   const navigate = useNavigate()
+  const { canEdit, canDelete, canIssue, canComplete } = useCurrentUser()
   const [orders, setOrders] = useState<any[]>([])
   const [finishedGoods, setFinishedGoods] = useState<any[]>([])
   const [search, setSearch] = useState('')
@@ -58,6 +61,16 @@ export default function ProductionOrdersPage() {
   const [editForm, setEditForm] = useState({ finishedGoodId: '', quantityPlanned: '1', notes: '' })
   const [completionBatch, setCompletionBatch] = useState<any | null>(null)
   const [completionForm, setCompletionForm] = useState({ quantityProduced: '1', completionNote: '' })
+  const finishedGoodOptions = useMemo(
+    () =>
+      finishedGoods.map((fg) => ({
+        value: fg.id,
+        label: fg.name,
+        description: `${fg.productCode || fg.sku || fg.id}${fg.unit ? ` | ${fg.unit}` : ''}`,
+        searchText: [fg.name, fg.productCode, fg.sku, fg.category, fg.description].filter(Boolean).join(' '),
+      })),
+    [finishedGoods],
+  )
 
   const load = async () => {
     setLoading(true)
@@ -232,10 +245,14 @@ export default function ProductionOrdersPage() {
           <div className="space-y-4">
             <label className="block text-sm">
               <span className="mb-1 block text-slate-600">Article</span>
-              <select value={form.finishedGoodId} onChange={(event) => setForm({ ...form, finishedGoodId: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2">
-                <option value="">Select article</option>
-                {finishedGoods.map((fg) => <option key={fg.id} value={fg.id}>{fg.name}</option>)}
-              </select>
+              <SearchableSelect
+                value={form.finishedGoodId}
+                options={finishedGoodOptions}
+                placeholder="Select article"
+                searchPlaceholder="Search articles by name or code"
+                emptyMessage="No articles found."
+                onChange={(finishedGoodId) => setForm({ ...form, finishedGoodId })}
+              />
             </label>
             <label className="block text-sm">
               <span className="mb-1 block text-slate-600">Planned quantity</span>
@@ -317,21 +334,21 @@ export default function ProductionOrdersPage() {
                     <td className="px-3 py-3 align-middle">
                       {nextAction === 'Issue Materials' ? (
                         <div className="flex items-center justify-end gap-2">
-                          <Button type="button" size="sm" variant="outline" className="min-w-16" onClick={() => openEditBatch(order)}>
+                          {canEdit ? <Button type="button" size="sm" variant="outline" className="min-w-16" onClick={() => openEditBatch(order)}>
                             Edit
-                          </Button>
-                          <Button type="button" size="sm" variant="outline" className="min-w-16" onClick={() => deleteBatch(order)} isLoading={actionSaving === `delete:${order.id}`}>
+                          </Button> : null}
+                          {canDelete ? <Button type="button" size="sm" variant="outline" className="min-w-16" onClick={() => deleteBatch(order)} isLoading={actionSaving === `delete:${order.id}`}>
                             Delete
-                          </Button>
-                          <Button type="button" size="sm" className="min-w-16" onClick={() => issueOrder(order.id)} isLoading={actionSaving === `issue:${order.id}`}>
+                          </Button> : null}
+                          {canIssue ? <Button type="button" size="sm" className="min-w-16" onClick={() => issueOrder(order.id)} isLoading={actionSaving === `issue:${order.id}`}>
                             {compactBatchActionLabel(nextAction)}
-                          </Button>
+                          </Button> : null}
                         </div>
                       ) : nextAction === 'Complete Batch' ? (
                         <div className="flex justify-end">
-                        <Button type="button" size="sm" className="min-w-24" onClick={() => openCompletion(order)}>
+                        {canComplete ? <Button type="button" size="sm" className="min-w-24" onClick={() => openCompletion(order)}>
                           {compactBatchActionLabel(nextAction)}
-                        </Button>
+                        </Button> : null}
                         </div>
                       ) : nextAction === 'Completed' ? (
                         <div className="flex justify-end">
@@ -358,10 +375,14 @@ export default function ProductionOrdersPage() {
         <div className="space-y-4">
           <label className="block text-sm">
             <span className="mb-1 block text-slate-600">Article</span>
-            <select value={editForm.finishedGoodId} onChange={(event) => setEditForm({ ...editForm, finishedGoodId: event.target.value })} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2">
-              <option value="">Select article</option>
-              {finishedGoods.map((fg) => <option key={fg.id} value={fg.id}>{fg.name}</option>)}
-            </select>
+            <SearchableSelect
+              value={editForm.finishedGoodId}
+              options={finishedGoodOptions}
+              placeholder="Select article"
+              searchPlaceholder="Search articles by name or code"
+              emptyMessage="No articles found."
+              onChange={(finishedGoodId) => setEditForm({ ...editForm, finishedGoodId })}
+            />
           </label>
           <label className="block text-sm">
             <span className="mb-1 block text-slate-600">Planned quantity</span>

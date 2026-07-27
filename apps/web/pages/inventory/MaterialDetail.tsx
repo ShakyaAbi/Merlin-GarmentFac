@@ -10,11 +10,13 @@ import { InventorySectionCard } from '../../components/inventory/InventorySectio
 import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { RawMaterialCategoryField } from '../../components/inventory/RawMaterialCategoryField'
 import { formatNepaliDate, formatNepaliDateTime } from '../../utils/nepaliDate'
+import { useCurrentUser } from '../../components/auth/CurrentUserContext'
 
 export default function MaterialDetail() {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
   const navigate = useNavigate()
+  const { canEdit } = useCurrentUser()
   const [material, setMaterial] = useState<any>(null)
   const [transactions, setTransactions] = useState<any[]>([])
   const [purchases, setPurchases] = useState<any[]>([])
@@ -70,10 +72,10 @@ export default function MaterialDetail() {
   }, [id])
 
   useEffect(() => {
-    if (new URLSearchParams(location.search).get('edit') === '1') {
+    if (canEdit && new URLSearchParams(location.search).get('edit') === '1') {
       setShowEdit(true)
     }
-  }, [location.search])
+  }, [canEdit, location.search])
 
   const stockSeries = useMemo(() => {
     const sorted = [...transactions]
@@ -180,8 +182,10 @@ export default function MaterialDetail() {
             to: `/inventory/purchases/create?material=${material.id}`,
             variant: 'primary',
           },
-          { label: 'Adjust Stock', variant: 'outline', onClick: () => setShowAdjust(true) },
-          { label: 'Edit Material', variant: 'outline', onClick: () => setShowEdit(true) },
+          ...(canEdit ? [
+            { label: 'Adjust Stock', variant: 'outline' as const, onClick: () => setShowAdjust(true) },
+            { label: 'Edit Material', variant: 'outline' as const, onClick: () => setShowEdit(true) },
+          ] : []),
         ]}
       >
         <InventoryStatGrid
@@ -333,20 +337,20 @@ export default function MaterialDetail() {
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-2">
-                                <button
+                                {canEdit ? <button
                                   type="button"
                                   className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700"
                                   onClick={() => setShowAdjust(true)}
                                 >
                                   Adjust
-                                </button>
-                                <button
+                                </button> : null}
+                                {canEdit ? <button
                                   type="button"
                                   className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700"
                                   onClick={() => setShowEdit(true)}
                                 >
                                   Edit
-                                </button>
+                                </button> : null}
                               </div>
                             </td>
                           </tr>
@@ -456,11 +460,11 @@ export default function MaterialDetail() {
             </InventorySectionCard>
 
             <InventorySectionCard title="CSV Tools" description="Import or export this material record.">
-              <MaterialCsvActions
+              {canEdit ? <MaterialCsvActions
                 title="material record"
                 filters={{ ids: [material.id] }}
                 onSuccess={() => window.location.reload()}
-              />
+              /> : <div className="text-sm text-slate-500">Material import is restricted to managers and administrators.</div>}
             </InventorySectionCard>
           </div>
         </div>

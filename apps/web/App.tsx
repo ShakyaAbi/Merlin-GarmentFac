@@ -37,9 +37,12 @@ import SalesInvoiceDetailPage from './pages/sales/SalesInvoiceDetailPage'
 import SalesOrdersPage from './pages/sales/SalesOrdersPage'
 import SalesOrderDetailPage from './pages/sales/SalesOrderDetailPage'
 import PaymentsPage from './pages/finance/PaymentsPage'
+import ExpensesPage from './pages/finance/ExpensesPage'
+import ExpenseDetailPage from './pages/finance/ExpenseDetailPage'
 import ExportCenterPage from './pages/ExportCenterPage'
 
 import { PrivateRoute } from './components/PrivateRoute';
+import { AdminOnlyRoute } from './components/AdminOnlyRoute';
 
 const App: React.FC = () => {
   return (
@@ -81,13 +84,15 @@ const App: React.FC = () => {
             <Route path="/sales-orders" element={<SalesOrdersPage />} />
             <Route path="/sales-orders/:id" element={<SalesOrderDetailPage />} />
             <Route path="/payments" element={<PaymentsPage />} />
+            <Route path="/expenses" element={<ExpensesPage />} />
+            <Route path="/expenses/:id" element={<ExpenseDetailPage />} />
             <Route path="/exports" element={<ExportCenterPage />} />
             <Route path="/reports" element={<OperationsDashboardPage />} />
             <Route path="/data-entry" element={<DataEntry />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
-            <Route path="/admin/users" element={<AdminUsers />} />
-            <Route path="/admin/invitations" element={<AdminInvitations />} />
+                <Route path="/admin/users" element={<AdminOnlyRoute><AdminUsers /></AdminOnlyRoute>} />
+                <Route path="/admin/invitations" element={<AdminOnlyRoute><AdminInvitations /></AdminOnlyRoute>} />
             <Route path="/indicators" element={<Navigate to="/projects" replace />} />
         </Route>
 

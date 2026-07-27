@@ -29,11 +29,12 @@ export interface CategoryPayload {
 }
 
 export const rawMaterialApi = {
-  list: (params?: { search?: string; categoryId?: string; active?: string; page?: number; pageSize?: number }) => {
+  list: (params?: { search?: string; categoryId?: string; active?: string; deleted?: boolean; page?: number; pageSize?: number }) => {
     const q = new URLSearchParams()
     if (params?.search) q.set('search', params.search)
     if (params?.categoryId) q.set('categoryId', params.categoryId)
     if (params?.active) q.set('active', params.active)
+    if (params?.deleted) q.set('deleted', 'true')
     if (params?.page) q.set('page', String(params.page))
     if (params?.pageSize) q.set('pageSize', String(params.pageSize))
     return request<any>(`/inventory/materials?${q.toString()}`)

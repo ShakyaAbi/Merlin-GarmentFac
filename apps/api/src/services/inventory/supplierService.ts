@@ -7,6 +7,7 @@ import {
 import { allocateDocumentNumber, previewDocumentNumber } from '../sequenceService'
 import { prisma } from '../../prisma'
 import { AppError } from '../../utils/errors'
+import { requireActiveOrganizationBankAccount } from '../organizationBankAccountService'
 import { calculatePurchaseGrandTotal } from './purchaseAccounting'
 
 function toNumber(value: unknown) {
@@ -178,7 +179,10 @@ export const softDeleteSupplier = async (id: string) => {
   return repo.softDeleteSupplier(id)
 }
 
-export const recordSupplierPayment = async (supplierId: string, payload: any, userId?: number) => {
+export const recordSupplierPayment = async (supplierId: string, payload: any, userId?: number, organizationId?: number) => {
+  const method = String(payload.paymentMethod || '').toLowerCase()
+  if (/bank|cheque|mobile/.test(method) && !payload.bankAccountId) throw new AppError(400, 'BANK_ACCOUNT_REQUIRED', 'Select the organization bank account used for this payment')
+  if (payload.bankAccountId && organizationId) await requireActiveOrganizationBankAccount(payload.bankAccountId, organizationId)
   return prisma.$transaction(async (tx) => {
     const paymentNumber = await allocateDocumentNumber('payment', { fiscalYear: payload.fiscalYear || undefined, tx })
     const paymentDate = payload.paymentDate ? new Date(payload.paymentDate) : new Date()
@@ -191,6 +195,7 @@ export const recordSupplierPayment = async (supplierId: string, payload: any, us
         paymentMethod: payload.paymentMethod,
         note: payload.note || null,
         createdBy: userId ?? null,
+        bankAccountId: payload.bankAccountId || null,
       },
     })
     await appendSupplierLedgerEntry({
@@ -219,7 +224,9 @@ export const updateSupplierPayment = async (
   paymentId: string,
   payload: any,
   userId?: number,
+  organizationId?: number,
 ) => {
+  if (payload.bankAccountId && organizationId) await requireActiveOrganizationBankAccount(payload.bankAccountId, organizationId)
   return prisma.$transaction(async (tx) => {
     const existing = await tx.supplierPayment.findFirst({ where: { id: paymentId, supplierId } })
     if (!existing) {
@@ -234,6 +241,7 @@ export const updateSupplierPayment = async (
         paymentDate: payload.paymentDate ? new Date(payload.paymentDate) : existing.paymentDate,
         note: payload.note === undefined ? existing.note : payload.note || null,
         createdBy: userId ?? existing.createdBy ?? null,
+        bankAccountId: payload.bankAccountId === undefined ? existing.bankAccountId : payload.bankAccountId || null,
       },
     })
     await replaceSupplierLedgerEntry({

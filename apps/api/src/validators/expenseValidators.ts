@@ -7,7 +7,7 @@ export const createExpenseSchema = z.object({
   description: z.string().trim().min(1, 'Expense description is required'),
   amount: z.coerce.number().positive('Amount must be greater than zero'),
   currency: z.string().trim().min(1).optional(),
-  status: z.enum(['DRAFT', 'APPROVED', 'PAID', 'VOID']).optional(),
+  status: z.enum(['APPROVED', 'PAID', 'VOID']).optional(),
   paymentDate: z.string().trim().optional(),
   notes: z.string().trim().optional(),
 })

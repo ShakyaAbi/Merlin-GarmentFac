@@ -22,6 +22,7 @@ export const createSupplierPaymentSchema = z.object({
   paymentMethod: z.string().trim().min(1, 'Payment method is required'),
   paymentDate: z.string().trim().optional(),
   note: z.string().trim().optional(),
+  bankAccountId: z.string().trim().optional(),
   fiscalYear: z.string().trim().optional(),
 })
 

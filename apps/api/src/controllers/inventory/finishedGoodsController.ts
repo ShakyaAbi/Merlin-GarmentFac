@@ -23,10 +23,18 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
   const data = await svc.listFinishedGoods({
     search: req.query.search as string | undefined,
     active: req.query.active !== undefined ? req.query.active === 'true' : undefined,
+    deleted: req.query.deleted === 'true' && (req as any).user?.role === 'ADMIN',
     page: Number(req.query.page) || 1,
     pageSize: Number(req.query.pageSize) || 20,
   })
   res.json(data)
+})
+
+export const remove = asyncHandler(async (req: Request, res: Response) => {
+  const user = (req as any).user?.id as number | undefined
+  const removed = await svc.deleteFinishedGood(req.params.id)
+  try { await recordAudit({ action: 'finished_good.delete', userId: user, after: removed }) } catch (e) {}
+  res.status(204).end()
 })
 
 export const nextNumber = asyncHandler(async (_req: Request, res: Response) => {

@@ -8,6 +8,8 @@ import { InventoryDataTable } from '../../components/inventory/InventoryDataTabl
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { formatNepaliDate } from '../../utils/nepaliDate'
+import { organizationBankAccountApi, OrganizationBankAccount } from '../../services/organizationBankAccountApi'
+import { useCurrentUser } from '../../components/auth/CurrentUserContext'
 
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
@@ -17,6 +19,7 @@ type PaymentForm = {
   paymentMethod: string
   paymentDate: string
   note: string
+  bankAccountId: string
 }
 
 const emptyPaymentForm: PaymentForm = {
@@ -24,6 +27,7 @@ const emptyPaymentForm: PaymentForm = {
   paymentMethod: 'cash',
   paymentDate: new Date().toISOString().slice(0, 10),
   note: '',
+  bankAccountId: '',
 }
 
 type SupplierForm = {
@@ -55,6 +59,7 @@ const emptySupplierForm: SupplierForm = {
 export default function SupplierDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { canEdit } = useCurrentUser()
   const [supplier, setSupplier] = useState<any | null>(null)
   const [ledgerEntries, setLedgerEntries] = useState<any[]>([])
   const [ledgerSearch, setLedgerSearch] = useState('')
@@ -68,6 +73,7 @@ export default function SupplierDetailPage() {
   const [editingPayment, setEditingPayment] = useState<any | null>(null)
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [form, setForm] = useState<SupplierForm>(emptySupplierForm)
+  const [bankAccounts, setBankAccounts] = useState<OrganizationBankAccount[]>([])
 
   const load = async () => {
     if (!id) return
@@ -102,6 +108,10 @@ export default function SupplierDetailPage() {
   useEffect(() => {
     void load()
   }, [id])
+
+  useEffect(() => {
+    organizationBankAccountApi.list().then(setBankAccounts).catch(() => setBankAccounts([]))
+  }, [])
 
   const summary = supplier?.summary || null
   const ledgerTypeCounts = useMemo(() => {
@@ -149,6 +159,7 @@ export default function SupplierDetailPage() {
         paymentMethod: payment.paymentMethod || 'cash',
         paymentDate: (payment.paymentDate || payment.createdAt || new Date().toISOString()).slice(0, 10),
         note: payment.note || '',
+        bankAccountId: payment.bankAccountId || payment.bankAccount?.id || '',
       })
     } else {
       setEditingPayment(null)
@@ -233,6 +244,7 @@ export default function SupplierDetailPage() {
         paymentMethod: paymentForm.paymentMethod,
         paymentDate: paymentForm.paymentDate || undefined,
         note: paymentForm.note || undefined,
+        bankAccountId: paymentForm.bankAccountId || undefined,
       }
       if (editingPayment) {
         await partyLedgerApi.updateSupplierPayment(id, editingPayment.id, payload)
@@ -612,20 +624,20 @@ export default function SupplierDetailPage() {
                             <td className="px-6 py-4">
                               {isPayment ? (
                                 <div className="flex items-center gap-2">
-                                  <button
+                                  {canEdit ? <button
                                     type="button"
                                     className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700"
                                     onClick={() => openPaymentModal(entry)}
                                   >
                                     Edit
-                                  </button>
-                                  <button
+                                  </button> : null}
+                                  {canEdit ? <button
                                     type="button"
                                     className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700"
                                     onClick={() => deletePayment(entry)}
                                   >
                                     Delete
-                                  </button>
+                                  </button> : null}
                                 </div>
                               ) : (
                                 <span className="text-xs text-slate-400">{isPurchase || isOpening ? 'Locked' : '-'}</span>
@@ -657,6 +669,7 @@ export default function SupplierDetailPage() {
             <span className="mb-1 block text-slate-600">Amount</span>
             <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={paymentForm.amount} onChange={(e) => setPaymentForm((current) => ({ ...current, amount: e.target.value }))} placeholder="0.00" />
           </label>
+          {/bank|cheque|mobile/i.test(paymentForm.paymentMethod) ? <label className="block text-sm"><span className="mb-1 block text-slate-600">Organization bank account</span><select required value={paymentForm.bankAccountId} onChange={(e) => setPaymentForm((current) => ({ ...current, bankAccountId: e.target.value }))} className="w-full rounded-xl border border-slate-300 px-3 py-2"><option value="">Select account</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.bankName} · {account.accountName} · {account.branchName}</option>)}</select></label> : null}
           <label className="block text-sm">
             <span className="mb-1 block text-slate-600">Payment Method</span>
             <select className="w-full rounded-xl border border-slate-300 px-3 py-2" value={paymentForm.paymentMethod} onChange={(e) => setPaymentForm((current) => ({ ...current, paymentMethod: e.target.value }))}>

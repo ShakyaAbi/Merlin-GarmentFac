@@ -5,6 +5,7 @@ import { chromium } from 'playwright'
 import { prisma } from '../prisma'
 import * as repo from '../repositories/salesInvoiceRepository'
 import { AppError } from '../utils/errors'
+import { requireActiveOrganizationBankAccount } from './organizationBankAccountService'
 import { getSalesCatalogProductsByIds, listSalesCatalogProducts } from './salesCatalogService'
 
 type InvoiceItemInput = {
@@ -309,10 +310,9 @@ function buildInvoicePdfHtml(invoice: any, companyName: string, organizationProf
             </div>
           </div>
 
-          <div class="info-grid">
+          <div class="info-grid" style="padding-top:10px; padding-bottom:10px">
             <div class="panel">
               <div><strong>TPIN :</strong> ${escapeHtml(organizationProfile?.taxpayerNumber || '-')}</div>
-              <div style="margin-top:12px"><strong>Buyer's Name :</strong> ${escapeHtml(invoice.customer?.customerName || 'Walk-in customer')}</div>
             </div>
             <div class="panel">
               <div><strong>Date of Transaction</strong> : ${formatDate(invoice.invoiceDate || invoice.createdAt)}</div>
@@ -320,9 +320,16 @@ function buildInvoicePdfHtml(invoice: any, companyName: string, organizationProf
             </div>
           </div>
 
-          <div style="padding:10px 20px; border-bottom:1px solid #cbd5e1">
-            <div><strong>Address :</strong> ${escapeHtml(invoice.customer?.address || '-')} <strong style="margin-left:16px">Buyer's TPIN :</strong> ${escapeHtml(invoice.customer?.panVatNumber || '-')}</div>
-            <div style="margin-top:6px"><strong>Mode of Payment :</strong> ${escapeHtml(invoice.paymentMethod || invoice.paymentMode || '-')} <strong style="margin-left:16px">Invoice No.</strong> : ${escapeHtml(invoice.invoiceNumber || invoice.id)}</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:10px 20px; border-bottom:1px solid #cbd5e1">
+            <div style="padding-right:12px">
+              <div><strong>Buyer's Name :</strong> ${escapeHtml(invoice.customer?.customerName || 'Walk-in customer')}</div>
+              <div style="margin-top:6px"><strong>Address :</strong> ${escapeHtml(invoice.customer?.address || '-')}</div>
+              <div style="margin-top:6px"><strong>Buyer's TPIN :</strong> ${escapeHtml(invoice.customer?.panVatNumber || '-')}</div>
+            </div>
+            <div style="padding-left:12px; text-align:right">
+              <div><strong>Invoice No.</strong> : ${escapeHtml(invoice.invoiceNumber || invoice.id)}</div>
+              <div style="margin-top:6px"><strong>Mode of Payment :</strong> ${escapeHtml(invoice.paymentMethod || invoice.paymentMode || '-')}</div>
+            </div>
           </div>
 
           <div class="items">
@@ -362,9 +369,16 @@ function buildInvoicePdfHtml(invoice: any, companyName: string, organizationProf
             </div>
           </div>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:40px; padding:34px 24px 12px; text-align:center">
-            <div><div style="border-top:1px dotted #64748b; width:140px; margin:0 auto 6px"></div><strong>Received by</strong></div>
-            <div><div style="border-top:1px dotted #64748b; width:140px; margin:0 auto 6px"></div><strong>Authorized Signature</strong><div style="margin-top:4px"><strong>For : ${escapeHtml(companyName)}</strong></div></div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:40px; padding:38px 24px 16px; text-align:center">
+            <div style="display:flex; min-height:112px; flex-direction:column; justify-content:flex-end">
+              <div style="border-top:1px dotted #64748b; width:176px; margin:0 auto 10px"></div>
+              <strong>Received by</strong>
+            </div>
+            <div style="display:flex; min-height:112px; flex-direction:column; justify-content:flex-end">
+              <div style="border-top:1px dotted #64748b; width:176px; margin:0 auto 10px"></div>
+              <strong>Authorized Signature</strong>
+              <div style="margin-top:6px"><strong>For : ${escapeHtml(companyName)}</strong></div>
+            </div>
           </div>
         </div>
       </body>
@@ -707,27 +721,21 @@ export async function updateInvoice(id: string, payload: any, userId?: number) {
   return repo.updateDraftInvoice(id, prepared.invoiceData, payload.items?.length ? prepared.items : undefined)
 }
 
-export async function submitInvoice(id: string, userId?: number) {
-  const invoice = await repo.getInvoice(id)
-  if (!invoice) throw new AppError(404, 'NOT_FOUND', 'Sales invoice not found')
-  if (!invoiceEditable(invoice)) {
-    throw new AppError(409, 'INVALID_STATUS', 'Only draft invoices can be submitted for approval')
-  }
-  return repo.submitInvoice(id)
-}
-
 export async function issueInvoice(id: string, userId?: number) {
   const invoice = await repo.getInvoice(id)
   if (!invoice) throw new AppError(404, 'NOT_FOUND', 'Sales invoice not found')
-  if (invoice.invoiceStatus !== 'PENDING_APPROVAL') {
-    throw new AppError(409, 'INVALID_STATUS', 'Only pending-approval invoices can be issued')
+  if (invoice.invoiceStatus !== 'DRAFT' && invoice.invoiceStatus !== 'PENDING_APPROVAL') {
+    throw new AppError(409, 'INVALID_STATUS', 'Only draft or pending-approval invoices can be issued')
   }
   return repo.issueInvoice(id, userId)
 }
 
-export async function recordPayment(id: string, payload: any, userId?: number) {
+export async function recordPayment(id: string, payload: any, userId?: number, organizationId?: number) {
   const invoice = await repo.getInvoice(id)
   if (!invoice) throw new AppError(404, 'NOT_FOUND', 'Sales invoice not found')
+  const method = String(payload.paymentMethod || '').toLowerCase()
+  if (/bank|cheque|mobile/.test(method) && !payload.bankAccountId) throw new AppError(400, 'BANK_ACCOUNT_REQUIRED', 'Select the organization bank account used for this payment')
+  if (payload.bankAccountId && organizationId) await requireActiveOrganizationBankAccount(payload.bankAccountId, organizationId)
   return repo.recordPayment(
     id,
     {
@@ -735,14 +743,16 @@ export async function recordPayment(id: string, payload: any, userId?: number) {
       paymentMethod: payload.paymentMethod,
       paymentDate: toDate(payload.paymentDate) || undefined,
       note: payload.note,
+      bankAccountId: payload.bankAccountId,
     },
     userId,
   )
 }
 
-export async function updatePayment(id: string, paymentId: string, payload: any, userId?: number) {
+export async function updatePayment(id: string, paymentId: string, payload: any, userId?: number, organizationId?: number) {
   const invoice = await repo.getInvoice(id)
   if (!invoice) throw new AppError(404, 'NOT_FOUND', 'Sales invoice not found')
+  if (payload.bankAccountId && organizationId) await requireActiveOrganizationBankAccount(payload.bankAccountId, organizationId)
   return repo.updatePayment(
     id,
     paymentId,
@@ -751,6 +761,7 @@ export async function updatePayment(id: string, paymentId: string, payload: any,
       paymentMethod: payload.paymentMethod,
       paymentDate: toDate(payload.paymentDate) || undefined,
       note: payload.note,
+      bankAccountId: payload.bankAccountId,
     },
     userId,
   )

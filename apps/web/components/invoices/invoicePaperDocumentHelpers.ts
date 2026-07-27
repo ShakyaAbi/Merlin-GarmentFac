@@ -99,12 +99,24 @@ export function buildSalesInvoicePaperDocumentProps(
 export function buildPurchaseInvoicePaperDocumentProps(
   purchase: any,
   organizationName = 'Merlin Lite',
+  organizationProfile?: {
+    taxpayerNumber?: string | null
+    address?: string | null
+    city?: string | null
+    district?: string | null
+    province?: string | null
+    country?: string | null
+    invoiceFooter?: string | null
+  } | null,
 ): InvoicePaperDocumentProps | null {
   if (!purchase) return null
 
   return {
     companyName: organizationName,
-    companyAddress: 'Nepal',
+    headerName: purchase.supplier?.name || purchase.supplierName || organizationName,
+    footerName: organizationName,
+    companyAddress: [organizationProfile?.address, organizationProfile?.city, organizationProfile?.district, organizationProfile?.province, organizationProfile?.country].filter(Boolean).join(', ') || 'Nepal',
+    companyPanVat: purchase.supplier?.panVatNumber || purchase.supplier?.taxpayerNumber || '',
     invoiceTitle: 'Purchase Invoice',
     invoiceNumber: purchase.invoiceNumber || purchase.id || '-',
     invoiceDate: purchase.invoiceDate || purchase.createdAt || undefined,
@@ -112,10 +124,12 @@ export function buildPurchaseInvoicePaperDocumentProps(
       label: 'Supplier',
       name: purchase.supplier?.name || purchase.supplierName || '-',
       address: purchase.supplier?.address || '',
-      panVatNumber: purchase.supplier?.panVatNumber || '',
+      panVatNumber: purchase.supplier?.panVatNumber || purchase.supplier?.taxpayerNumber || '',
       phone: purchase.supplier?.phone || '',
       email: purchase.supplier?.email || '',
     },
+    partyTaxLabel: 'Organization STPIN',
+    partyTaxNumber: organizationProfile?.taxpayerNumber || '',
     meta: buildMeta([
       { label: 'Transaction Date', value: formatNepaliDateTime(purchase.invoiceDate || purchase.createdAt) },
       { label: 'Invoice Issue Date', value: formatNepaliDateTime(purchase.createdAt || purchase.invoiceDate) },

@@ -57,7 +57,7 @@ export const createPayment = asyncHandler(async (req: Request, res: Response) =>
   const user = (req as any).user?.id
   const parsed = createSupplierPaymentSchema.safeParse(req.body)
   if (!parsed.success) throw new AppError(400, 'INVALID_INPUT', 'Invalid supplier payment payload', { errors: parsed.error.errors })
-  const created = await svc.recordSupplierPayment(req.params.id, parsed.data, user)
+  const created = await svc.recordSupplierPayment(req.params.id, parsed.data, user, req.user!.organizationId)
   try { await recordAudit({ action: 'supplier.payment.create', userId: user, after: created }) } catch (e) {}
   res.status(201).json(created)
 })
@@ -66,7 +66,7 @@ export const updatePayment = asyncHandler(async (req: Request, res: Response) =>
   const user = (req as any).user?.id
   const parsed = updateSupplierPaymentSchema.safeParse(req.body)
   if (!parsed.success) throw new AppError(400, 'INVALID_INPUT', 'Invalid supplier payment payload', { errors: parsed.error.errors })
-  const updated = await svc.updateSupplierPayment(req.params.id, req.params.paymentId, parsed.data, user)
+  const updated = await svc.updateSupplierPayment(req.params.id, req.params.paymentId, parsed.data, user, req.user!.organizationId)
   try { await recordAudit({ action: 'supplier.payment.update', userId: user, after: updated }) } catch (e) {}
   res.json(updated)
 })

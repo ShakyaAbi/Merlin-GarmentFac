@@ -26,12 +26,16 @@ type Party = {
 
 export type InvoicePaperDocumentProps = {
   companyName: string
+  headerName?: string
+  footerName?: string
   companyAddress?: string
   companyPanVat?: string
   invoiceTitle: string
   invoiceNumber: string
   invoiceDate?: string
   party: Party
+  partyTaxLabel?: string
+  partyTaxNumber?: string
   meta?: MetaRow[]
   items: InvoicePaperLine[]
   discountAmount?: number
@@ -61,12 +65,16 @@ const splitAmount = (value: number) => {
 
 export function InvoicePaperDocument({
   companyName,
+  headerName,
+  footerName,
   companyAddress,
   companyPanVat,
   invoiceTitle,
   invoiceNumber,
   invoiceDate,
   party,
+  partyTaxLabel,
+  partyTaxNumber,
   meta = [],
   items,
   discountAmount = 0,
@@ -78,6 +86,8 @@ export function InvoicePaperDocument({
   const transactionDate = metaValue('Transaction Date', formatNepaliDate(invoiceDate) || '-')
   const issueDate = metaValue('Invoice Issue Date', formatNepaliDate(invoiceDate) || '-')
   const paymentMode = metaValue('Mode of Payment')
+  const documentName = headerName || companyName
+  const signatureName = footerName || companyName
 
   return (
     <>
@@ -95,15 +105,14 @@ export function InvoicePaperDocument({
       >
         <header className="border-b border-slate-300 bg-white px-6 py-5 text-center">
           <div className="text-[12px] font-semibold uppercase tracking-[0.2em] text-slate-700">TAX INVOICE</div>
-          <h2 className="mt-1 text-[21px] font-black tracking-tight text-slate-950">{companyName}</h2>
+          <h2 className="mt-1 text-[21px] font-black tracking-tight text-slate-950">{documentName}</h2>
           <div className="mt-1 text-[12px] text-slate-600">{valueOrDash(companyAddress)}</div>
           <div className="mt-1 text-[10px] text-slate-500">{invoiceTitle}</div>
         </header>
 
-        <div className="grid grid-cols-2 border-b border-slate-300 px-5 py-3">
+        <div className="grid grid-cols-2 border-b border-slate-300 px-5 py-2">
           <div className="border-r border-slate-200 pr-5">
-            <div><span className="font-semibold">TPIN :</span> {valueOrDash(companyPanVat)}</div>
-            <div className="mt-3"><span className="font-semibold"><span>{party.label}</span>&apos;s Name :</span> {valueOrDash(party.name)}</div>
+            <div className="py-1"><span className="font-semibold">TPIN :</span> {valueOrDash(companyPanVat)}</div>
           </div>
           <div className="pl-5">
             <div><span className="font-semibold">Date of Transaction</span> : {transactionDate}</div>
@@ -111,9 +120,16 @@ export function InvoicePaperDocument({
           </div>
         </div>
 
-        <div className="border-b border-slate-300 px-5 py-2">
-          <div><span className="font-semibold">Address :</span> {valueOrDash(party.address)} <span className="ml-4 font-semibold"><span>{party.label}</span>&apos;s TPIN :</span> {valueOrDash(party.panVatNumber)}</div>
-          <div className="mt-1"><span className="font-semibold">Mode of Payment :</span> {paymentMode} <span className="ml-5 font-semibold">Invoice No.</span> : {valueOrDash(invoiceNumber)}</div>
+        <div className="grid grid-cols-2 gap-5 border-b border-slate-300 px-5 py-3">
+          <div className="space-y-1 pr-5">
+            <div><span className="font-semibold"><span>{party.label}</span>&apos;s Name :</span> {valueOrDash(party.name)}</div>
+            <div><span className="font-semibold">Address :</span> {valueOrDash(party.address)}</div>
+            <div><span className="font-semibold">{valueOrDash(partyTaxLabel || `${party.label}'s TPIN`)}</span> : {valueOrDash(partyTaxNumber || party.panVatNumber)}</div>
+          </div>
+          <div className="pl-5 text-right">
+            <div><span className="font-semibold">Invoice No.</span> : {valueOrDash(invoiceNumber)}</div>
+            <div><span className="font-semibold">Mode of Payment :</span> {paymentMode}</div>
+          </div>
         </div>
 
         <div className="overflow-x-auto px-5 py-4">
@@ -179,9 +195,16 @@ export function InvoicePaperDocument({
           </div>
         </div>
 
-        <footer className="grid grid-cols-2 gap-8 px-6 pb-5 pt-8 text-center">
-          <div><div className="mx-auto mb-1 w-36 border-t border-dotted border-slate-500" /><div className="font-semibold">Received by</div></div>
-          <div><div className="mx-auto mb-1 w-36 border-t border-dotted border-slate-500" /><div className="font-semibold">Authorized Signature</div><div className="mt-1 font-semibold">For : {companyName}</div></div>
+        <footer className="grid grid-cols-2 gap-10 px-6 pb-7 pt-10 text-center">
+          <div className="flex min-h-28 flex-col justify-end">
+            <div className="mx-auto mb-3 w-44 border-t border-dotted border-slate-500" />
+            <div className="font-semibold">Received by</div>
+          </div>
+          <div className="flex min-h-28 flex-col justify-end">
+            <div className="mx-auto mb-3 w-44 border-t border-dotted border-slate-500" />
+            <div className="font-semibold">Authorized Signature</div>
+            <div className="mt-2 font-semibold">For : {signatureName}</div>
+          </div>
         </footer>
       </section>
     </>

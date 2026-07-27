@@ -23,6 +23,7 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
     search: search as string | undefined,
     categoryId: categoryId as string | undefined,
     active: active !== undefined ? active === 'true' : undefined,
+    deleted: req.query.deleted === 'true' && (req as any).user?.role === 'ADMIN',
     page: Number(page) || 1,
     pageSize: Number(pageSize) || 20,
   })

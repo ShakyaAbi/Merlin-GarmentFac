@@ -42,7 +42,7 @@ export async function createExpense(payload: any, userId?: number) {
       description: payload.description,
       amount: new Prisma.Decimal(payload.amount || 0),
       currency: payload.currency || 'NPR',
-      status: payload.status || 'DRAFT',
+      status: payload.status || 'APPROVED',
       paymentDate: toDate(payload.paymentDate) || null,
       notes: payload.notes || null,
       createdBy: userId ?? null,

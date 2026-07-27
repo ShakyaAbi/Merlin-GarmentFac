@@ -3,11 +3,12 @@ import { request, getAuthHeader } from './apiClient'
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1'
 
 export const finishedGoodApi = {
-  list: (params?: { search?: string; articleCategoryId?: string; active?: string; page?: number; pageSize?: number }) => {
+  list: (params?: { search?: string; articleCategoryId?: string; active?: string; deleted?: boolean; page?: number; pageSize?: number }) => {
     const q = new URLSearchParams()
     if (params?.search) q.set('search', params.search)
     if (params?.articleCategoryId) q.set('articleCategoryId', params.articleCategoryId)
     if (params?.active) q.set('active', params.active)
+    if (params?.deleted) q.set('deleted', 'true')
     if (params?.page) q.set('page', String(params.page))
     if (params?.pageSize) q.set('pageSize', String(params.pageSize))
     return request<any>(`/inventory/finished-goods?${q.toString()}`)

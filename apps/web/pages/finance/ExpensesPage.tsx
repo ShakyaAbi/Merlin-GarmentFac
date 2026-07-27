@@ -105,7 +105,7 @@ export default function ExpensesPage() {
             <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
               <Filter className="h-4 w-4 text-slate-400" />
               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as ExpenseStatus | 'ALL')} className="bg-transparent outline-none">
-                {['ALL', 'DRAFT', 'APPROVED', 'PAID', 'VOID'].map((option) => (
+                {['ALL', 'APPROVED', 'PAID', 'VOID'].map((option) => (
                   <option key={option} value={option}>{option === 'ALL' ? 'All statuses' : option}</option>
                 ))}
               </select>

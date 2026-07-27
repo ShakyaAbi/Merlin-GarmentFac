@@ -2,15 +2,18 @@ import React from 'react'
 import {
   BarChart3,
   ClipboardCheck,
-  Command,
   FileSpreadsheet,
   FileText,
   FolderKanban,
   Home,
   Layers,
+  Mail,
+  Package,
   Settings,
   Users,
   AlertCircle,
+  Truck,
+  DollarSign,
 } from 'lucide-react'
 
 export type SidebarItem = {
@@ -37,6 +40,7 @@ export const routeLabelMap: Record<string, string> = {
   projects: 'Home',
   indicators: 'Indicators',
   payments: 'Payments',
+  expenses: 'Expenses',
   production: 'Production Batches',
   purchases: 'Purchase Invoices',
   settings: 'Settings',
@@ -65,10 +69,11 @@ export const sidebarSections: SidebarSectionConfig[] = [
     items: [
       { icon: FolderKanban, label: 'Raw Materials', path: '/inventory/materials' },
       { icon: ClipboardCheck, label: 'Purchase Invoices', path: '/inventory/purchases' },
-      { icon: Layers, label: 'Articles', path: '/inventory/finished-goods' },
+      { icon: Package, label: 'Articles', path: '/inventory/finished-goods' },
       { icon: Layers, label: 'Production Batches', path: '/inventory/production' },
       { icon: AlertCircle, label: 'Alerts', path: '/inventory/alerts' },
-      { icon: Command, label: 'Suppliers', path: '/inventory/suppliers' },
+      { icon: Truck, label: 'Suppliers', path: '/inventory/suppliers' },
+      { icon: FileText, label: 'Expenses', path: '/expenses' },
     ],
   },
   {
@@ -77,9 +82,8 @@ export const sidebarSections: SidebarSectionConfig[] = [
     collapsible: true,
     items: [
       { icon: FileText, label: 'Sales Invoices', path: '/sales-invoices' },
-      { icon: FileText, label: 'Sales Orders', path: '/sales-orders' },
       { icon: Users, label: 'Customers', path: '/inventory/customers' },
-      { icon: FileText, label: 'Payments', path: '/payments' },
+      { icon: DollarSign, label: 'Payments', path: '/payments' },
     ],
   },
   {
@@ -88,7 +92,7 @@ export const sidebarSections: SidebarSectionConfig[] = [
     collapsible: false,
     items: [
       { icon: Users, label: 'Team', path: '/admin/users' },
-      { icon: Users, label: 'Invitations', path: '/admin/invitations' },
+      { icon: Mail, label: 'Invitations', path: '/admin/invitations' },
       { icon: FileSpreadsheet, label: 'Exports', path: '/exports' },
       { icon: Settings, label: 'Settings', path: '/settings' },
     ],

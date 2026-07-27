@@ -83,6 +83,10 @@ export async function updateFinishedGood(id: string, data: any, userId?: number)
   })
 }
 
+export async function deleteFinishedGood(id: string) {
+  return repo.softDeleteFinishedGood(id)
+}
+
 export async function getFinishedGood(id: string) {
   const product = await repo.getFinishedGood(id)
   if (!product) return null

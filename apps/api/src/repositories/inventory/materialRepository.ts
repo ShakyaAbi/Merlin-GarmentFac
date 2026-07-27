@@ -13,8 +13,9 @@ export const listMaterials = async (opts: {
   search?: string
   categoryId?: string
   active?: boolean
+  deleted?: boolean
 } = {}) => {
-  const where: any = { deletedAt: null }
+  const where: any = { deletedAt: opts.deleted ? { not: null } : null }
   if (opts.lowStock) where.reorderLevel = { not: null }
   if (opts.search) {
     where.OR = [
@@ -96,8 +97,8 @@ export const softDeleteMaterial = async (id: string) => {
 }
 
 // Count materials with filters
-export const countMaterials = async (opts: { search?: string; categoryId?: string } = {}) => {
-  const where: any = { deletedAt: null }
+export const countMaterials = async (opts: { search?: string; categoryId?: string; deleted?: boolean } = {}) => {
+  const where: any = { deletedAt: opts.deleted ? { not: null } : null }
   if (opts.search) {
     where.OR = [
       { name: { contains: opts.search, mode: 'insensitive' } },

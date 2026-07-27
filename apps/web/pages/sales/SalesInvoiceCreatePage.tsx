@@ -318,7 +318,7 @@ export default function SalesInvoiceCreatePage() {
     return null
   }
 
-  const saveInvoice = async (nextSteps: Array<'submit' | 'issue'> = []) => {
+  const saveInvoice = async (nextSteps: Array<'issue'> = []) => {
     const validationMessage = validate()
     if (validationMessage) {
       setError(validationMessage)
@@ -333,7 +333,7 @@ export default function SalesInvoiceCreatePage() {
         ? await salesInvoiceApi.update(invoiceId, buildPayload())
         : await salesInvoiceApi.create(buildPayload())
       for (const step of nextSteps) {
-        invoice = step === 'submit' ? await salesInvoiceApi.submit(invoice.id) : await salesInvoiceApi.issue(invoice.id)
+        invoice = await salesInvoiceApi.issue(invoice.id)
       }
       navigate(`/sales-invoices/${invoice.id}`)
     } catch (err: any) {
@@ -352,7 +352,6 @@ export default function SalesInvoiceCreatePage() {
   const saveLabel = isEditing ? 'Save Changes' : 'Save Draft'
   const currentInvoiceStatus = String(loadedInvoice?.invoiceStatus || '')
   const isPendingApproval = currentInvoiceStatus === 'PENDING_APPROVAL'
-  const submitLabel = isEditing ? 'Save & Submit' : 'Submit'
   const issueLabel = isEditing ? 'Save & Issue' : 'Save & Issue'
   const editLocked = Boolean(loadedInvoice && !['DRAFT', 'PENDING_APPROVAL'].includes(String(loadedInvoice.invoiceStatus || '')))
   const heroStats = [
@@ -417,7 +416,7 @@ export default function SalesInvoiceCreatePage() {
               </span>
             </div>
             <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
-              Select the customer, add finished-goods lines, and use the totals rail to save, submit, or issue without losing context.
+              Select the customer, add finished-goods lines, and use the totals rail to save a draft or issue without losing context.
             </p>
           </div>
 
@@ -547,10 +546,7 @@ export default function SalesInvoiceCreatePage() {
                   </Button>
                 ) : (
                   <>
-                    <Button type="button" variant="outline" onClick={() => saveInvoice(['submit'])} isLoading={saving === 'submit'} disabled={editLocked}>
-                      {submitLabel}
-                    </Button>
-                    <Button type="button" onClick={() => saveInvoice(['submit', 'issue'])} isLoading={saving === 'submit+issue'} disabled={editLocked}>
+                    <Button type="button" onClick={() => saveInvoice(['issue'])} isLoading={saving === 'issue'} disabled={editLocked}>
                       {issueLabel}
                     </Button>
                   </>

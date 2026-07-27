@@ -2,11 +2,19 @@
 import React, { useEffect, useState } from 'react';
 import { CurrentUser } from '../types';
 import { api } from '../services/api';
-import { User, Lock, Mail, Shield, Calendar, Server, KeyRound, Database } from 'lucide-react';
+import { User, Lock, Mail, Shield, Calendar, Server, KeyRound, Database, Banknote, Building2, Plus, Trash2 } from 'lucide-react';
 import { formatNepaliDate } from '../utils/nepaliDate';
+import { useCurrentUser } from '../components/auth/CurrentUserContext';
+import { organizationBankAccountApi, OrganizationBankAccount } from '../services/organizationBankAccountApi';
+
+const emptyBankAccount = {
+  bankName: '', accountName: '', accountNumber: '', branchName: '', branchCode: '', accountType: 'CURRENT', currency: 'NPR',
+};
 
 export const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'system'>('profile');
+  const { user: sessionUser } = useCurrentUser();
+  const isAdmin = sessionUser?.role === 'ADMIN';
+  const [activeTab, setActiveTab] = useState<'profile' | 'organization' | 'security' | 'system'>('profile');
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [organizationName, setOrganizationName] = useState('');
@@ -22,8 +30,16 @@ export const Settings: React.FC = () => {
   const [changing, setChanging] = useState(false);
   const [securityError, setSecurityError] = useState<string | null>(null);
   const [securitySuccess, setSecuritySuccess] = useState<string | null>(null);
+  const [bankAccounts, setBankAccounts] = useState<OrganizationBankAccount[]>([]);
+  const [bankAccountForm, setBankAccountForm] = useState(emptyBankAccount);
+  const [bankAccountSaving, setBankAccountSaving] = useState(false);
+  const [bankAccountError, setBankAccountError] = useState<string | null>(null);
   const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1';
   const authMode = import.meta.env.VITE_AUTH_DISABLED === 'true' ? 'Local dev bypass only' : 'JWT enforced';
+
+  useEffect(() => {
+    if (sessionUser && !isAdmin) setActiveTab('security');
+  }, [isAdmin, sessionUser]);
 
   useEffect(() => {
     api.me()
@@ -53,6 +69,36 @@ export const Settings: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (!isAdmin) return;
+    organizationBankAccountApi.list().then(setBankAccounts).catch((error) => setBankAccountError(error?.message || 'Failed to load bank accounts.'));
+  }, [isAdmin]);
+
+  const saveBankAccount = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBankAccountError(null);
+    setBankAccountSaving(true);
+    try {
+      const account = await organizationBankAccountApi.create(bankAccountForm);
+      setBankAccounts((current) => [...current, account]);
+      setBankAccountForm(emptyBankAccount);
+    } catch (error: any) {
+      setBankAccountError(error?.message || 'Failed to create bank account.');
+    } finally {
+      setBankAccountSaving(false);
+    }
+  };
+
+  const deactivateBankAccount = async (account: OrganizationBankAccount) => {
+    if (!window.confirm(`Deactivate ${account.bankName} - ${account.accountName}?`)) return;
+    try {
+      await organizationBankAccountApi.remove(account.id);
+      setBankAccounts((current) => current.filter((item) => item.id !== account.id));
+    } catch (error: any) {
+      setBankAccountError(error?.message || 'Failed to deactivate bank account.');
+    }
+  };
+
   const formatDate = (value?: string) => formatNepaliDate(value, '-');
 
   if (loading) return <div className="p-8 text-center text-slate-500">Loading settings...</div>;
@@ -67,11 +113,14 @@ export const Settings: React.FC = () => {
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Sidebar Tabs */}
         <div className="w-full lg:w-64 flex-shrink-0 space-y-2">
-           {[
-             { id: 'profile', label: 'My Profile', icon: User },
-             { id: 'security', label: 'Security', icon: Lock },
-             { id: 'system', label: 'System', icon: Server },
-           ].map(tab => (
+               {(isAdmin ? [
+                 { id: 'profile', label: 'My Profile', icon: User },
+                 { id: 'organization', label: 'Organization settings', icon: Building2 },
+                 { id: 'security', label: 'Security', icon: Lock },
+                 { id: 'system', label: 'System', icon: Server },
+               ] : [
+                 { id: 'security', label: 'Change password', icon: Lock },
+               ]).map(tab => (
              <button
                key={tab.id}
                onClick={() => setActiveTab(tab.id as any)}
@@ -93,11 +142,12 @@ export const Settings: React.FC = () => {
            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               
               {/* Profile Tab */}
-              {activeTab === 'profile' && (
+                  {/* Admin-only profile and organization settings: isAdmin && activeTab === 'profile' */}
+                  {isAdmin && (activeTab === 'profile' || activeTab === 'organization') && (
                 <div className="p-6 md:p-8 space-y-6">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900">Account Information</h2>
-                    <p className="text-sm text-slate-500">These details are pulled from your authenticated account.</p>
+                    <h2 className="text-lg font-bold text-slate-900">{activeTab === 'organization' ? 'Organization settings' : 'Account Information'}</h2>
+                    <p className="text-sm text-slate-500">{activeTab === 'organization' ? 'Manage the organization details printed on invoices and its payment accounts.' : 'These details are pulled from your authenticated account.'}</p>
                   </div>
 
                   {!user && (
@@ -108,6 +158,8 @@ export const Settings: React.FC = () => {
 
                   {user && (
                     <div className="space-y-6">
+                      {activeTab === 'organization' && (
+                        <>
                       <form
                         className="rounded-xl border border-slate-200 bg-slate-50 p-4 md:p-5 space-y-4"
                         onSubmit={async (event) => {
@@ -233,7 +285,37 @@ export const Settings: React.FC = () => {
                         </div>
                       </form>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <section className="rounded-xl border border-slate-200 bg-white p-4 md:p-5 space-y-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900"><Banknote className="h-4 w-4 text-blue-600" />Bank Accounts</h3>
+                            <p className="text-sm text-slate-500">Accounts users can select when receiving customer payments or paying suppliers.</p>
+                          </div>
+                        </div>
+                        <form onSubmit={saveBankAccount} className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          {([
+                            ['bankName', 'Bank name'], ['accountName', 'Account name'], ['accountNumber', 'Account number'], ['branchName', 'Branch name'], ['branchCode', 'Branch code'],
+                          ] as const).map(([key, label]) => (
+                            <label key={key} className="block text-sm">
+                              <span className="mb-1 block font-medium text-slate-700">{label}{key !== 'branchCode' ? ' *' : ''}</span>
+                              <input required={key !== 'branchCode'} value={bankAccountForm[key]} onChange={(event) => setBankAccountForm((current) => ({ ...current, [key]: event.target.value }))} className="w-full rounded-md border border-slate-200 px-3 py-2" />
+                            </label>
+                          ))}
+                          <label className="block text-sm"><span className="mb-1 block font-medium text-slate-700">Account type</span><select value={bankAccountForm.accountType} onChange={(event) => setBankAccountForm((current) => ({ ...current, accountType: event.target.value }))} className="w-full rounded-md border border-slate-200 px-3 py-2"><option value="CURRENT">Current</option><option value="SAVINGS">Savings</option><option value="OTHER">Other</option></select></label>
+                          <label className="block text-sm"><span className="mb-1 block font-medium text-slate-700">Currency</span><input value={bankAccountForm.currency} onChange={(event) => setBankAccountForm((current) => ({ ...current, currency: event.target.value }))} className="w-full rounded-md border border-slate-200 px-3 py-2" /></label>
+                          <div className="flex items-end"><button type="submit" disabled={bankAccountSaving} className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-white disabled:opacity-50"><Plus className="h-4 w-4" />{bankAccountSaving ? 'Adding...' : 'Add bank account'}</button></div>
+                        </form>
+                        {bankAccountError ? <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{bankAccountError}</div> : null}
+                        <div className="space-y-2">
+                          {bankAccounts.map((account) => <div key={account.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm"><div><div className="font-semibold text-slate-900">{account.bankName} - {account.accountName}</div><div className="text-slate-500">A/C {account.accountNumber} · {account.branchName}{account.branchCode ? ` (${account.branchCode})` : ''}</div></div><button type="button" onClick={() => deactivateBankAccount(account)} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-3 py-2 text-red-700"><Trash2 className="h-4 w-4" />Deactivate</button></div>)}
+                          {bankAccounts.length === 0 ? <div className="text-sm text-slate-500">No active bank accounts configured.</div> : null}
+                        </div>
+                      </section>
+
+                        </>
+                      )}
+
+                      {activeTab === 'profile' && <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
                           <div className="relative">
@@ -279,14 +361,14 @@ export const Settings: React.FC = () => {
                             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                           </div>
                         </div>
-                      </div>
+                      </div>}
                     </div>
                   )}
                 </div>
               )}
 
               {/* System Tab */}
-              {activeTab === 'system' && (
+              {isAdmin && activeTab === 'system' && (
                 <div className="p-6 md:p-8 space-y-6">
                   <div>
                     <h2 className="text-lg font-bold text-slate-900">System Settings</h2>

@@ -15,6 +15,7 @@ import { routeLabelMap, sidebarSections } from "./layout/layoutNav";
 import { SidebarSection } from "./layout/SidebarSection";
 import { NotificationsMenu } from "./layout/NotificationsMenu";
 import { ToastStack } from "./layout/ToastStack";
+import { CurrentUserProvider } from "./auth/CurrentUserContext";
 
 type InventoryAlertItem = {
   id: string;
@@ -156,8 +157,19 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   };
 
+  const visibleSidebarSections = React.useMemo(() => {
+    const isAdmin = currentUser?.role === 'ADMIN';
+    return sidebarSections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => isAdmin || !['/admin/users', '/admin/invitations'].includes(item.path)),
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [currentUser?.role]);
+
   return (
-    <div className="h-screen w-full bg-blue-900 flex overflow-hidden font-sans p-2 lg:p-4 gap-4 relative">
+    <CurrentUserProvider user={currentUser}>
+      <div className="h-screen w-full bg-blue-900 flex overflow-hidden font-sans p-2 lg:p-4 gap-4 relative">
       <Silk speed={5} scale={1} color="#4d66ff" noiseIntensity={0.8} rotation={0} paused={true} />
       <ToastStack />
 
@@ -235,7 +247,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           ref={sidebarNavRef}
           className="sidebar-scrollbar flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4"
         >
-          {sidebarSections.map((section) => (
+          {visibleSidebarSections.map((section) => (
             <SidebarSection
               key={section.key}
               section={section}
@@ -361,6 +373,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="max-w-7xl mx-auto">{children}</div>
         </main>
       </div>
-    </div>
+      </div>
+    </CurrentUserProvider>
   );
 };

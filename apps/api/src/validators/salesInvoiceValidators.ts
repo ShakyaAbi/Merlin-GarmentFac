@@ -30,6 +30,7 @@ export const salesInvoicePaymentSchema = z.object({
   paymentMethod: z.string().trim().min(1),
   paymentDate: z.string().trim().optional(),
   note: z.string().trim().optional(),
+  bankAccountId: z.string().trim().optional(),
 })
 
 export const updateSalesInvoicePaymentSchema = salesInvoicePaymentSchema.partial().extend({

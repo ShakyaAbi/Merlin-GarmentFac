@@ -1,59 +1,60 @@
-import React from "react";
-import { Button } from "../ui/Button";
-import type { SalesInvoiceProduct } from "../../services/salesInvoiceApi";
+import React, { useMemo } from "react"
+import { Button } from "../ui/Button"
+import { SearchableSelect } from "../ui/SearchableSelect"
+import type { SalesInvoiceProduct } from "../../services/salesInvoiceApi"
 
 export interface InvoiceDraftItem {
-  id: string;
-  productId: string;
-  productCode: string;
-  productName: string;
-  quantity: string;
-  unitPrice: string;
-  discountAmount: string;
-  taxAmount: string;
-  warehouseId: string;
+  id: string
+  productId: string
+  productCode: string
+  productName: string
+  quantity: string
+  unitPrice: string
+  discountAmount: string
+  taxAmount: string
+  warehouseId: string
 }
 
 type Props = {
-  items: InvoiceDraftItem[];
-  products?: SalesInvoiceProduct[];
-  readOnly?: boolean;
-  taxEditable?: boolean;
-  showWarehouse?: boolean;
-  onAddItem?: () => void;
-  onRemoveItem?: (id: string) => void;
-  onChangeItem?: (id: string, patch: Partial<InvoiceDraftItem>) => void;
-};
+  items: InvoiceDraftItem[]
+  products?: SalesInvoiceProduct[]
+  readOnly?: boolean
+  taxEditable?: boolean
+  showWarehouse?: boolean
+  onAddItem?: () => void
+  onRemoveItem?: (id: string) => void
+  onChangeItem?: (id: string, patch: Partial<InvoiceDraftItem>) => void
+}
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(Number.isFinite(value) ? value : 0);
+  }).format(Number.isFinite(value) ? value : 0)
 
-const toNumber = (value: string | number | null | undefined) => Number(value ?? 0);
+const toNumber = (value: string | number | null | undefined) => Number(value ?? 0)
 
 const lineSubtotal = (item: InvoiceDraftItem) => {
-  const quantity = toNumber(item.quantity);
-  const unitPrice = toNumber(item.unitPrice);
-  return Math.max(quantity * unitPrice, 0);
-};
+  const quantity = toNumber(item.quantity)
+  const unitPrice = toNumber(item.unitPrice)
+  return Math.max(quantity * unitPrice, 0)
+}
 
 const lineDiscountAmount = (item: InvoiceDraftItem) => {
-  const subtotal = lineSubtotal(item);
-  return Math.min(Math.max(toNumber(item.discountAmount), 0), subtotal);
-};
+  const subtotal = lineSubtotal(item)
+  return Math.min(Math.max(toNumber(item.discountAmount), 0), subtotal)
+}
 
-const lineTaxableAmount = (item: InvoiceDraftItem) => Math.max(lineSubtotal(item) - lineDiscountAmount(item), 0);
+const lineTaxableAmount = (item: InvoiceDraftItem) => Math.max(lineSubtotal(item) - lineDiscountAmount(item), 0)
 
 const lineTotal = (item: InvoiceDraftItem) => {
-  const tax = Number(item.taxAmount || 0);
-  return Math.max(lineTaxableAmount(item) + tax, 0);
-};
+  const tax = Number(item.taxAmount || 0)
+  return Math.max(lineTaxableAmount(item) + tax, 0)
+}
 
-const getProductCode = (product: SalesInvoiceProduct) => product.productCode || product.sku || product.id;
+const getProductCode = (product: SalesInvoiceProduct) => product.productCode || product.sku || product.id
 
-const getProductPrice = (product: SalesInvoiceProduct) => String(product.sellingPrice ?? product.costPrice ?? 0);
+const getProductPrice = (product: SalesInvoiceProduct) => String(product.sellingPrice ?? product.costPrice ?? 0)
 
 const applyProductToItem = (
   item: InvoiceDraftItem,
@@ -61,7 +62,7 @@ const applyProductToItem = (
   products: SalesInvoiceProduct[],
   onChangeItem?: (id: string, patch: Partial<InvoiceDraftItem>) => void,
 ) => {
-  const product = products.find((candidate) => candidate.id === productId);
+  const product = products.find((candidate) => candidate.id === productId)
   if (!product) {
     onChangeItem?.(item.id, {
       productId,
@@ -71,8 +72,8 @@ const applyProductToItem = (
       discountAmount: "0",
       taxAmount: "0",
       warehouseId: "",
-    });
-    return;
+    })
+    return
   }
 
   onChangeItem?.(item.id, {
@@ -82,8 +83,8 @@ const applyProductToItem = (
     unitPrice: getProductPrice(product),
     discountAmount: "0",
     warehouseId: product.category || item.warehouseId || "Articles",
-  });
-};
+  })
+}
 
 export function InvoiceItemTable({
   items,
@@ -95,14 +96,23 @@ export function InvoiceItemTable({
   onRemoveItem,
   onChangeItem,
 }: Props) {
+  const productOptions = useMemo(
+    () =>
+      products.map((product) => ({
+        value: product.id,
+        label: `${getProductCode(product)} - ${product.name}`,
+        description: `${product.unit || "pcs"} | ${money(Number(product.sellingPrice ?? product.costPrice ?? 0))}`,
+        searchText: [product.name, product.productCode, product.sku, product.category, product.description].filter(Boolean).join(" "),
+      })),
+    [products],
+  )
+
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-4">
         <div>
           <h3 className="text-lg font-semibold text-slate-900">Invoice Items</h3>
-          <p className="text-sm text-slate-500">
-            Add article lines, quantities, and pricing for this invoice.
-          </p>
+          <p className="text-sm text-slate-500">Add article lines, quantities, and pricing for this invoice.</p>
         </div>
         {!readOnly && onAddItem ? (
           <Button type="button" size="sm" onClick={onAddItem}>
@@ -135,7 +145,7 @@ export function InvoiceItemTable({
               </tr>
             ) : (
               items.map((item) => {
-                const total = lineTotal(item);
+                const total = lineTotal(item)
 
                 return (
                   <tr key={item.id} className="hover:bg-slate-50">
@@ -144,19 +154,14 @@ export function InvoiceItemTable({
                         <span className="text-slate-700">{item.productCode || "-"}</span>
                       ) : (
                         <div className="min-w-[16rem] max-w-[18rem]">
-                          <select
+                          <SearchableSelect
                             value={item.productId}
-                            onChange={(event) => applyProductToItem(item, event.target.value, products, onChangeItem)}
-                            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          >
-                            <option value="">Select article</option>
-                            {products.map((product) => (
-                              <option key={product.id} value={product.id}>
-                                {getProductCode(product)} - {product.name}
-                              </option>
-                            ))}
-                          </select>
-                          <div className="mt-1 text-xs text-slate-500">{item.productCode || "Choose from finished goods"}</div>
+                            options={productOptions}
+                            placeholder="Select article"
+                            searchPlaceholder="Search articles by code or name"
+                            emptyMessage="No articles found."
+                            onChange={(nextValue) => applyProductToItem(item, nextValue, products, onChangeItem)}
+                          />
                         </div>
                       )}
                     </td>
@@ -222,21 +227,19 @@ export function InvoiceItemTable({
                     <td className="px-4 py-4 align-top">
                       {readOnly ? (
                         <span className="block text-center font-medium tabular-nums text-slate-900">{money(Number(item.taxAmount || 0))}</span>
+                      ) : taxEditable ? (
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.taxAmount}
+                          onChange={(event) => onChangeItem?.(item.id, { taxAmount: event.target.value })}
+                          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-center text-sm tabular-nums"
+                        />
                       ) : (
-                        taxEditable ? (
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.taxAmount}
-                            onChange={(event) => onChangeItem?.(item.id, { taxAmount: event.target.value })}
-                            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-center text-sm tabular-nums"
-                          />
-                        ) : (
-                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-medium tabular-nums text-slate-900">
-                            {money(Number(item.taxAmount || 0))}
-                          </div>
-                        )
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-medium tabular-nums text-slate-900">
+                          {money(Number(item.taxAmount || 0))}
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-4 align-top">
@@ -250,12 +253,12 @@ export function InvoiceItemTable({
                       </td>
                     ) : null}
                   </tr>
-                );
+                )
               })
             )}
           </tbody>
         </table>
       </div>
     </div>
-  );
+  )
 }

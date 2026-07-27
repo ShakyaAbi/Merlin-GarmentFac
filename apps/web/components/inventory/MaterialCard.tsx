@@ -13,22 +13,26 @@ type MaterialCardProps = {
     reorderLevel?: number | null
     type?: string
     active?: boolean
+    deletedAt?: string | null
   }
   onEdit?: (material: MaterialCardProps['material']) => void
+  onDelete?: (id: string) => void
 }
 
-export function MaterialCard({ material, onEdit }: MaterialCardProps) {
+export function MaterialCard({ material, onEdit, onDelete }: MaterialCardProps) {
   const currentStock = Number(material.currentStock ?? 0)
   const reorderLevel = material.reorderLevel ?? null
   const hasTarget = reorderLevel != null && Number.isFinite(Number(reorderLevel)) && Number(reorderLevel) > 0
   const progress = hasTarget ? Math.min(Math.max((currentStock / Number(reorderLevel)) * 100, 0), 100) : 0
   const statusTone =
-    !material.active
+      material.deletedAt
+      ? 'bg-red-100 text-red-800'
+      : !material.active
       ? 'bg-slate-100 text-slate-800'
       : currentStock <= Number(reorderLevel ?? 0)
         ? 'bg-amber-100 text-amber-800'
         : 'bg-emerald-100 text-emerald-800'
-  const statusLabel = !material.active ? 'Inactive' : currentStock <= Number(reorderLevel ?? 0) ? 'Low Stock' : 'Healthy'
+  const statusLabel = material.deletedAt ? 'Deleted' : !material.active ? 'Inactive' : currentStock <= Number(reorderLevel ?? 0) ? 'Low Stock' : 'Healthy'
 
   return (
     <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
@@ -87,9 +91,12 @@ export function MaterialCard({ material, onEdit }: MaterialCardProps) {
         >
           View
         </Link>
-        <Button type="button" variant="outline" size="sm" className="px-4" onClick={() => onEdit?.(material)}>
-          Edit
-        </Button>
+        {onEdit ? (
+          <Button type="button" variant="outline" size="sm" className="px-4" onClick={() => onEdit(material)}>
+            Edit
+          </Button>
+        ) : null}
+        {onDelete ? <Button type="button" variant="outline" size="sm" className="px-4" onClick={() => onDelete(material.id)}>Delete</Button> : null}
       </div>
     </div>
   )

@@ -61,7 +61,7 @@ export const request = async <T>(
   }
 
   if (!res.ok) {
-    const isAuthFailure = res.status === 401 || res.status === 403;
+    const isAuthFailure = res.status === 401;
     const isSessionCheck = path === "/auth/me";
     const isLoginAttempt = path === "/auth/login";
 

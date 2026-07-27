@@ -111,13 +111,6 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
   res.json(updated)
 })
 
-export const submit = asyncHandler(async (req: Request, res: Response) => {
-  const user = (req as any).user?.id as number | undefined
-  const updated = await svc.submitInvoice(req.params.id, user)
-  try { await recordAudit({ action: 'sales_invoice.submit', userId: user, after: { invoiceId: updated.id, status: updated.invoiceStatus } }) } catch (error) {}
-  res.json(updated)
-})
-
 export const issue = asyncHandler(async (req: Request, res: Response) => {
   const user = (req as any).user?.id as number | undefined
   const updated = await svc.issueInvoice(req.params.id, user)
@@ -132,7 +125,7 @@ export const payment = asyncHandler(async (req: Request, res: Response) => {
     throw new AppError(400, 'INVALID_INPUT', 'Invalid payment payload', { errors: parsed.error.errors })
   }
 
-  const updated = await svc.recordPayment(req.params.id, parsed.data, user)
+  const updated = await svc.recordPayment(req.params.id, parsed.data, user, (req as any).user?.organizationId)
   try { await recordAudit({ action: 'sales_invoice.payment', userId: user, after: { invoiceId: updated.id, paymentStatus: updated.paymentStatus } }) } catch (error) {}
   res.json(updated)
 })
@@ -149,7 +142,7 @@ export const updatePayment = asyncHandler(async (req: Request, res: Response) =>
     throw new AppError(400, 'INVALID_INPUT', 'Invalid payment payload', { errors: parsed.error.errors })
   }
 
-  const updated = await svc.updatePayment(req.params.id, req.params.paymentId, parsed.data, user)
+  const updated = await svc.updatePayment(req.params.id, req.params.paymentId, parsed.data, user, (req as any).user?.organizationId)
   try { await recordAudit({ action: 'sales_invoice.payment.update', userId: user, after: { invoiceId: updated.id } }) } catch (error) {}
   res.json(updated)
 })

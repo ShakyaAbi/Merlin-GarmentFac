@@ -33,6 +33,14 @@ export async function updateFinishedGood(id: string, data: Prisma.FinishedGoodPr
   return prisma.finishedGoodProduct.update({ where: { id }, data, select: productSelect })
 }
 
+export async function softDeleteFinishedGood(id: string) {
+  return prisma.finishedGoodProduct.update({
+    where: { id },
+    data: { deletedAt: new Date(), active: false },
+    select: productSelect,
+  })
+}
+
 export async function getFinishedGood(id: string) {
   return prisma.finishedGoodProduct.findUnique({ where: { id }, select: productSelect })
 }
@@ -40,13 +48,14 @@ export async function getFinishedGood(id: string) {
 export async function listFinishedGoods(opts: {
   search?: string
   active?: boolean
+  deleted?: boolean
   page?: number
   pageSize?: number
 } = {}) {
   const page = opts.page || 1
   const pageSize = opts.pageSize || 20
   const skip = (page - 1) * pageSize
-  const where: Prisma.FinishedGoodProductWhereInput = { deletedAt: null }
+  const where: Prisma.FinishedGoodProductWhereInput = { deletedAt: opts.deleted ? { not: null } : null }
 
   if (opts.search) {
     where.OR = [

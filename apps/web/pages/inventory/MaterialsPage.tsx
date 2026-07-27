@@ -9,6 +9,7 @@ import { InventoryPageShell } from '../../components/inventory/InventoryPageShel
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
 import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { RawMaterialCategorySelect } from '../../components/inventory/RawMaterialCategorySelect'
+import { useCurrentUser } from '../../components/auth/CurrentUserContext'
 
 export default function MaterialsPage() {
   const [materials, setMaterials] = useState<any[]>([])
@@ -17,11 +18,13 @@ export default function MaterialsPage() {
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const navigate = useNavigate()
+  const { canEdit, canDelete } = useCurrentUser()
+  const [showDeleted, setShowDeleted] = useState(false)
 
   useEffect(() => {
     let alive = true
     rawMaterialApi
-      .list({ page: 1, pageSize: 500 })
+      .list({ deleted: showDeleted, page: 1, pageSize: 500 })
       .then((data: any) => {
         if (!alive) return
         const rows = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : []
@@ -37,7 +40,20 @@ export default function MaterialsPage() {
     return () => {
       alive = false
     }
-  }, [])
+  }, [showDeleted])
+
+  const deleteMaterial = async (id: string) => {
+    if (!window.confirm('Archive this material? Existing purchases and article bills will remain intact.')) return
+    setError(null)
+    try {
+      await rawMaterialApi.delete(id)
+      const data = await rawMaterialApi.list({ deleted: showDeleted, page: 1, pageSize: 500 })
+      const rows = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : []
+      setMaterials(rows)
+    } catch (err: any) {
+      setError(err?.message || 'Failed to archive material.')
+    }
+  }
 
   const filteredMaterials = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -85,7 +101,7 @@ export default function MaterialsPage() {
       actions={[
         { label: 'Create Material', onClick: () => navigate('/inventory/materials/create') },
         { label: 'View Articles', variant: 'outline', to: '/inventory/finished-goods' },
-        { label: 'Manage Categories', variant: 'secondary', to: '/inventory/categories?kind=materials' },
+        ...(canEdit ? [{ label: 'Manage Categories', variant: 'secondary' as const, to: '/inventory/categories?kind=materials' }] : []),
       ]}
     >
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -114,6 +130,7 @@ export default function MaterialsPage() {
                   allowAllOption
                   allLabel="All categories"
                 />
+                {canDelete ? <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} /> Show deleted materials</label> : null}
               </div>
             </div>
 
@@ -125,7 +142,8 @@ export default function MaterialsPage() {
                   <MaterialCard
                     key={m.id}
                     material={m}
-                    onEdit={(material) => navigate(`/inventory/materials/${material.id}?edit=1`)}
+                    onEdit={canEdit ? (material) => navigate(`/inventory/materials/${material.id}?edit=1`) : undefined}
+                    onDelete={canDelete && !m.deletedAt ? deleteMaterial : undefined}
                   />
                 ))}
               </div>

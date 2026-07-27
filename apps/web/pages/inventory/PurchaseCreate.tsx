@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { request } from '../../services/apiClient'
 import { Button } from '../../components/ui/Button'
+import { SearchableSelect } from '../../components/ui/SearchableSelect'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
 import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { InventoryDocumentShell } from '../../components/inventory/InventoryDocumentShell'
@@ -35,6 +36,19 @@ export default function PurchaseCreate() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const selectedMaterial = searchParams.get('material')
+  const materialOptions = useMemo(
+    () =>
+      materials.map((material) => {
+        const rate = getMaterialRate(material)
+        return {
+          value: material.id,
+          label: `${material.name}${material.sku ? ` - ${material.sku}` : ''}`,
+          description: `${material.defaultUnit || 'unit'} · ${money(rate)}`,
+          searchText: [material.name, material.sku, material.defaultUnit].filter(Boolean).join(' '),
+        }
+      }),
+    [materials],
+  )
 
   useEffect(() => {
     let alive = true
@@ -364,35 +378,26 @@ export default function PurchaseCreate() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {items.map((item, idx) => {
-                  const selected = materials.find((material) => material.id === item.rawMaterialId)
                   const amount = Number(item.quantity || 0) * Number(item.unitPrice || 0)
                   return (
                     <tr key={idx} className="hover:bg-slate-50">
                       <td className="px-4 py-3 align-top font-medium text-slate-900">{idx + 1}</td>
                       <td className="px-4 py-3 align-top">
-                        <select
+                        <SearchableSelect
                           value={item.rawMaterialId}
-                          onChange={(e) => {
-                            const next = materials.find((material) => material.id === e.target.value)
+                          options={materialOptions}
+                          placeholder="Select material"
+                          searchPlaceholder="Search materials by name or SKU"
+                          emptyMessage="No materials found."
+                          onChange={(nextId) => {
+                            const next = materials.find((material) => material.id === nextId)
                             updateLine(idx, {
-                              rawMaterialId: e.target.value,
-                              unit: next?.defaultUnit || item.unit,
-                              unitPrice: String(getMaterialRate(next)),
+                              rawMaterialId: nextId,
+                              unit: next?.defaultUnit || 'unit',
+                              unitPrice: next ? String(getMaterialRate(next)) : '0',
                             })
                           }}
-                          className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                        >
-                          <option value="">Select material</option>
-                          {materials.map((material) => (
-                            <option key={material.id} value={material.id}>
-                              {material.name}
-                              {material.sku ? ` - ${material.sku}` : ''}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="mt-1 text-xs text-slate-500">
-                          {selected ? `${selected.name}${selected.sku ? ` - ${selected.sku}` : ''}` : 'Choose a material'}
-                        </div>
+                        />
                       </td>
                       <td className="px-4 py-3 align-top">
                         <input

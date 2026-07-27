@@ -55,3 +55,20 @@ export const createPurchaseSchema = z.object({
   items: z.array(purchaseItemSchema).min(1),
   notes: z.string().optional(),
 })
+
+export const purchasePaymentSchema = z.object({
+  amount: z.coerce.number().positive(),
+  paymentMethod: z.string().trim().min(1),
+  paymentDate: z.string().trim().optional(),
+  note: z.string().trim().optional(),
+  bankAccountId: z.string().trim().optional(),
+})
+
+export const updatePurchasePaymentSchema = purchasePaymentSchema.partial().extend({
+  amount: z.coerce.number().positive().optional(),
+  paymentMethod: z.string().trim().min(1).optional(),
+})
+
+export const cancelPurchaseSchema = z.object({
+  reason: z.string().trim().min(1, 'Cancellation reason is required'),
+})

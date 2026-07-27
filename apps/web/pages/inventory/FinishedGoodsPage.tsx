@@ -6,23 +6,26 @@ import { Button } from '../../components/ui/Button'
 import { useNavigate } from 'react-router-dom'
 import { ArticleCategorySelect } from '../../components/inventory/ArticleCategorySelect'
 import { FinishedGoodCsvActions } from '../../components/inventory/FinishedGoodCsvActions'
+import { useCurrentUser } from '../../components/auth/CurrentUserContext'
 
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR' }).format(Number(value ?? 0))
 
 export default function FinishedGoodsPage() {
   const navigate = useNavigate()
+  const { canEdit, canDelete } = useCurrentUser()
   const [articles, setArticles] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [articleCategoryId, setArticleCategoryId] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [showDeleted, setShowDeleted] = useState(false)
 
   const loadItems = async () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await finishedGoodApi.list({ page: 1, pageSize: 500 })
+      const data = await finishedGoodApi.list({ deleted: showDeleted, page: 1, pageSize: 500 })
       setArticles(Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [])
     } catch (err: any) {
       setError(err?.message || 'Failed to load articles.')
@@ -33,7 +36,7 @@ export default function FinishedGoodsPage() {
 
   useEffect(() => {
     void loadItems()
-  }, [])
+  }, [showDeleted])
 
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -54,7 +57,7 @@ export default function FinishedGoodsPage() {
   }, [filteredItems])
 
   const deleteItem = async (id: string) => {
-    if (!window.confirm('Delete this article?')) return
+    if (!window.confirm('Archive this article? It will remain on historical invoices.')) return
     setError(null)
     try {
       await api.delete(`/inventory/finished-goods/${id}`)
@@ -72,7 +75,7 @@ export default function FinishedGoodsPage() {
       backTo={{ to: '/inventory/production', label: 'Back to production batches' }}
       actions={[
         { label: 'Create Article', variant: 'outline', to: '/inventory/finished-goods/create' },
-        { label: 'Manage Categories', variant: 'secondary', to: '/inventory/categories?kind=articles' },
+        ...(canEdit ? [{ label: 'Manage Categories', variant: 'secondary' as const, to: '/inventory/categories?kind=articles' }] : []),
         { label: 'New Invoice', variant: 'outline', to: '/sales-invoices/create' },
       ]}
     >
@@ -102,6 +105,7 @@ export default function FinishedGoodsPage() {
                   allowAllOption
                   allLabel="All categories"
                 />
+                {canDelete ? <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} /> Show deleted articles</label> : null}
               </div>
               <Button type="button" onClick={() => navigate('/inventory/finished-goods/create')}>
                 New Article
@@ -139,8 +143,8 @@ export default function FinishedGoodsPage() {
                         <div className="text-xs text-slate-500">{item.productCode || item.sku || '-'}</div>
                         </div>
                       </div>
-                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${item.active ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
-                        {item.active ? 'Active' : 'Inactive'}
+                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${item.deletedAt ? 'border-red-200 bg-red-50 text-red-800' : item.active ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-700'}`}>
+                        {item.deletedAt ? 'Deleted' : item.active ? 'Active' : 'Inactive'}
                       </span>
                     </div>
 
@@ -171,12 +175,16 @@ export default function FinishedGoodsPage() {
                       <Button type="button" size="sm" variant="outline" onClick={() => navigate(`/inventory/finished-goods/${item.id}`)}>
                         Open
                       </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => navigate(`/inventory/finished-goods/${item.id}?edit=1`)}>
-                        Edit
-                      </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => deleteItem(item.id)}>
-                        Delete
-                      </Button>
+                          {canEdit && !item.deletedAt ? (
+                            <Button type="button" size="sm" variant="outline" onClick={() => navigate(`/inventory/finished-goods/${item.id}?edit=1`)}>
+                              Edit
+                            </Button>
+                          ) : null}
+                          {canDelete && !item.deletedAt ? (
+                            <Button type="button" size="sm" variant="outline" onClick={() => deleteItem(item.id)}>
+                              Delete
+                            </Button>
+                          ) : null}
                     </div>
                   </div>
                 ))}

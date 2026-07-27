@@ -5,13 +5,13 @@
     "apps/*"
   ],
   "scripts": {
-    "dev:web": "npm --workspace apps/web run dev",
-    "dev:api": "npm --workspace apps/api run dev",
-    "dev": "concurrently -n \"api,web\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run dev:api\" \"npm run dev:web\"",
-    "build:web": "npm --workspace apps/web run build",
-    "build:api": "npm --workspace apps/api run build",
-    "build": "npm run build:web && npm run build:api",
-    "test:api": "npm --workspace apps/api run test"
+    "dev:web": "npm.cmd --workspace apps/web run dev",
+    "dev:api": "npm.cmd --workspace apps/api run dev",
+    "dev": "concurrently -n \"api,web\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm.cmd run dev:api\" \"npm.cmd run dev:web\"",
+    "build:web": "npm.cmd --workspace apps/web run build",
+    "build:api": "npm.cmd --workspace apps/api run build",
+    "build": "npm.cmd run build:web && npm.cmd run build:api",
+    "test:api": "npm.cmd --workspace apps/api run test"
   },
   "devDependencies": {
     "@types/papaparse": "^5.5.2",
@@ -19,9 +19,7 @@
     "tsx": "^4.21.0"
   },
   "dependencies": {
-    "@playwright/mcp": "^0.0.68",
-    "@react-three/fiber": "^9.5.0",
-    "three": "^0.182.0"
+    "@playwright/mcp": "^0.0.68"
   },
   "prisma": {
     "seed": "tsx apps/api/prisma/seed.ts"

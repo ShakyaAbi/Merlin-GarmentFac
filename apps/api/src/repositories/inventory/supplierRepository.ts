@@ -30,7 +30,7 @@ export const getSupplier = async (id: string) => {
           items: true,
         },
       },
-      supplierPayments: { orderBy: { paymentDate: 'desc' } },
+      supplierPayments: { orderBy: { paymentDate: 'desc' }, include: { bankAccount: { select: { id: true, bankName: true, accountName: true, accountNumber: true, branchName: true, branchCode: true } } } },
       ledgerEntries: { orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }] },
     },
   })
@@ -50,7 +50,7 @@ export const listSuppliers = async (opts: { skip?: number; take?: number; search
           items: true,
         },
       },
-      supplierPayments: { orderBy: { paymentDate: 'desc' } },
+      supplierPayments: { orderBy: { paymentDate: 'desc' }, include: { bankAccount: { select: { id: true, bankName: true, accountName: true, accountNumber: true, branchName: true, branchCode: true } } } },
       ledgerEntries: { orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }] },
     },
   })

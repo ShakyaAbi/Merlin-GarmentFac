@@ -8,6 +8,7 @@ type Action = {
   to?: string
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger'
   size?: 'sm' | 'md' | 'lg'
+  disabled?: boolean
 }
 
 type Props = {
@@ -63,6 +64,7 @@ export function InventoryDocumentShell({ title, status, actions = [], leftRail, 
                     variant={action.variant ?? 'primary'}
                     size={action.size ?? 'md'}
                     onClick={action.onClick}
+                    disabled={action.disabled}
                   >
                     {action.label}
                   </Button>

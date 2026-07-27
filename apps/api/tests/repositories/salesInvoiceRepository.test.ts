@@ -1,10 +1,12 @@
 const prismaTransaction = jest.fn()
 const salesInvoiceFindUnique = jest.fn()
+const salesInvoiceCreate = jest.fn()
 const salesInvoiceUpdate = jest.fn()
 const salesInvoicePaymentCreate = jest.fn()
 const salesInvoicePaymentFindFirst = jest.fn()
 const salesInvoicePaymentAggregate = jest.fn()
 const salesInvoicePaymentDelete = jest.fn()
+const salesInvoiceItemCreateMany = jest.fn()
 const appendCustomerLedgerEntry = jest.fn()
 const replaceCustomerLedgerEntry = jest.fn()
 const removeCustomerLedgerEntry = jest.fn()
@@ -15,6 +17,7 @@ jest.mock('../../src/prisma', () => ({
     $transaction: (...args: unknown[]) => prismaTransaction(...args),
     salesInvoice: {
       findUnique: (...args: unknown[]) => salesInvoiceFindUnique(...args),
+      create: (...args: unknown[]) => salesInvoiceCreate(...args),
       update: (...args: unknown[]) => salesInvoiceUpdate(...args),
     },
     salesInvoicePayment: {
@@ -22,6 +25,9 @@ jest.mock('../../src/prisma', () => ({
       findFirst: (...args: unknown[]) => salesInvoicePaymentFindFirst(...args),
       aggregate: (...args: unknown[]) => salesInvoicePaymentAggregate(...args),
       delete: (...args: unknown[]) => salesInvoicePaymentDelete(...args),
+    },
+    salesInvoiceItem: {
+      createMany: (...args: unknown[]) => salesInvoiceItemCreateMany(...args),
     },
     finishedGoodStockTransaction: {
       aggregate: jest.fn(),
@@ -47,6 +53,7 @@ jest.mock('../../src/services/sequenceService', () => ({
 }))
 
 import {
+  createDraftInvoice,
   deletePayment,
   recordPayment,
   updatePayment,
@@ -56,11 +63,13 @@ describe('salesInvoiceRepository payment ledger sync', () => {
   beforeEach(() => {
     prismaTransaction.mockReset()
     salesInvoiceFindUnique.mockReset()
+    salesInvoiceCreate.mockReset()
     salesInvoiceUpdate.mockReset()
     salesInvoicePaymentCreate.mockReset()
     salesInvoicePaymentFindFirst.mockReset()
     salesInvoicePaymentAggregate.mockReset()
     salesInvoicePaymentDelete.mockReset()
+    salesInvoiceItemCreateMany.mockReset()
     appendCustomerLedgerEntry.mockReset()
     replaceCustomerLedgerEntry.mockReset()
     removeCustomerLedgerEntry.mockReset()
@@ -70,14 +79,18 @@ describe('salesInvoiceRepository payment ledger sync', () => {
   function makeTx(overrides: Partial<any> = {}) {
     return {
       salesInvoice: {
-        findUnique: salesInvoiceFindUnique,
-        update: salesInvoiceUpdate,
-      },
+      findUnique: salesInvoiceFindUnique,
+      create: salesInvoiceCreate,
+      update: salesInvoiceUpdate,
+    },
       salesInvoicePayment: {
         create: salesInvoicePaymentCreate,
         findFirst: salesInvoicePaymentFindFirst,
         aggregate: salesInvoicePaymentAggregate,
         delete: salesInvoicePaymentDelete,
+      },
+      salesInvoiceItem: {
+        createMany: salesInvoiceItemCreateMany,
       },
       ...overrides,
     }
@@ -115,6 +128,59 @@ describe('salesInvoiceRepository payment ledger sync', () => {
       referenceId: 'payment-1',
       credit: expect.anything(),
     }))
+  })
+
+  test('createDraftInvoice retries with a fresh invoice number when the previewed number collides', async () => {
+    allocateDocumentNumber.mockResolvedValue('INV-2081-00002')
+    salesInvoiceCreate
+      .mockRejectedValueOnce(Object.assign(new Error('Unique constraint failed'), {
+        code: 'P2002',
+        meta: { target: 'SalesInvoice_invoiceNumber_key' },
+      }))
+      .mockResolvedValueOnce({ id: 'invoice-1', invoiceNumber: 'INV-2081-00002' })
+    salesInvoiceFindUnique.mockResolvedValue({ id: 'invoice-1', invoiceNumber: 'INV-2081-00002' })
+    salesInvoiceItemCreateMany.mockResolvedValue({ count: 1 })
+
+    prismaTransaction.mockImplementationOnce(async (callback: (tx: any) => unknown) => callback(makeTx()))
+
+    await createDraftInvoice(
+      {
+        invoiceNumber: 'INV-2081-00001',
+        customerId: 'customer-1',
+        invoiceDate: new Date('2026-06-12T00:00:00.000Z'),
+        subtotal: 100,
+        discountAmount: 0,
+        taxableAmount: 100,
+        nonTaxableAmount: 0,
+        taxAmount: 13,
+        grandTotal: 113,
+        paidAmount: 0,
+        dueAmount: 113,
+        paymentStatus: 'UNPAID',
+        invoiceStatus: 'DRAFT',
+      } as any,
+      [
+        {
+          productId: 'product-1',
+          productCode: 'FG-001',
+          productName: 'Finished Good 1',
+          quantity: 1,
+          unitPrice: 100,
+          discountAmount: 0,
+          taxableAmount: 100,
+          taxAmount: 13,
+          lineTotal: 113,
+          costPrice: 40,
+          profitAmount: 73,
+          warehouseId: null,
+        } as any,
+      ],
+    )
+
+    expect(salesInvoiceCreate).toHaveBeenCalledTimes(2)
+    expect(salesInvoiceCreate.mock.calls[0][0].data.invoiceNumber).toBe('INV-2081-00001')
+    expect(salesInvoiceCreate.mock.calls[1][0].data.invoiceNumber).toBe('INV-2081-00002')
+    expect(allocateDocumentNumber).toHaveBeenCalledWith('sales_invoice', expect.objectContaining({ tx: expect.any(Object) }))
   })
 
   test('updatePayment rewrites the matching customer ledger row', async () => {

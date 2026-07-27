@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Ban, Download, Pencil, ReceiptText, Send, Trash2, WalletCards } from 'lucide-react'
+import { Ban, Download, Pencil, ReceiptText, Trash2, WalletCards } from 'lucide-react'
 import { api } from '../../services/api'
 import { salesInvoiceApi } from '../../services/salesInvoiceApi'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
@@ -14,6 +14,8 @@ import { buildSalesInvoicePaperDocumentProps } from '../../components/invoices/i
 import { calculateInvoiceTotals } from '../../components/invoices/invoiceTotals'
 import { formatNepaliDate, formatNepaliDateTime } from '../../utils/nepaliDate'
 import type { CurrentUser } from '../../types'
+import { useCurrentUser } from '../../components/auth/CurrentUserContext'
+import { organizationBankAccountApi, OrganizationBankAccount } from '../../services/organizationBankAccountApi'
 
 type SalesInvoice = Awaited<ReturnType<typeof salesInvoiceApi.get>>
 
@@ -75,6 +77,7 @@ const toDraftItems = (invoice?: SalesInvoice | null): InvoiceDraftItem[] =>
 export default function SalesInvoiceDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user, canEdit } = useCurrentUser()
   const [invoice, setInvoice] = useState<SalesInvoice | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -87,15 +90,18 @@ export default function SalesInvoiceDetailPage() {
   const [chequeNumber, setChequeNumber] = useState('')
   const [chequeDate, setChequeDate] = useState('')
   const [bankName, setBankName] = useState('')
+  const [bankAccountId, setBankAccountId] = useState('')
+  const [bankAccounts, setBankAccounts] = useState<OrganizationBankAccount[]>([])
   const [cancelReason, setCancelReason] = useState('')
   const [organizationName, setOrganizationName] = useState('Merlin Lite')
   const [organizationProfile, setOrganizationProfile] = useState<CurrentUser['organizationProfile']>(null)
-  const canEditInvoice = invoice ? ['DRAFT', 'PENDING_APPROVAL'].includes(String(invoice.invoiceStatus || '')) : false
+  const isDataEntry = user?.role === 'DATA_ENTRY'
+  const canEditInvoice = !isDataEntry && canEdit && invoice ? ['DRAFT', 'PENDING_APPROVAL'].includes(String(invoice.invoiceStatus || '')) : false
   const invoiceStatus = String(invoice?.invoiceStatus || '')
-  const canSubmitInvoice = invoiceStatus === 'DRAFT'
-  const canIssueInvoice = invoiceStatus === 'PENDING_APPROVAL'
+  const canIssueInvoice = invoiceStatus === 'DRAFT' || invoiceStatus === 'PENDING_APPROVAL'
   const canRecordPayment = invoiceStatus === 'ISSUED'
-  const canCancelInvoice = invoiceStatus !== 'CANCELLED'
+  const isCancelledInvoice = invoiceStatus === 'CANCELLED'
+  const canCancelInvoice = user?.role === 'ADMIN' && !isCancelledInvoice
 
   const loadInvoice = async () => {
     if (!id) return
@@ -131,6 +137,10 @@ export default function SalesInvoiceDetailPage() {
     return () => {
       alive = false
     }
+  }, [])
+
+  useEffect(() => {
+    organizationBankAccountApi.list().then(setBankAccounts).catch(() => setBankAccounts([]))
   }, [])
 
   const summary = useMemo(() => {
@@ -210,7 +220,6 @@ export default function SalesInvoiceDetailPage() {
     }
   }
 
-  const handleSubmit = async () => mutateInvoice('submit', () => salesInvoiceApi.submit(invoice!.id))
   const handleIssue = async () => mutateInvoice('issue', () => salesInvoiceApi.issue(invoice!.id))
 
   const handlePayment = async () => {
@@ -222,12 +231,18 @@ export default function SalesInvoiceDetailPage() {
       if (chequeDate) details.push(`Cheque date: ${formatNepaliDate(chequeDate)}`)
     }
     const note = [paymentNote.trim(), ...details].filter(Boolean).join(' | ')
+    const requiresBankAccount = /bank|cheque|mobile/i.test(method)
+    if (requiresBankAccount && !bankAccountId) {
+      setError('Select the organization bank account used for this payment.')
+      return
+    }
     await mutateInvoice('payment', () => {
       const payload = {
         amount: paymentAmount,
         paymentMethod: method,
         paymentDate: paymentDate || undefined,
         note: note || undefined,
+        bankAccountId: bankAccountId || undefined,
       }
       return editingPaymentId
         ? salesInvoiceApi.updatePayment(invoice!.id, editingPaymentId, payload)
@@ -240,6 +255,7 @@ export default function SalesInvoiceDetailPage() {
     setChequeNumber('')
     setChequeDate('')
     setBankName('')
+    setBankAccountId('')
   }
 
   const editPayment = (payment: NonNullable<SalesInvoice['payments']>[number]) => {
@@ -247,6 +263,7 @@ export default function SalesInvoiceDetailPage() {
     setPaymentAmount(String(payment.amount ?? ''))
     setPaymentDate(payment.paymentDate ? String(payment.paymentDate).slice(0, 10) : '')
     setPaymentMethod(payment.paymentMethod || payment.method || 'Cash')
+    setBankAccountId(payment.bankAccountId || payment.bankAccount?.id || '')
     setPaymentNote(payment.note || payment.notes || '')
   }
 
@@ -366,12 +383,6 @@ export default function SalesInvoiceDetailPage() {
                   Edit
                 </Button>
               ) : null}
-              {canSubmitInvoice ? (
-                <Button type="button" variant="outline" onClick={handleSubmit} isLoading={busy === 'submit'}>
-                  <Send className="mr-2 h-4 w-4" />
-                  Submit
-                </Button>
-              ) : null}
               {canIssueInvoice ? (
                 <Button type="button" onClick={handleIssue} isLoading={busy === 'issue'}>
                   <ReceiptText className="mr-2 h-4 w-4" />
@@ -451,9 +462,9 @@ export default function SalesInvoiceDetailPage() {
                             Cheque #{payment.chequeNumber}
                           </span>
                         ) : null}
-                        {canRecordPayment ? (
+                        {canRecordPayment && canEdit ? (
                           <>
-                            <Button type="button" variant="outline" size="sm" onClick={() => editPayment(payment)}><Pencil className="mr-1 h-3.5 w-3.5" />Edit</Button>
+                            {canEdit ? <Button type="button" variant="outline" size="sm" onClick={() => editPayment(payment)}><Pencil className="mr-1 h-3.5 w-3.5" />Edit</Button> : null}
                             <Button type="button" variant="danger" size="sm" onClick={() => deletePayment(payment.id)}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete</Button>
                           </>
                         ) : null}
@@ -476,8 +487,8 @@ export default function SalesInvoiceDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <InventorySectionCard title={editingPaymentId ? 'Edit Payment' : 'Post Payment'} description="Record collection against this invoice.">
-            {canRecordPayment ? (
+          <InventorySectionCard title={editingPaymentId && canEdit ? 'Edit Payment' : 'Post Payment'} description="Record collection against this invoice.">
+            {canRecordPayment && (!editingPaymentId || canEdit) ? (
               <div className="space-y-4">
                 <label className="block text-sm">
                   <span className="mb-1 block text-slate-600">Amount</span>
@@ -490,6 +501,7 @@ export default function SalesInvoiceDetailPage() {
                     className="w-full rounded-xl border border-slate-300 px-3 py-2"
                   />
                 </label>
+                {/bank|cheque|mobile/i.test(paymentMethod) ? <label className="block text-sm"><span className="mb-1 block text-slate-600">Organization bank account</span><select required value={bankAccountId} onChange={(event) => setBankAccountId(event.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2"><option value="">Select account</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.bankName} · {account.accountName} · {account.branchName}</option>)}</select></label> : null}
                 <label className="block text-sm">
                   <span className="mb-1 block text-slate-600">Payment date (optional)</span>
                   <input
@@ -556,7 +568,7 @@ export default function SalesInvoiceDetailPage() {
                 </label>
                 <Button type="button" onClick={handlePayment} isLoading={busy === 'payment'}>
                   <WalletCards className="mr-2 h-4 w-4" />
-                  {editingPaymentId ? 'Save Payment Changes' : 'Record Payment'}
+                  {editingPaymentId && canEdit ? 'Save Payment Changes' : 'Record Payment'}
                 </Button>
               </div>
             ) : (
@@ -566,27 +578,33 @@ export default function SalesInvoiceDetailPage() {
             )}
           </InventorySectionCard>
 
-          <InventorySectionCard title="Cancellation" description="Cancel only when the sales invoice should be voided.">
-            <div className="space-y-4">
-              <label className="block text-sm">
-                <span className="mb-1 block text-slate-600">Reason</span>
-                <textarea
-                  value={cancelReason}
-                  onChange={(event) => setCancelReason(event.target.value)}
-                  className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2"
-                  placeholder="Explain why the invoice is being cancelled"
-                />
-              </label>
-              {canCancelInvoice ? (
-                <Button type="button" variant="danger" onClick={handleCancel} isLoading={busy === 'cancel'}>
-                  <Ban className="mr-2 h-4 w-4" />
-                  Cancel Invoice
-                </Button>
-              ) : (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                  This invoice has already been cancelled.
-                </div>
-              )}
+              <InventorySectionCard title="Cancellation" description="Cancel only when the sales invoice should be voided.">
+                <div className="space-y-4">
+                  {canCancelInvoice ? (
+                    <>
+                      <label className="block text-sm">
+                        <span className="mb-1 block text-slate-600">Reason</span>
+                        <textarea
+                          value={cancelReason}
+                          onChange={(event) => setCancelReason(event.target.value)}
+                          className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2"
+                          placeholder="Explain why the invoice is being cancelled"
+                        />
+                      </label>
+                      <Button type="button" variant="danger" onClick={handleCancel} isLoading={busy === 'cancel'}>
+                        <Ban className="mr-2 h-4 w-4" />
+                        Cancel Invoice
+                      </Button>
+                    </>
+                  ) : isCancelledInvoice ? (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                      This invoice has already been cancelled.
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                      Cannot cancel this invoice.
+                    </div>
+                  )}
             </div>
           </InventorySectionCard>
 

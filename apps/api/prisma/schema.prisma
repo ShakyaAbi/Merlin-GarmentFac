@@ -91,6 +91,29 @@ model Organization {
   invitations                             Invitation[]
   projects                                Project[]
   users                                   User[]
+  bankAccounts                            OrganizationBankAccount[]
+}
+
+model OrganizationBankAccount {
+  id                String                @id @default(cuid())
+  organizationId    Int
+  bankName          String
+  accountName       String
+  accountNumber     String
+  branchName        String
+  branchCode        String?
+  accountType       String                @default("CURRENT")
+  currency          String                @default("NPR")
+  active            Boolean               @default(true)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  organization      Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  salesInvoicePayments SalesInvoicePayment[]
+  supplierPayments   SupplierPayment[]
+  purchasePayments   PurchasePayment[]
+
+  @@index([organizationId, active])
+  @@index([organizationId, accountNumber])
 }
 
 model Project {
@@ -413,12 +436,19 @@ model Purchase {
   currency      String         @default("NPR")
   discountAmount Decimal       @default(0)
   totalAmount   Decimal        @default(0)
+  paidAmount    Decimal        @default(0)
+  dueAmount     Decimal        @default(0)
+  paymentStatus PurchasePaymentStatus @default(UNPAID)
   createdBy     Int?
   createdAt     DateTime       @default(now())
   status        String         @default("received")
+  cancelledBy   Int?
+  cancelledAt   DateTime?
+  cancellationReason String?
   notes         String?
   supplier      Supplier       @relation(fields: [supplierId], references: [id])
   items         PurchaseItem[]
+  payments      PurchasePayment[]
 
   @@index([supplierId, createdAt])
   @@index([invoiceDate])
@@ -434,6 +464,23 @@ model PurchaseItem {
   lineTotal     Decimal
   purchase      Purchase    @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   rawMaterial   RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+}
+
+model PurchasePayment {
+  id            String                @id @default(cuid())
+  paymentNumber String?               @unique
+  purchaseId    String
+  paymentDate   DateTime              @default(now())
+  amount        Decimal
+  paymentMethod String
+  note          String?
+  createdBy     Int?
+  bankAccountId String?
+  createdAt     DateTime              @default(now())
+  purchase      Purchase              @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  bankAccount   OrganizationBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+
+  @@index([purchaseId, paymentDate])
 }
 
 model StockTransaction {
@@ -645,9 +692,11 @@ model SalesInvoicePayment {
   paymentMethod  String
   note           String?
   receivedBy     Int?
+  bankAccountId  String?
   createdAt      DateTime     @default(now())
   invoice        SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   receivedByUser User?        @relation("SalesInvoicePaymentsReceived", fields: [receivedBy], references: [id])
+  bankAccount    OrganizationBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
 }
 
 model Expense {
@@ -659,7 +708,7 @@ model Expense {
   description   String
   amount        Decimal       @default(0)
   currency      String        @default("USD")
-  status        ExpenseStatus @default(DRAFT)
+  status        ExpenseStatus @default(APPROVED)
   paymentDate   DateTime?
   notes         String?
   createdBy     Int?
@@ -735,8 +784,10 @@ model SupplierPayment {
   paymentMethod String
   note          String?
   createdBy     Int?
+  bankAccountId String?
   createdAt     DateTime @default(now())
   supplier      Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  bankAccount   OrganizationBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
 
   @@index([supplierId, paymentDate])
 }
@@ -938,6 +989,12 @@ enum SalesPaymentStatus {
   PAID
 }
 
+enum PurchasePaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
 enum SalesStockTransactionType {
   SALE_OUT
   SALE_RETURN
@@ -978,7 +1035,6 @@ enum SalesOrderStatus {
 }
 
 enum ExpenseStatus {
-  DRAFT
   APPROVED
   PAID
   VOID

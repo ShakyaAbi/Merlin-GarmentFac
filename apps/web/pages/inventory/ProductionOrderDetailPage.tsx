@@ -6,6 +6,7 @@ import { InventorySectionCard } from '../../components/inventory/InventorySectio
 import { InventoryDataTable } from '../../components/inventory/InventoryDataTable'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
+import { useCurrentUser } from '../../components/auth/CurrentUserContext'
 
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
@@ -13,6 +14,7 @@ const money = (value: number | string | null | undefined) =>
 export default function ProductionOrderDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { canEdit, canDelete, canIssue, canComplete: canCompleteProduction } = useCurrentUser()
   const [order, setOrder] = useState<any | null>(null)
   const [finishedGoods, setFinishedGoods] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -127,12 +129,14 @@ export default function ProductionOrderDetailPage() {
   const isDraft = order?.status === 'DRAFT'
   const canComplete = order?.status === 'IN_PROGRESS' || order?.status === 'MATERIAL_ISSUED'
   const pageActions = [
-    ...(isDraft ? [
+    ...(isDraft && (canEdit || canDelete) ? [
       { label: 'Edit Batch', variant: 'outline' as const, onClick: openEditBatch },
       { label: 'Delete Batch', variant: 'outline' as const, onClick: deleteBatch },
+    ] : []),
+    ...(isDraft && canIssue ? [
       { label: 'Issue Materials', onClick: issue },
     ] : []),
-    ...(canComplete ? [{ label: 'Complete Batch', onClick: complete }] : []),
+    ...(canComplete && canCompleteProduction ? [{ label: 'Complete Batch', onClick: complete }] : []),
     { label: 'Register', variant: 'secondary' as const, to: '/inventory/production' },
   ]
 

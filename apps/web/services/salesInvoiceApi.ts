@@ -12,6 +12,8 @@ export type SalesInvoicePayment = {
   createdAt?: string | null
   paidAt?: string | null
   paymentMethod?: string | null
+  bankAccountId?: string | null
+  bankAccount?: { id: string; bankName: string; accountName: string; accountNumber: string; branchName: string; branchCode?: string | null } | null
   method?: string | null
   note?: string | null
   notes?: string | null
@@ -198,7 +200,6 @@ export const salesInvoiceApi = {
   },
   create: (body: any) => request('/sales-invoices', { method: 'POST', body }),
   update: (id: string, body: any) => request(`/sales-invoices/${id}`, { method: 'PATCH', body }),
-  submit: (id: string) => request(`/sales-invoices/${id}/submit`, { method: 'POST' }),
   issue: (id: string) => request(`/sales-invoices/${id}/issue`, { method: 'POST' }),
   payment: (id: string, body: any) => request(`/sales-invoices/${id}/payment`, { method: 'POST', body }),
   listPayments: (id: string) => request<{ payments?: SalesInvoicePayment[] }>(`/sales-invoices/${id}/payments`),

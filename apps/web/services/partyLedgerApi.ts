@@ -37,6 +37,8 @@ export type SupplierPayment = {
   paymentDate?: string | null
   amount: number | string
   paymentMethod: string
+  bankAccountId?: string | null
+  bankAccount?: { id: string; bankName: string; accountName: string; accountNumber: string; branchName: string; branchCode?: string | null } | null
   note?: string | null
 }
 
@@ -49,9 +51,9 @@ export const partyLedgerApi = {
     request<{ payments: SupplierPayment[]; summary: SupplierLedgerSummary; supplierId: string; supplierNumber?: string | null }>(`/inventory/suppliers/${id}/payments`),
   getSupplierPayment: (supplierId: string, paymentId: string) =>
     request<SupplierPayment>(`/inventory/suppliers/${supplierId}/payments/${paymentId}`),
-  createSupplierPayment: (id: string, body: { amount: number; paymentMethod: string; paymentDate?: string; note?: string }) =>
+  createSupplierPayment: (id: string, body: { amount: number; paymentMethod: string; paymentDate?: string; note?: string; bankAccountId?: string }) =>
     request<SupplierPayment>(`/inventory/suppliers/${id}/payments`, { method: 'POST', body }),
-  updateSupplierPayment: (supplierId: string, paymentId: string, body: { amount?: number; paymentMethod?: string; paymentDate?: string; note?: string }) =>
+  updateSupplierPayment: (supplierId: string, paymentId: string, body: { amount?: number; paymentMethod?: string; paymentDate?: string; note?: string; bankAccountId?: string }) =>
     request<SupplierPayment>(`/inventory/suppliers/${supplierId}/payments/${paymentId}`, { method: 'PATCH', body }),
   deleteSupplierPayment: (supplierId: string, paymentId: string) =>
     request<void>(`/inventory/suppliers/${supplierId}/payments/${paymentId}`, { method: 'DELETE' }),
