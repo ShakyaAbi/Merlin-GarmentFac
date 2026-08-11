@@ -46,6 +46,7 @@ venv/
 .AGENTS.md
 .github/
 .pnpm-store/
+.worktrees/
 apps/api/uploads/*
 !apps/api/uploads/.gitkeep
 apps/api/jest-results.json
