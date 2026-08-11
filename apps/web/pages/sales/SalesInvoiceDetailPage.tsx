@@ -307,7 +307,7 @@ export default function SalesInvoiceDetailPage() {
   return (
     <InventoryPageShell
       eyebrow="Sales"
-      title={invoice.invoiceNumber || `Invoice ${invoice.id}`}
+      title={`Invoice ${invoice.invoiceNumber || '-'}`}
       description={`Customer: ${customerName} | Status: ${invoice.invoiceStatus || 'UNKNOWN'} | Payment: ${invoice.paymentStatus || 'UNKNOWN'}`}
       backTo={{ to: '/sales-invoices', label: 'Back to invoices' }}
       actions={[

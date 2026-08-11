@@ -31,6 +31,7 @@ export const updateById = (id: number, data: {
   email?: string | null
   invoiceFooter?: string | null
   resetSalesInvoiceSequenceEachFiscalYear?: boolean
+  nextSalesInvoiceNumber?: number
 }) =>
   prisma.organization.update({ where: { id }, data });
 

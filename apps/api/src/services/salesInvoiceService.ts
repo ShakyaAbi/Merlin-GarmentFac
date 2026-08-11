@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import { chromium } from 'playwright'
 import { prisma } from '../prisma'
 import * as repo from '../repositories/salesInvoiceRepository'
+import * as userRepo from '../repositories/userRepository'
 import { AppError } from '../utils/errors'
 import { requireActiveOrganizationBankAccount } from './organizationBankAccountService'
 import { getSalesCatalogProductsByIds, listSalesCatalogProducts } from './salesCatalogService'
@@ -327,7 +328,7 @@ function buildInvoicePdfHtml(invoice: any, companyName: string, organizationProf
               <div style="margin-top:6px"><strong>Buyer's TPIN :</strong> ${escapeHtml(invoice.customer?.panVatNumber || '-')}</div>
             </div>
             <div style="padding-left:12px; text-align:right">
-              <div><strong>Invoice No.</strong> : ${escapeHtml(invoice.invoiceNumber || invoice.id)}</div>
+              <div><strong>Invoice No.</strong> : ${escapeHtml(invoice.invoiceNumber || '-')}</div>
               <div style="margin-top:6px"><strong>Mode of Payment :</strong> ${escapeHtml(invoice.paymentMethod || invoice.paymentMode || '-')}</div>
             </div>
           </div>
@@ -567,7 +568,7 @@ export async function exportInvoices(opts: {
 } = {}) {
   const data = await repo.listInvoices({ ...opts, page: 1, pageSize: 1000 })
   const rows = data.items.map((invoice: any) => ({
-    invoiceNumber: invoice.invoiceNumber || invoice.id,
+    invoiceNumber: invoice.invoiceNumber || '-',
     customerName: invoice.customer?.customerName || '',
     invoiceDate: invoice.invoiceDate?.toISOString?.() || invoice.invoiceDate,
     dueDate: invoice.dueDate?.toISOString?.() || invoice.dueDate || '',
@@ -604,7 +605,7 @@ export async function exportInvoice(id: string) {
 
   const rows = [
     {
-      invoiceNumber: invoice.invoiceNumber || invoice.id,
+      invoiceNumber: invoice.invoiceNumber || '-',
       customerName: invoice.customer?.customerName || '',
       invoiceDate: invoice.invoiceDate?.toISOString?.() || invoice.invoiceDate,
       dueDate: invoice.dueDate?.toISOString?.() || invoice.dueDate || '',
@@ -691,13 +692,14 @@ export async function listInvoicePayments(id: string) {
   return repo.listInvoicePayments(id)
 }
 
-export async function previewNextInvoiceNumber(invoiceDate: Date, resetByFiscalYear = true) {
-  return repo.previewNextInvoiceNumber(invoiceDate, resetByFiscalYear)
+export async function previewNextInvoiceNumber(invoiceDate: Date, resetByFiscalYear = true, initialNumber = 1) {
+  return repo.previewNextInvoiceNumber(invoiceDate, resetByFiscalYear, initialNumber)
 }
 
 export async function createInvoice(payload: any, userId?: number) {
   const prepared = await buildInvoiceData({ ...payload, createdBy: userId })
-  return repo.createDraftInvoice(prepared.invoiceData, prepared.items)
+  const user = userId ? await userRepo.findById(userId) : null
+  return repo.createDraftInvoice(prepared.invoiceData, prepared.items, user?.organization?.nextSalesInvoiceNumber ?? 1)
 }
 
 export async function updateInvoice(id: string, payload: any, userId?: number) {
@@ -727,7 +729,8 @@ export async function issueInvoice(id: string, userId?: number) {
   if (invoice.invoiceStatus !== 'DRAFT' && invoice.invoiceStatus !== 'PENDING_APPROVAL') {
     throw new AppError(409, 'INVALID_STATUS', 'Only draft or pending-approval invoices can be issued')
   }
-  return repo.issueInvoice(id, userId)
+  const user = userId ? await userRepo.findById(userId) : null
+  return repo.issueInvoice(id, userId, user?.organization?.nextSalesInvoiceNumber ?? 1)
 }
 
 export async function recordPayment(id: string, payload: any, userId?: number, organizationId?: number) {

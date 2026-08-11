@@ -166,16 +166,18 @@ export async function listInvoicePayments(id: string) {
   return invoice?.payments || []
 }
 
-export async function previewNextInvoiceNumber(invoiceDate: Date, resetByFiscalYear = true) {
+export async function previewNextInvoiceNumber(invoiceDate: Date, resetByFiscalYear = true, initialNumber = 1) {
   return previewDocumentNumber('sales_invoice', {
     fiscalYear: getFiscalSequenceSegment(invoiceDate),
     resetByFiscalYear,
+    initialNumber,
   })
 }
 
 export async function createDraftInvoice(
   data: Prisma.SalesInvoiceUncheckedCreateInput,
   items: Array<Omit<Prisma.SalesInvoiceItemUncheckedCreateInput, 'invoiceId'>>,
+  initialNumber = 1,
 ) {
   return prisma.$transaction(async (tx) => {
     const fiscalYear = getSalesInvoiceFiscalYear(data)
@@ -185,7 +187,7 @@ export async function createDraftInvoice(
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const invoiceNumber = attempt === 0 && data.invoiceNumber?.trim()
         ? data.invoiceNumber.trim()
-        : await allocateDocumentNumber('sales_invoice', { fiscalYear, tx })
+        : await allocateDocumentNumber('sales_invoice', { fiscalYear, initialNumber, tx })
 
       try {
         invoice = await tx.salesInvoice.create({
@@ -248,7 +250,7 @@ function computeStockBalance(tx: Tx, productId: string) {
   }).then((aggregate) => Number(aggregate._sum.change || 0))
 }
 
-export async function issueInvoice(id: string, userId?: number) {
+export async function issueInvoice(id: string, userId?: number, initialNumber = 1) {
   return prisma.$transaction(async (tx) => {
     const invoice = await getInvoiceOrThrow(tx, id)
     if (invoice.invoiceStatus !== SalesInvoiceStatus.DRAFT && invoice.invoiceStatus !== SalesInvoiceStatus.PENDING_APPROVAL) {
@@ -281,7 +283,7 @@ export async function issueInvoice(id: string, userId?: number) {
 
     const invoiceYear = invoice.invoiceDate.getFullYear()
     const fiscalYear = invoice.fiscalYear || String(invoiceYear)
-    const invoiceNumber = invoice.invoiceNumber || (await allocateDocumentNumber('sales_invoice', { fiscalYear, tx }))
+    const invoiceNumber = invoice.invoiceNumber || (await allocateDocumentNumber('sales_invoice', { fiscalYear, initialNumber, tx }))
     const issuedAt = new Date()
     const paidAmount = new Prisma.Decimal(invoice.paidAmount || 0)
     const grandTotal = new Prisma.Decimal(invoice.grandTotal || 0)

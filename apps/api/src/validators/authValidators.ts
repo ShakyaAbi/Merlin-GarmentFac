@@ -50,6 +50,7 @@ export const updateMeSchema = {
     email: z.string().email().optional().nullable(),
     invoiceFooter: z.string().max(1000).optional().nullable(),
     resetSalesInvoiceSequenceEachFiscalYear: z.boolean().optional(),
+    nextSalesInvoiceNumber: z.coerce.number().int().min(1).optional(),
     timezone: z.string().min(1).optional().nullable(),
     avatar: z.string().url().optional().nullable(),
     notificationPreferences: z

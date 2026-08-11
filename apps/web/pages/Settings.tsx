@@ -19,7 +19,7 @@ export const Settings: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [organizationName, setOrganizationName] = useState('');
   const [organizationProfile, setOrganizationProfile] = useState<NonNullable<CurrentUser['organizationProfile']>>({
-    name: '', taxpayerNumber: '', registrationNumber: '', address: '', city: '', district: '', province: '', postalCode: '', country: 'Nepal', phone: '', email: '', invoiceFooter: '', resetSalesInvoiceSequenceEachFiscalYear: true,
+    name: '', taxpayerNumber: '', registrationNumber: '', address: '', city: '', district: '', province: '', postalCode: '', country: 'Nepal', phone: '', email: '', invoiceFooter: '', resetSalesInvoiceSequenceEachFiscalYear: true, nextSalesInvoiceNumber: 1,
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -60,6 +60,7 @@ export const Settings: React.FC = () => {
           email: data?.organizationProfile?.email || '',
           invoiceFooter: data?.organizationProfile?.invoiceFooter || '',
           resetSalesInvoiceSequenceEachFiscalYear: data?.organizationProfile?.resetSalesInvoiceSequenceEachFiscalYear ?? true,
+          nextSalesInvoiceNumber: data?.organizationProfile?.nextSalesInvoiceNumber ?? 1,
         });
       })
       .catch((error) => {
@@ -261,9 +262,21 @@ export const Settings: React.FC = () => {
                           />
                           <span>
                             <span className="block text-sm font-semibold text-slate-900">Reset sales invoice numbering every fiscal year</span>
-                            <span className="block text-xs text-slate-500 mt-1">When enabled, numbering starts at 00001 for the next fiscal year. Existing invoices are unchanged.</span>
+                            <span className="block text-xs text-slate-500 mt-1">When enabled, invoice numbers start at 00001 for the next fiscal year. Existing invoices are unchanged.</span>
                           </span>
                         </label>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Next sales invoice number</label>
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={organizationProfile.nextSalesInvoiceNumber}
+                            onChange={(event) => setOrganizationProfile((current) => ({ ...current, nextSalesInvoiceNumber: Math.max(1, Number(event.target.value) || 1) }))}
+                            className="w-full px-3 py-2 border border-slate-200 bg-white rounded-md text-slate-900"
+                          />
+                          <p className="mt-1 text-xs text-slate-500">The next automatically generated invoice will use this number.</p>
+                        </div>
                         {profileError ? (
                           <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
                             {profileError}

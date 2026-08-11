@@ -87,6 +87,7 @@ model Organization {
   email                                   String?
   invoiceFooter                           String?
   resetSalesInvoiceSequenceEachFiscalYear Boolean      @default(true)
+  nextSalesInvoiceNumber                  Int          @default(1)
   createdAt                               DateTime     @default(now())
   invitations                             Invitation[]
   projects                                Project[]
@@ -623,7 +624,7 @@ model SalesOrderItem {
 
 model SalesInvoice {
   id                 String                @id @default(cuid())
-  invoiceNumber      String?               @unique
+  invoiceNumber      String?
   fiscalYear         String?
   customerId         String
   salesOrderId       String?

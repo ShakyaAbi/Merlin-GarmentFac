@@ -229,6 +229,7 @@ export interface CurrentUser {
     email?: string | null;
     invoiceFooter?: string | null;
     resetSalesInvoiceSequenceEachFiscalYear: boolean;
+    nextSalesInvoiceNumber: number;
   } | null;
   avatar?: string | null;
 }

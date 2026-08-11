@@ -479,8 +479,8 @@ export default function SalesInvoiceCreatePage() {
                   <span className="mb-1 block text-slate-600">Invoice Number</span>
                   <input
                     value={invoiceNumber}
-                    readOnly
-                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2"
+                    onChange={(event) => setInvoiceNumber(event.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2"
                     placeholder="SI-2026-00001"
                   />
                 </label>

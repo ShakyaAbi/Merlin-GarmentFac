@@ -61,6 +61,7 @@ export const nextNumber = asyncHandler(async (req: Request, res: Response) => {
   const invoiceNumber = await svc.previewNextInvoiceNumber(
     invoiceDate,
     organization?.resetSalesInvoiceSequenceEachFiscalYear ?? true,
+    organization?.nextSalesInvoiceNumber ?? 1,
   )
   res.json({ invoiceNumber })
 })

@@ -9,6 +9,7 @@ import { randomBytes } from 'crypto';
 import { sendReminderEmail } from '../utils/email';
 import { config } from '../config/env';
 import { OAuth2Client } from 'google-auth-library';
+import { setNextDocumentNumber } from './sequenceService';
 
 const sanitizeUser = (user: any) => ({
   id: user.id,
@@ -32,6 +33,7 @@ const sanitizeUser = (user: any) => ({
     email: user.organization.email ?? null,
     invoiceFooter: user.organization.invoiceFooter ?? null,
     resetSalesInvoiceSequenceEachFiscalYear: user.organization.resetSalesInvoiceSequenceEachFiscalYear ?? true,
+    nextSalesInvoiceNumber: user.organization.nextSalesInvoiceNumber ?? 1,
   } : null,
   timezone: user.timezone ?? null,
   avatar: user.avatar ?? null,
@@ -266,12 +268,13 @@ export const updateCurrentUser = async (
     email?: string | null;
     invoiceFooter?: string | null;
     resetSalesInvoiceSequenceEachFiscalYear?: boolean;
+    nextSalesInvoiceNumber?: number;
     timezone: string | null;
     avatar: string | null;
     notificationPreferences: Record<string, any> | null;
   }>
 ) => {
-  const { organization, taxpayerNumber, registrationNumber, address, city, district, province, postalCode, country, phone, email, invoiceFooter, resetSalesInvoiceSequenceEachFiscalYear, ...userUpdates } = data as Partial<{
+  const { organization, taxpayerNumber, registrationNumber, address, city, district, province, postalCode, country, phone, email, invoiceFooter, resetSalesInvoiceSequenceEachFiscalYear, nextSalesInvoiceNumber, ...userUpdates } = data as Partial<{
     name: string | null;
     jobTitle: string | null;
     organization: string | null;
@@ -287,6 +290,7 @@ export const updateCurrentUser = async (
     email?: string | null;
     invoiceFooter?: string | null;
     resetSalesInvoiceSequenceEachFiscalYear?: boolean;
+    nextSalesInvoiceNumber?: number;
     timezone: string | null;
     avatar: string | null;
     notificationPreferences: Record<string, any> | null;
@@ -298,6 +302,7 @@ export const updateCurrentUser = async (
     organization, taxpayerNumber, registrationNumber, address, city, district,
     province, postalCode, country, phone, email, invoiceFooter,
     resetSalesInvoiceSequenceEachFiscalYear,
+    nextSalesInvoiceNumber,
   ].some((value) => value !== undefined);
 
   if (hasOrganizationUpdates) {
@@ -306,7 +311,16 @@ export const updateCurrentUser = async (
       taxpayerNumber, registrationNumber, address, city, district, province,
       postalCode, country, phone, email, invoiceFooter,
       resetSalesInvoiceSequenceEachFiscalYear,
+      nextSalesInvoiceNumber,
     });
+    if (nextSalesInvoiceNumber !== undefined) {
+      const latestOrganization = await orgRepo.findById(user.organizationId);
+      if (latestOrganization) {
+        await setNextDocumentNumber('sales_invoice', latestOrganization.nextSalesInvoiceNumber, {
+          resetByFiscalYear: latestOrganization.resetSalesInvoiceSequenceEachFiscalYear,
+        });
+      }
+    }
   }
 
   const refreshed = await userRepo.findById(id);

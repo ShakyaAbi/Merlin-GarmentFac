@@ -13,6 +13,7 @@ type SequenceEntity =
 type SequenceOptions = {
   fiscalYear?: string | null
   resetByFiscalYear?: boolean
+  initialNumber?: number
   tx?: any
 }
 
@@ -52,7 +53,7 @@ export async function allocateDocumentNumber(entity: SequenceEntity, options: Se
       where: { key: sequenceKey },
       create: {
         key: sequenceKey,
-        nextNumber: 1,
+        nextNumber: Math.max(1, Math.floor(options.initialNumber || 1)),
       },
       update: {
         nextNumber: {
@@ -75,5 +76,20 @@ export async function previewDocumentNumber(entity: SequenceEntity, options: Seq
     where: { key: sequenceKey },
     select: { nextNumber: true },
   })
-  return buildDocumentNumber(config.prefix, record?.nextNumber || 1, fiscalYear)
+  return buildDocumentNumber(config.prefix, record?.nextNumber || Math.max(1, Math.floor(options.initialNumber || 1)), fiscalYear)
+}
+
+export async function setNextDocumentNumber(entity: SequenceEntity, nextNumber: number, options: SequenceOptions = {}) {
+  const config = sequenceConfig[entity]
+  const fiscalYear = config.usesFiscalYear && options.resetByFiscalYear !== false
+    ? getFiscalSequenceSegment(new Date(), options.fiscalYear)
+    : null
+  const sequenceKey = fiscalYear ? `${entity}:${fiscalYear}` : entity
+  const value = Math.max(1, Math.floor(nextNumber))
+  const execute = async (tx: any) => tx.documentSequence.upsert({
+    where: { key: sequenceKey },
+    create: { key: sequenceKey, nextNumber: value },
+    update: { nextNumber: value },
+  })
+  return options.tx ? execute(options.tx) : prisma.$transaction(execute)
 }

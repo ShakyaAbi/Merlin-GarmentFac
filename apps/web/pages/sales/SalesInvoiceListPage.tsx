@@ -269,7 +269,7 @@ export default function SalesInvoiceListPage() {
             <InventoryDataTable
               caption="Sales invoice register"
               columns={[
-                { label: 'Invoice', className: 'px-3' },
+                { label: 'Invoice Number', className: 'px-3' },
                 { label: 'Customer', className: 'px-3' },
                 { label: 'Date', className: 'px-3' },
                 { label: 'Grand Total', className: 'px-3' },
@@ -286,7 +286,7 @@ export default function SalesInvoiceListPage() {
                 return (
                   <tr key={invoice.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/70">
                     <td className="px-3 py-4 align-top">
-                      <div className="font-semibold text-slate-900">{invoice.invoiceNumber || invoice.id}</div>
+                      <div className="font-semibold text-slate-900">{invoice.invoiceNumber || '-'}</div>
                       <div className="text-xs text-slate-500">{invoice.fiscalYear || 'Unassigned fiscal year'}</div>
                     </td>
                     <td className="px-3 py-4 align-top">

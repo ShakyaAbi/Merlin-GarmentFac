@@ -62,7 +62,7 @@ export function buildSalesInvoicePaperDocumentProps(
     companyAddress: [organizationProfile?.address, organizationProfile?.city, organizationProfile?.district, organizationProfile?.province, organizationProfile?.country].filter(Boolean).join(', ') || 'Nepal',
     companyPanVat: organizationProfile?.taxpayerNumber || '',
     invoiceTitle: 'Sales Invoice',
-    invoiceNumber: invoice.invoiceNumber || invoice.id,
+    invoiceNumber: invoice.invoiceNumber || '-',
     invoiceDate: invoice.invoiceDate || invoice.createdAt || undefined,
     party: {
       label: 'Buyer',
