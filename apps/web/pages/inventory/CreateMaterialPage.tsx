@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../services/api'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
+import { RawMaterialCategoryField } from '../../components/inventory/RawMaterialCategoryField'
 
 type FormState = {
   name: string
@@ -18,9 +19,7 @@ type FormState = {
 export default function CreateMaterialPage() {
   const navigate = useNavigate()
   const [saving, setSaving] = useState(false)
-  const [loadingCategories, setLoadingCategories] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [categories, setCategories] = useState<any[]>([])
   const [form, setForm] = useState<FormState>({
     name: '',
     sku: '',
@@ -32,34 +31,13 @@ export default function CreateMaterialPage() {
     notes: '',
   })
 
-  useEffect(() => {
-    let alive = true
-    api
-      .get('/inventory/material-categories')
-      .then((data: any) => {
-        if (!alive) return
-        setCategories(Array.isArray(data) ? data : [])
-      })
-      .catch((err: any) => {
-        if (!alive) return
-        setError(err?.message || 'Failed to load material categories.')
-      })
-      .finally(() => {
-        if (alive) setLoadingCategories(false)
-      })
-
-    return () => {
-      alive = false
-    }
-  }, [])
-
   const canSave = useMemo(() => {
-    return Boolean(form.name.trim() && form.defaultUnit.trim() && !saving)
-  }, [form.defaultUnit, form.name, saving])
+    return Boolean(form.name.trim() && form.sku.trim() && form.defaultUnit.trim() && !saving)
+  }, [form.defaultUnit, form.name, form.sku, saving])
 
   const save = async () => {
     if (!canSave) {
-      setError('Name and default unit are required.')
+      setError('Name, exim code, and default unit are required.')
       return
     }
 
@@ -68,7 +46,7 @@ export default function CreateMaterialPage() {
     try {
       const created: any = await api.post('/inventory/materials', {
         name: form.name.trim(),
-        sku: form.sku.trim() || undefined,
+        sku: form.sku.trim(),
         defaultUnit: form.defaultUnit.trim(),
         reorderLevel: form.reorderLevel ? Number(form.reorderLevel) : undefined,
         costPrice: form.costPrice ? Number(form.costPrice) : undefined,
@@ -108,12 +86,12 @@ export default function CreateMaterialPage() {
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label className="block text-sm">
-                  <span className="mb-1 block text-slate-600">SKU</span>
+                  <span className="mb-1 block text-slate-600">EXIM CODE</span>
                   <input
                     className="w-full rounded-xl border border-slate-300 px-3 py-2"
                     value={form.sku}
                     onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                    placeholder="Optional stock keeping unit"
+                    placeholder="Required exim code"
                   />
                 </label>
                 <label className="block text-sm">
@@ -170,22 +148,10 @@ export default function CreateMaterialPage() {
             description="Optional category and notes for internal tracking."
           >
             <div className="space-y-4">
-              <label className="block text-sm">
-                <span className="mb-1 block text-slate-600">Category</span>
-                <select
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                  value={form.categoryId}
-                  onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-                  disabled={loadingCategories}
-                >
-                  <option value="">{loadingCategories ? 'Loading categories...' : 'Uncategorized'}</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.categoryName}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <RawMaterialCategoryField
+                value={form.categoryId}
+                onChange={(categoryId) => setForm({ ...form, categoryId })}
+              />
               <label className="block text-sm">
                 <span className="mb-1 block text-slate-600">Notes</span>
                 <textarea

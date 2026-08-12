@@ -1,10 +1,10 @@
-import { request, getToken } from './apiClient'
+import { request, getAuthHeader } from './apiClient'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1'
 
 export interface RawMaterialPayload {
   name: string
-  sku?: string
+  sku: string
   defaultUnit: string
   categoryId?: string
   description?: string
@@ -29,11 +29,12 @@ export interface CategoryPayload {
 }
 
 export const rawMaterialApi = {
-  list: (params?: { search?: string; categoryId?: string; active?: string; page?: number; pageSize?: number }) => {
+  list: (params?: { search?: string; categoryId?: string; active?: string; deleted?: boolean; page?: number; pageSize?: number }) => {
     const q = new URLSearchParams()
     if (params?.search) q.set('search', params.search)
     if (params?.categoryId) q.set('categoryId', params.categoryId)
     if (params?.active) q.set('active', params.active)
+    if (params?.deleted) q.set('deleted', 'true')
     if (params?.page) q.set('page', String(params.page))
     if (params?.pageSize) q.set('pageSize', String(params.pageSize))
     return request<any>(`/inventory/materials?${q.toString()}`)
@@ -54,7 +55,7 @@ export const rawMaterialApi = {
     request<void>(`/inventory/materials/${id}`, { method: 'DELETE' }),
 
   adjustStock: (id: string, data: StockAdjustPayload) =>
-    request<any>(`/inventory/materials/${id}/adjust-stock`, { method: 'POST', body: data }),
+    request<any>(`/inventory/materials/${id}/adjust-stock`, { method: 'PATCH', body: data }),
 
   getTransactions: (id: string, params?: { page?: number; pageSize?: number }) => {
     const q = new URLSearchParams()
@@ -68,16 +69,18 @@ export const rawMaterialApi = {
   createCategory: (data: CategoryPayload) =>
     request<any>('/inventory/material-categories', { method: 'POST', body: data }),
 
+  deleteCategory: (id: string) =>
+    request<void>(`/inventory/material-categories/${id}`, { method: 'DELETE' }),
+
   getPurchases: (id: string) =>
     request<any[]>(`/inventory/materials/${id}/purchases`),
 
   exportCSV: async (filters?: Record<string, any>): Promise<Blob> => {
-    const token = getToken()
     const response = await fetch(`${API_BASE}/inventory/materials/export`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        ...getAuthHeader(),
       },
       body: JSON.stringify({ filters: filters || {} }),
     })
@@ -91,11 +94,8 @@ export const rawMaterialApi = {
   },
 
   downloadImportTemplate: async (): Promise<Blob> => {
-    const token = getToken()
     const response = await fetch(`${API_BASE}/inventory/materials/import-template-sample`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: getAuthHeader(),
     })
 
     if (!response.ok) {
@@ -107,15 +107,12 @@ export const rawMaterialApi = {
   },
 
   uploadCSV: async (file: File): Promise<any> => {
-    const token = getToken()
     const formData = new FormData()
     formData.append('file', file)
 
     const response = await fetch(`${API_BASE}/inventory/materials/import`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: getAuthHeader(),
       body: formData,
     })
 

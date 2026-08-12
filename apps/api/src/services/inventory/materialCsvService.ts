@@ -14,7 +14,7 @@ type MaterialCsvFilters = {
 type MaterialCsvRow = {
   id?: string
   name: string
-  sku?: string
+  sku: string
   defaultUnit: string
   categoryId?: string
   categoryName?: string
@@ -63,7 +63,7 @@ const parseNumber = (value: unknown) => {
 const normalizeRow = (row: Record<string, unknown>): MaterialCsvRow => ({
   id: toStringValue(row.id) || undefined,
   name: toStringValue(row.name).trim(),
-  sku: toStringValue(row.sku).trim() || undefined,
+  sku: toStringValue(row.sku).trim(),
   defaultUnit: toStringValue(row.defaultUnit).trim(),
   categoryId: toStringValue(row.categoryId).trim() || undefined,
   categoryName: toStringValue(row.categoryName).trim() || undefined,
@@ -83,8 +83,8 @@ const buildWhere = (filters: MaterialCsvFilters) => {
 
   if (filters.search) {
     where.OR = [
-      { name: { contains: filters.search, mode: 'insensitive' } },
-      { sku: { contains: filters.search, mode: 'insensitive' } },
+      { name: { contains: filters.search } },
+      { sku: { contains: filters.search } },
     ]
   }
 
@@ -104,7 +104,7 @@ const resolveCategoryId = async (categoryId?: string, categoryName?: string) => 
   if (!categoryName) return undefined
 
   const category = await prisma.rawMaterialCategory.findFirst({
-    where: { categoryName: { equals: categoryName, mode: 'insensitive' }, deletedAt: null },
+    where: { categoryName: { equals: categoryName }, deletedAt: null },
   })
 
   return category?.id
@@ -184,7 +184,7 @@ export const importMaterialsFromCsv = async (buffer: Buffer, userId?: number) =>
   }
 
   for (const row of rows) {
-    if (!row.name || !row.defaultUnit) {
+    if (!row.name || !row.defaultUnit || !row.sku) {
       summary.skipped += 1
       continue
     }
@@ -192,7 +192,7 @@ export const importMaterialsFromCsv = async (buffer: Buffer, userId?: number) =>
     const categoryId = await resolveCategoryId(row.categoryId, row.categoryName)
     const payload = {
       name: row.name,
-      sku: row.sku || null,
+      sku: row.sku,
       defaultUnit: row.defaultUnit,
       categoryId: categoryId || null,
       description: row.description || null,

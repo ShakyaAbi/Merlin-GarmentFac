@@ -4,7 +4,7 @@ Production-ready starter for MERLIN Lite (logframe and indicator M&E).
 
 ## Stack
 - Node.js + Express + TypeScript
-- PostgreSQL + Prisma ORM
+- MySQL + Prisma ORM
 - Auth: email/password, JWT access tokens, bcrypt
 - RBAC: ADMIN, MANAGER, DATA_ENTRY
 - Validation with Zod; security hardening with Helmet, CORS, rate limiting
@@ -13,13 +13,13 @@ Production-ready starter for MERLIN Lite (logframe and indicator M&E).
 
 ## Prerequisites
 - Node.js 18+
-- Docker (for Postgres) or a running PostgreSQL instance
+- Docker (for MySQL) or a running MySQL instance
 
 ## Quick start
 ```bash
 cd backend
 cp .env.example .env          # update values
-docker-compose up -d postgres # or point DATABASE_URL to your DB
+docker-compose up -d mysql    # or point DATABASE_URL to your DB
 npm install
 npx prisma migrate dev --name init
 npx prisma db seed            # seeds admin user (email/password from .env)

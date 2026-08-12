@@ -30,6 +30,12 @@ export const salesInvoicePaymentSchema = z.object({
   paymentMethod: z.string().trim().min(1),
   paymentDate: z.string().trim().optional(),
   note: z.string().trim().optional(),
+  bankAccountId: z.string().trim().optional(),
+})
+
+export const updateSalesInvoicePaymentSchema = salesInvoicePaymentSchema.partial().extend({
+  amount: z.coerce.number().positive().optional(),
+  paymentMethod: z.string().trim().min(1).optional(),
 })
 
 export const cancelSalesInvoiceSchema = z.object({

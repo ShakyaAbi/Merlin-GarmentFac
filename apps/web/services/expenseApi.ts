@@ -1,6 +1,6 @@
 import { request } from './apiClient'
 
-export type ExpenseStatus = 'DRAFT' | 'APPROVED' | 'PAID' | 'VOID'
+export type ExpenseStatus = 'APPROVED' | 'PAID' | 'VOID'
 
 export type Expense = {
   id: string

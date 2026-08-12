@@ -1,21 +1,35 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api } from '../../services/api'
 import { rawMaterialApi } from '../../services/rawMaterialApi'
+import { FinishedGoodCsvActions } from '../../components/inventory/FinishedGoodCsvActions'
+import { ArticleCategoryCreateInline } from '../../components/inventory/ArticleCategoryCreateInline'
+import { ArticleCategorySelect } from '../../components/inventory/ArticleCategorySelect'
 import { Modal } from '../../components/ui/Modal'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
 import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { InventoryDataTable } from '../../components/inventory/InventoryDataTable'
 import { formatNepaliDate, formatNepaliDateTime } from '../../utils/nepaliDate'
+import { useCurrentUser } from '../../components/auth/CurrentUserContext'
 
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
 
+const formatChange = (value: number | string) => {
+  const numeric = Number(value ?? 0)
+  return `${numeric >= 0 ? '+' : ''}${numeric}`
+}
+
+const changeTone = (value: number | string) =>
+  Number(value ?? 0) >= 0
+    ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100'
+    : 'bg-red-50 text-red-600 ring-1 ring-red-100'
+
 export default function FinishedGoodDetailPage() {
   const { id } = useParams()
-  const navigate = useNavigate()
+  const { canEdit } = useCurrentUser()
   const location = useLocation()
   const [article, setArticle] = useState<any | null>(null)
   const [transactions, setTransactions] = useState<any[]>([])
@@ -53,7 +67,9 @@ export default function FinishedGoodDetailPage() {
   const currentStock = Number(article?.currentStock ?? 0)
   const reorderLevel = article?.reorderLevel ?? null
   const hasTarget = reorderLevel != null && Number.isFinite(Number(reorderLevel)) && Number(reorderLevel) > 0
-  const stockValue = Number(article?.sellingPrice ?? 0) * currentStock
+  const isLowStock = hasTarget && currentStock <= Number(reorderLevel)
+  const articlePrice = Number(article?.sellingPrice ?? 0)
+  const stockValue = articlePrice * currentStock
   const bomItems = Array.isArray(article?.bomData?.items) ? article.bomData.items : []
   const stockSeries = useMemo(() => {
     const sorted = [...transactions]
@@ -70,6 +86,9 @@ export default function FinishedGoodDetailPage() {
       return { ...tx, stock: Math.max(running, 0) }
     })
   }, [transactions, currentStock])
+
+  const pagedTransactions = transactions
+  const totalRows = transactions.length
 
   const handleAdjust = async (payload: any) => {
     try {
@@ -104,8 +123,10 @@ export default function FinishedGoodDetailPage() {
         description="Article stock, transaction history, manual adjustments, and low-stock tracking."
         backTo={{ to: '/inventory/finished-goods', label: 'Back to Articles' }}
         actions={[
-          { label: 'Adjust Stock', onClick: () => setShowAdjust(true) },
-          { label: 'Edit Article', variant: 'outline', onClick: () => setShowEdit(true) },
+          ...(canEdit ? [
+            { label: 'Adjust Stock', onClick: () => setShowAdjust(true) },
+            { label: 'Edit Article', variant: 'outline' as const, onClick: () => setShowEdit(true) },
+          ] : []),
           { label: 'Production Batches', variant: 'secondary', to: '/inventory/production' },
         ]}
       >
@@ -113,47 +134,147 @@ export default function FinishedGoodDetailPage() {
           stats={[
             { label: 'Current stock', value: currentStock },
             { label: 'Reorder level', value: hasTarget ? reorderLevel : 'Not set', tone: 'warning' },
+            { label: 'Price per article', value: money(articlePrice), tone: 'slate' },
             { label: 'Stock value', value: money(stockValue), tone: 'success' },
           ]}
         />
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <InventorySectionCard title="Article Details" description="Master data for the article stock item.">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-[180px_1fr]">
-              <div className="flex h-44 w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-                {article.imageUrl ? (
-                  <img src={article.imageUrl} alt={article.name} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="px-3 text-center text-xs text-slate-500">No article image</div>
-                )}
-              </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Article Number</div><div className="font-medium text-slate-900">{article.productCode || article.sku || '-'}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Product Code</div><div className="font-medium text-slate-900">{article.productCode || '-'}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">SKU</div><div className="font-medium text-slate-900">{article.sku || '-'}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Category</div><div className="font-medium text-slate-900">{article.category || '-'}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Unit</div><div className="font-medium text-slate-900">{article.unit || '-'}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Selling Price</div><div className="font-medium text-slate-900">{money(article.sellingPrice)}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Cost Price</div><div className="font-medium text-slate-900">{money(article.costPrice)}</div></div>
-                <div className="md:col-span-2"><div className="text-xs uppercase tracking-wide text-slate-500">Description</div><div className="font-medium text-slate-900">{article.description || '-'}</div></div>
+        {isLowStock ? (
+          <InventorySectionCard title="Low Stock Warning" description="This article is at or below its reorder level.">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <div className="font-semibold">Reorder attention needed</div>
+              <div className="mt-1">
+                Stock is {currentStock} {article.unit || 'units'} and the reorder level is {reorderLevel}. This article will remain flagged until replenished.
               </div>
             </div>
           </InventorySectionCard>
+        ) : null}
 
-          <InventorySectionCard title="Quick Actions" description="Adjust stock or update the article master record.">
-            <div className="space-y-3 text-sm text-slate-600">
-              <div className="flex items-center justify-between"><span>Status</span><span className="font-medium text-slate-900">{article.active ? 'Active' : 'Inactive'}</span></div>
-              <div className="flex items-center justify-between"><span>Material lines</span><span className="font-medium text-slate-900">{bomItems.length}</span></div>
-              <div className="flex items-center justify-between"><span>Created</span><span className="font-medium text-slate-900">{formatNepaliDate(article.createdAt)}</span></div>
-              <button type="button" className="w-full rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white" onClick={() => setShowAdjust(true)}>
-                Adjust Stock
-              </button>
-              <button type="button" className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700" onClick={() => setShowEdit(true)}>
-                Edit Article
-              </button>
+        <InventorySectionCard title="Article Overview" description="Master data, status, and primary actions for this finished good.">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.8fr)]">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-[210px_minmax(0,1fr)]">
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 shadow-sm">
+                <div className="flex h-full min-h-56 items-center justify-center">
+                  {article.imageUrl ? (
+                    <img src={article.imageUrl} alt={article.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="px-4 text-center">
+                      <div className="mx-auto mb-2 h-12 w-12 rounded-2xl bg-slate-200" />
+                      <div className="text-sm font-medium text-slate-700">No article image</div>
+                      <div className="mt-1 text-xs text-slate-500">Add an image from Edit Article.</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${article.active ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+                    {article.active ? 'Active article' : 'Inactive article'}
+                  </span>
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                    {currentStock} {article.unit || 'units'} on hand
+                  </span>
+                  {hasTarget ? (
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                      Reorder level {reorderLevel}
+                    </span>
+                  ) : null}
+                </div>
+
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900">{article.name}</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                    {article.description || 'No description has been added for this article yet.'}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Article Number</div>
+                    <div className="mt-1 font-semibold text-slate-900">{article.productCode || article.sku || '-'}</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Category</div>
+                    <div className="mt-1 font-semibold text-slate-900">{article.articleCategory?.name || article.category || '-'}</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Unit</div>
+                    <div className="mt-1 font-semibold text-slate-900">{article.unit || '-'}</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Created</div>
+                    <div className="mt-1 font-semibold text-slate-900">{formatNepaliDate(article.createdAt)}</div>
+                  </div>
+                </div>
+              </div>
             </div>
-          </InventorySectionCard>
-        </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-5 shadow-sm">
+              <div className="text-sm font-semibold text-slate-900">Quick Actions</div>
+              <p className="mt-1 text-sm leading-6 text-slate-500">{canEdit ? 'Adjust stock or update the article record without leaving this page.' : 'Read-only article details and stock history.'}</p>
+
+              <div className="mt-5 space-y-3 text-sm text-slate-600">
+                <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                  <span>Current stock</span>
+                  <span className="font-semibold text-slate-900">{currentStock}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                  <span>Price per article</span>
+                  <span className="font-semibold text-slate-900">{money(articlePrice)}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                  <span>Stock value</span>
+                  <span className="font-semibold text-slate-900">{money(stockValue)}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                  <span>Material lines</span>
+                  <span className="font-semibold text-slate-900">{bomItems.length}</span>
+                </div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 gap-2">
+                {canEdit ? (
+                  <>
+                    <button
+                      type="button"
+                      className="w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                      onClick={() => setShowAdjust(true)}
+                    >
+                      Adjust Stock
+                    </button>
+                    <button
+                      type="button"
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      onClick={() => setShowEdit(true)}
+                    >
+                      Edit Article
+                    </button>
+                  </>
+                ) : null}
+                <Link
+                  to="/inventory/production"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                  Production Batches
+                </Link>
+              </div>
+
+              <div className="mt-5 rounded-2xl bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
+                Stock updates affect invoice validation and low-stock checks immediately.
+              </div>
+            </div>
+          </div>
+        </InventorySectionCard>
+
+        <InventorySectionCard title="CSV Tools" description="Import or export this article or the broader article catalog.">
+          <div className="space-y-3">
+            {canEdit ? <FinishedGoodCsvActions title="article" filters={{ ids: [article.id] }} onSuccess={() => void load()} /> : <div className="text-sm text-slate-500">Article import is restricted to managers and administrators.</div>}
+            <div className="text-xs leading-5 text-slate-500">
+              Export the current article record or download the template for bulk article updates.
+            </div>
+          </div>
+        </InventorySectionCard>
 
         <InventorySectionCard title="Stock Trend" description="Running stock changes over time.">
           {stockSeries.length === 0 ? (
@@ -161,7 +282,7 @@ export default function FinishedGoodDetailPage() {
           ) : (
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={stockSeries}>
+                <AreaChart data={stockSeries} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="articleStockFill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#2563eb" stopOpacity={0.28} />
@@ -169,8 +290,15 @@ export default function FinishedGoodDetailPage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="date" tickFormatter={(value) => formatNepaliDate(String(value))} tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} width={40} />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(value) => formatNepaliDate(String(value))}
+                    tick={{ fontSize: 11, fill: '#64748b' }}
+                    tickLine={false}
+                    axisLine={{ stroke: '#cbd5e1' }}
+                    minTickGap={24}
+                  />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} width={40} />
                   <Tooltip
                     content={({ active, payload, label }) => {
                       if (!active || !payload?.length) return null
@@ -193,32 +321,77 @@ export default function FinishedGoodDetailPage() {
           )}
         </InventorySectionCard>
 
-        <InventorySectionCard title="Stock History" description="Every manual adjustment and production movement for the article.">
-          <InventoryDataTable
-            caption="Article stock history"
-            columns={[{ label: 'Date' }, { label: 'Change' }, { label: 'Balance After' }, { label: 'Type' }, { label: 'Reason' }]}
-          >
-            {transactions.length === 0 ? (
-              <tr>
-                <td className="px-3 py-8 text-center text-slate-500" colSpan={5}>
-                  No transactions yet.
-                </td>
-              </tr>
-            ) : (
-              transactions.map((tx: any) => (
-                <tr key={tx.id} className="border-b border-slate-100 last:border-b-0">
-                  <td className="px-3 py-4 text-slate-600">{formatNepaliDate(tx.createdAt)}</td>
-                  <td className={`px-3 py-4 font-semibold ${Number(tx.change) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                    {Number(tx.change) >= 0 ? '+' : ''}
-                    {Number(tx.change)}
-                  </td>
-                  <td className="px-3 py-4 text-slate-700">{Number(tx.balanceAfter ?? 0)}</td>
-                  <td className="px-3 py-4 text-slate-700">{String(tx.transactionType || '').replaceAll('_', ' ')}</td>
-                  <td className="px-3 py-4 text-slate-600">{tx.reason || '-'}</td>
-                </tr>
-              ))
-            )}
-          </InventoryDataTable>
+        <InventorySectionCard
+          title="Stock History"
+          description="Every manual adjustment and production movement for the article."
+          action={<span className="text-xs font-semibold text-slate-500">{totalRows} entries</span>}
+        >
+          <div className="mb-4 rounded-xl bg-slate-100 px-4 py-3 text-xs leading-5 text-slate-600">
+            Use the primary actions above for master-record edits and stock corrections. Stock history below is read-only unless you need to inspect a specific movement.
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="min-w-[860px] w-full text-left text-sm">
+                <caption className="sr-only">Article stock history</caption>
+                <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="px-6 py-3 font-semibold">Reporting Date</th>
+                    <th className="px-6 py-3 font-semibold">Value</th>
+                    <th className="px-6 py-3 font-semibold">Status</th>
+                    <th className="px-6 py-3 font-semibold">Verification</th>
+                    <th className="px-6 py-3 font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pagedTransactions.length === 0 ? (
+                    <tr>
+                      <td className="px-6 py-12 text-center text-sm text-slate-500" colSpan={5}>
+                        No transactions yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    pagedTransactions.map((tx: any) => (
+                      <tr key={tx.id} className="hover:bg-slate-50">
+                        <th className="px-6 py-4 font-medium whitespace-nowrap text-slate-900" scope="row">
+                          {formatNepaliDate(tx.createdAt)}
+                        </th>
+                        <td className="px-6 py-4 font-mono text-slate-700">
+                          <div className="flex items-center gap-1">
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${changeTone(tx.change)}`}>
+                              {formatChange(tx.change)}
+                            </span>
+                            <span className="text-xs text-slate-400">{tx.unit || article.unit || 'unit'}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${Number(tx.change) >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                            {Number(tx.change) >= 0 ? 'Stock In' : 'Stock Out'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-xs text-slate-500">
+                            {tx.reason || tx.transactionType || 'Adjustment'}
+                          </span>
+                        </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700"
+                                  onClick={() => setShowAdjust(true)}
+                                >
+                                  Adjust
+                                </button>
+                              </div>
+                            </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </InventorySectionCard>
 
         <InventorySectionCard title="Article Materials" description="The material bill attached to this article.">
@@ -278,6 +451,7 @@ function EditArticleForm({ article, onCancel, onSave }: any) {
     name: article.name,
     sku: article.sku || '',
     productCode: article.productCode || '',
+    articleCategoryId: article.articleCategoryId || '',
     category: article.category || '',
     unit: article.unit || 'pcs',
     sellingPrice: article.sellingPrice || '',
@@ -378,7 +552,12 @@ function EditArticleForm({ article, onCancel, onSave }: any) {
         <label className="block text-sm"><span className="mb-1 block text-slate-600">Unit</span><input className="w-full rounded-xl border px-3 py-2" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} /></label>
         <label className="block text-sm"><span className="mb-1 block text-slate-600">SKU</span><input className="w-full rounded-xl border px-3 py-2" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} /></label>
         <label className="block text-sm"><span className="mb-1 block text-slate-600">Product Code</span><input className="w-full rounded-xl border px-3 py-2" value={form.productCode} onChange={(e) => setForm({ ...form, productCode: e.target.value })} /></label>
-        <label className="block text-sm"><span className="mb-1 block text-slate-600">Category</span><input className="w-full rounded-xl border px-3 py-2" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></label>
+        <div className="block text-sm">
+          <span className="mb-1 block text-slate-600">Category</span>
+          <ArticleCategorySelect value={form.articleCategoryId} onChange={(articleCategoryId) => setForm({ ...form, articleCategoryId })} />
+          <ArticleCategoryCreateInline onCreated={(created) => setForm((current) => ({ ...current, articleCategoryId: created.id }))} />
+          <input className="mt-3 w-full rounded-xl border px-3 py-2" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Legacy fallback label" />
+        </div>
         <label className="block text-sm"><span className="mb-1 block text-slate-600">Reorder Level</span><input className="w-full rounded-xl border px-3 py-2" value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: e.target.value })} /></label>
         <label className="block text-sm"><span className="mb-1 block text-slate-600">Selling Price</span><input className="w-full rounded-xl border px-3 py-2" value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} /></label>
         <label className="block text-sm"><span className="mb-1 block text-slate-600">Material cost</span><input className="w-full rounded-xl border bg-slate-50 px-3 py-2" value={materialCost.toFixed(2)} readOnly /></label>
@@ -460,6 +639,7 @@ function EditArticleForm({ article, onCancel, onSave }: any) {
               sku: form.sku || undefined,
               productCode: form.productCode || undefined,
               category: form.category || undefined,
+              articleCategoryId: form.articleCategoryId || undefined,
               unit: form.unit || undefined,
               sellingPrice: Number(form.sellingPrice || 0),
               costPrice: materialCost,

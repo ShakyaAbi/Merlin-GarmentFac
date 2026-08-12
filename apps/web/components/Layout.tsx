@@ -14,6 +14,8 @@ import { api } from "../services/api";
 import { routeLabelMap, sidebarSections } from "./layout/layoutNav";
 import { SidebarSection } from "./layout/SidebarSection";
 import { NotificationsMenu } from "./layout/NotificationsMenu";
+import { ToastStack } from "./layout/ToastStack";
+import { CurrentUserProvider } from "./auth/CurrentUserContext";
 
 type InventoryAlertItem = {
   id: string;
@@ -27,6 +29,15 @@ type InventoryAlertItem = {
   } | null;
 };
 
+type LowStockFinishedGoodItem = {
+  id: string;
+  name: string;
+  currentStock?: number | null;
+  reorderLevel?: number | null;
+  sku?: string | null;
+  productCode?: string | null;
+};
+
 interface LayoutProps {
   children: React.ReactNode;
 }
@@ -37,6 +48,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [notifications, setNotifications] = useState<AnomalyNotification[]>([]);
   const [overdueNotifications, setOverdueNotifications] = useState<any[]>([]);
   const [inventoryAlerts, setInventoryAlerts] = useState<InventoryAlertItem[]>([]);
+  const [lowStockFinishedGoods, setLowStockFinishedGoods] = useState<LowStockFinishedGoodItem[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [markingRead, setMarkingRead] = useState(false);
@@ -76,15 +88,18 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     Promise.all([
       api.getAnomalyNotifications(),
       api.getOverdueNotifications(),
+      api.get('/operations/summary'),
       api.getInventoryAlerts?.(),
     ])
-      .then(([{ notifications, totalUnread }, overdue, alerts]) => {
+      .then(([{ notifications, totalUnread }, overdue, summary, alerts]) => {
         setNotifications(notifications);
         setOverdueNotifications(overdue || []);
+        setLowStockFinishedGoods(Array.isArray(summary?.lists?.lowStockFinishedGoods) ? summary.lists.lowStockFinishedGoods : []);
         const inventoryList = Array.isArray(alerts) ? alerts : [];
         setInventoryAlerts(inventoryList);
         const inventoryUnread = inventoryList.filter((alert: InventoryAlertItem) => !alert.acknowledged).length;
-        setUnreadCount(totalUnread + (overdue?.length || 0) + inventoryUnread);
+        const lowStockArticleCount = Array.isArray(summary?.lists?.lowStockFinishedGoods) ? summary.lists.lowStockFinishedGoods.length : 0;
+        setUnreadCount(totalUnread + (overdue?.length || 0) + inventoryUnread + lowStockArticleCount);
       })
       .catch(() => {});
   };
@@ -100,13 +115,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   }, []);
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    public: true,
-    accounting: true,
-    buying: true,
-    selling: true,
-    stock: true,
-    support: false,
-    settings: false,
+    workspace: true,
+    operations: true,
+    sales: true,
   });
 
   const toggleSection = (key: string) => {
@@ -146,9 +157,21 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   };
 
+  const visibleSidebarSections = React.useMemo(() => {
+    const isAdmin = currentUser?.role === 'ADMIN';
+    return sidebarSections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => isAdmin || !['/admin/users', '/admin/invitations'].includes(item.path)),
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [currentUser?.role]);
+
   return (
-    <div className="h-screen w-full bg-blue-900 flex overflow-hidden font-sans p-2 lg:p-4 gap-4 relative">
+    <CurrentUserProvider user={currentUser}>
+      <div className="h-screen w-full bg-blue-900 flex overflow-hidden font-sans p-2 lg:p-4 gap-4 relative">
       <Silk speed={5} scale={1} color="#4d66ff" noiseIntensity={0.8} rotation={0} paused={true} />
+      <ToastStack />
 
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
@@ -220,8 +243,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         {/* Navigation */}
-        <nav ref={sidebarNavRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
-          {sidebarSections.map((section) => (
+        <nav
+          ref={sidebarNavRef}
+          className="sidebar-scrollbar flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4"
+        >
+          {visibleSidebarSections.map((section) => (
             <SidebarSection
               key={section.key}
               section={section}
@@ -248,7 +274,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <p className="text-sm font-semibold text-slate-100 truncate">
                   {currentUser?.name || currentUser?.email || "User"}
                 </p>
-                <p className="text-xs text-slate-400 truncate group-hover:text-slate-300">
+                <p className="text-xs text-slate-300 truncate">
                   {currentUser?.jobTitle || (currentUser?.role ? currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1).toLowerCase() : "Role")}
                 </p>
               </div>
@@ -271,7 +297,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       </aside>
 
       {/* Main Content Wrapper - The "Card" */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50 rounded-2xl shadow-2xl relative">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50 rounded-xl shadow-lg relative">
         {/* Header */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 flex-shrink-0 z-40">
           <div className="flex items-center gap-4">
@@ -330,6 +356,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   notifications={notifications}
                   overdueNotifications={overdueNotifications}
                   inventoryAlerts={inventoryAlerts}
+                  lowStockFinishedGoods={lowStockFinishedGoods}
                   unreadCount={unreadCount}
                   onClose={() => setShowNotifications(false)}
                   onMarkAllRead={handleMarkAllRead}
@@ -346,6 +373,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="max-w-7xl mx-auto">{children}</div>
         </main>
       </div>
-    </div>
+      </div>
+    </CurrentUserProvider>
   );
 };

@@ -32,6 +32,8 @@ export const api = {
   get: async <T = any>(path: string): Promise<T> => request<T>(path),
   post: async <T = any>(path: string, body?: any): Promise<T> =>
     request<T>(path, { method: "POST", body }),
+  patch: async <T = any>(path: string, body?: any): Promise<T> =>
+    request<T>(path, { method: "PATCH", body }),
   put: async <T = any>(path: string, body?: any): Promise<T> =>
     request<T>(path, { method: "PUT", body }),
   delete: async <T = any>(path: string): Promise<T> =>

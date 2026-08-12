@@ -7,9 +7,11 @@ describe('operationsController source', () => {
     'utf8',
   )
 
-  test('passes from/to query filters into operations summary service', () => {
+  test('passes period and granularity query filters into operations summary service', () => {
     expect(source).toContain('req.query.from')
     expect(source).toContain('req.query.to')
+    expect(source).toContain('req.query.period')
+    expect(source).toContain('req.query.granularity')
     expect(source).toContain('getOperationsSummary({')
   })
 })

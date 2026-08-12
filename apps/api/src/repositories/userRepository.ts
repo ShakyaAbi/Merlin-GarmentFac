@@ -3,11 +3,21 @@ import { prisma } from "../prisma";
 
 // Finds a user by email
 export const findByEmail = (email: string) =>
-  prisma.user.findUnique({ where: { email } });
+  prisma.user.findUnique({
+    where: { email },
+    include: {
+      organization: true,
+    },
+  });
 
 // Finds a user by ID
 export const findById = (id: number) =>
-  prisma.user.findUnique({ where: { id } });
+  prisma.user.findUnique({
+    where: { id },
+    include: {
+      organization: true,
+    },
+  });
 
 // Creates a new user account
 export const create = (data: {
@@ -18,7 +28,13 @@ export const create = (data: {
   name?: string | null;
   jobTitle?: string | null;
   avatar?: string | null;
-}) => prisma.user.create({ data });
+}) =>
+  prisma.user.create({
+    data,
+    include: {
+      organization: true,
+    },
+  });
 
 // Updates a user's profile fields
 export const updateById = (
@@ -39,6 +55,9 @@ export const updateById = (
         data.notificationPreferences !== undefined
           ? (data.notificationPreferences as any)
           : undefined,
+    },
+    include: {
+      organization: true,
     },
   });
 

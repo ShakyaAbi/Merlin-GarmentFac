@@ -25,6 +25,9 @@ export const authenticate = async (
       const passwordHash = await hashPassword(password);
       user = await userRepo.create({ email: adminEmail, passwordHash, role: "ADMIN" as any, organizationId: 1 });
     }
+    if (!user) {
+      return next(new UnauthorizedError("Unable to bootstrap local admin account"));
+    }
     req.user = { id: user.id, email: user.email, role: user.role, organizationId: user.organizationId } as any;
     return next();
   }
@@ -43,11 +46,23 @@ export const authenticate = async (
   const token = authHeader.split(" ")[1];
   try {
     const payload = verifyAccessToken(token);
+    const userId = typeof payload.sub === 'string' ? Number(payload.sub) : payload.sub;
+    if (!Number.isInteger(userId)) {
+      return next(new UnauthorizedError("Invalid access token subject"));
+    }
+
+    // Resolve authorization from the database on every request so role changes,
+    // removals, and organization changes take effect before token expiry.
+    const user = await userRepo.findById(userId);
+    if (!user) {
+      return next(new UnauthorizedError("User account is no longer active"));
+    }
+
     req.user = {
-      id: typeof payload.sub === 'string' ? Number(payload.sub) : payload.sub,
-      email: payload.email,
-      role: payload.role as any,
-      organizationId: payload.organizationId,
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      organizationId: user.organizationId,
     };
     return next();
   } catch (err) {

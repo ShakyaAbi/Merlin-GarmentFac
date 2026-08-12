@@ -9,6 +9,7 @@ import { InventoryDataTable } from '../../components/inventory/InventoryDataTabl
 import { Button } from '../../components/ui/Button'
 import { formatNepaliDate } from '../../utils/nepaliDate'
 import { filterSalesInvoices } from '../../utils/salesInvoiceFilters'
+import { useCurrentUser } from '../../components/auth/CurrentUserContext'
 
 const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-US', {
@@ -50,6 +51,7 @@ const statusClass = (status?: string | null) => {
 
 export default function SalesInvoiceListPage() {
   const navigate = useNavigate()
+  const { canEdit } = useCurrentUser()
   const [invoices, setInvoices] = useState<SalesInvoice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -280,6 +282,7 @@ export default function SalesInvoiceListPage() {
             >
               {filteredInvoices.map((invoice) => {
                 const customerName = invoice.customer?.customerName || invoice.customerName || 'Walk-in customer'
+                const editable = ['DRAFT', 'PENDING_APPROVAL'].includes(String(invoice.invoiceStatus || ''))
                 return (
                   <tr key={invoice.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/70">
                     <td className="px-3 py-4 align-top">
@@ -312,6 +315,14 @@ export default function SalesInvoiceListPage() {
                         >
                           View
                         </Link>
+                        {editable && canEdit ? (
+                          <Link
+                            to={`/sales-invoices/${invoice.id}/edit`}
+                            className="inline-flex items-center rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                          >
+                            Edit
+                          </Link>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

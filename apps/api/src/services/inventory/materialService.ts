@@ -1,4 +1,6 @@
 import * as repo from '../../repositories/inventory/materialRepository'
+import { prisma } from '../../prisma'
+import { AppError } from '../../utils/errors'
 
 // Creates a material
 export const createMaterial = async (payload: any) => repo.createMaterial(payload)

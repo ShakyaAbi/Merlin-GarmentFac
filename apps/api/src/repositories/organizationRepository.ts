@@ -17,7 +17,21 @@ export const create = (data: { name: string }) =>
   prisma.organization.create({ data });
 
 // Updates an organization by ID
-export const updateById = (id: number, data: { name?: string }) =>
+export const updateById = (id: number, data: {
+  name?: string
+  taxpayerNumber?: string | null
+  registrationNumber?: string | null
+  address?: string | null
+  city?: string | null
+  district?: string | null
+  province?: string | null
+  postalCode?: string | null
+  country?: string | null
+  phone?: string | null
+  email?: string | null
+  invoiceFooter?: string | null
+  resetSalesInvoiceSequenceEachFiscalYear?: boolean
+}) =>
   prisma.organization.update({ where: { id }, data });
 
 // Deletes an organization by ID

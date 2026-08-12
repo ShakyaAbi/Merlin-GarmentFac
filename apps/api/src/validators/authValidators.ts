@@ -38,6 +38,18 @@ export const updateMeSchema = {
     name: z.string().min(1).optional().nullable(),
     jobTitle: z.string().min(1).optional().nullable(),
     organization: z.string().min(1).optional().nullable(),
+    taxpayerNumber: z.string().max(100).optional().nullable(),
+    registrationNumber: z.string().max(100).optional().nullable(),
+    address: z.string().max(500).optional().nullable(),
+    city: z.string().max(100).optional().nullable(),
+    district: z.string().max(100).optional().nullable(),
+    province: z.string().max(100).optional().nullable(),
+    postalCode: z.string().max(30).optional().nullable(),
+    country: z.string().max(100).optional().nullable(),
+    phone: z.string().max(50).optional().nullable(),
+    email: z.string().email().optional().nullable(),
+    invoiceFooter: z.string().max(1000).optional().nullable(),
+    resetSalesInvoiceSequenceEachFiscalYear: z.boolean().optional(),
     timezone: z.string().min(1).optional().nullable(),
     avatar: z.string().url().optional().nullable(),
     notificationPreferences: z
@@ -58,4 +70,11 @@ export const changePasswordSchema = {
     currentPassword: z.string().min(1),
     newPassword: z.string().min(8)
   })
+};
+
+// Validates an administrator role change request.
+export const updateUserRoleSchema = {
+  body: z.object({
+    role: z.nativeEnum(Role),
+  }),
 };

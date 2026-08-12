@@ -17,7 +17,22 @@ const sanitizeUser = (user: any) => ({
   organizationId: user.organizationId,
   name: user.name ?? null,
   jobTitle: user.jobTitle ?? null,
-  organization: user.organization ?? null,
+  organization: user.organization?.name ?? user.organization ?? null,
+  organizationProfile: user.organization ? {
+    name: user.organization.name,
+    taxpayerNumber: user.organization.taxpayerNumber ?? null,
+    registrationNumber: user.organization.registrationNumber ?? null,
+    address: user.organization.address ?? null,
+    city: user.organization.city ?? null,
+    district: user.organization.district ?? null,
+    province: user.organization.province ?? null,
+    postalCode: user.organization.postalCode ?? null,
+    country: user.organization.country ?? 'Nepal',
+    phone: user.organization.phone ?? null,
+    email: user.organization.email ?? null,
+    invoiceFooter: user.organization.invoiceFooter ?? null,
+    resetSalesInvoiceSequenceEachFiscalYear: user.organization.resetSalesInvoiceSequenceEachFiscalYear ?? true,
+  } : null,
   timezone: user.timezone ?? null,
   avatar: user.avatar ?? null,
   notificationPreferences: user.notificationPreferences ?? null,
@@ -87,6 +102,11 @@ const loginOrCreateGoogleUser = async (payload: {
     }
   }
 
+  const refreshed = await userRepo.findById(user.id);
+  if (refreshed) {
+    user = refreshed;
+  }
+
   const token = signAccessToken({
     sub: user.id,
     email: user.email,
@@ -138,6 +158,7 @@ export const register = async (input: {
   }
 
   let organizationId = input.organizationId;
+  let role: Role;
 
   if (input.invitationToken) {
     const invitation = await invitationRepo.findByToken(input.invitationToken);
@@ -147,7 +168,7 @@ export const register = async (input: {
     if (invitation.email !== input.email) {
       throw new BadRequestError('EMAIL_MISMATCH', 'Invitation email does not match provided email');
     }
-    if (invitation.organizationId !== input.organizationId) {
+    if (input.organizationId && invitation.organizationId !== input.organizationId) {
       throw new BadRequestError('ORGANIZATION_MISMATCH', 'Invitation is for a different organization');
     }
     if (invitation.expiresAt && invitation.expiresAt < new Date()) {
@@ -157,13 +178,28 @@ export const register = async (input: {
       throw new BadRequestError('INVITATION_USED', 'Invitation has already been used');
     }
     organizationId = invitation.organizationId;
+    role = invitation.role;
     await invitationRepo.acceptInvitation(invitation.id, { acceptedAt: new Date() });
-  } else if (!organizationId && input.organizationName) {
-    let org = await orgRepo.findByName(input.organizationName);
-    if (!org) {
-      org = await orgRepo.create({ name: input.organizationName });
+  } else {
+    if (organizationId) {
+      throw new BadRequestError(
+        'INVITATION_REQUIRED',
+        'Joining an existing organization requires an invitation',
+      );
     }
+    if (!input.organizationName) {
+      throw new BadRequestError('ORGANIZATION_REQUIRED', 'Organization name is required');
+    }
+    const existingOrganization = await orgRepo.findByName(input.organizationName);
+    if (existingOrganization) {
+      throw new BadRequestError(
+        'ORGANIZATION_NAME_TAKEN',
+        'That organization already exists; ask an administrator for an invitation',
+      );
+    }
+    const org = await orgRepo.create({ name: input.organizationName });
     organizationId = org.id;
+    role = Role.ADMIN;
   }
 
   if (!organizationId) {
@@ -174,8 +210,6 @@ export const register = async (input: {
   if (!organization) {
     throw new NotFoundError('ORGANIZATION_NOT_FOUND', 'Organization not found');
   }
-
-  const role = input.invitationToken ? Role.DATA_ENTRY : Role.ADMIN;
 
   const passwordHash = await hashPassword(input.password);
   const user = await userRepo.create({
@@ -220,13 +254,66 @@ export const updateCurrentUser = async (
     name: string | null;
     jobTitle: string | null;
     organization: string | null;
+    taxpayerNumber?: string | null;
+    registrationNumber?: string | null;
+    address?: string | null;
+    city?: string | null;
+    district?: string | null;
+    province?: string | null;
+    postalCode?: string | null;
+    country?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    invoiceFooter?: string | null;
+    resetSalesInvoiceSequenceEachFiscalYear?: boolean;
     timezone: string | null;
     avatar: string | null;
     notificationPreferences: Record<string, any> | null;
   }>
 ) => {
-  const user = await userRepo.updateById(id, data);
-  return sanitizeUser(user);
+  const { organization, taxpayerNumber, registrationNumber, address, city, district, province, postalCode, country, phone, email, invoiceFooter, resetSalesInvoiceSequenceEachFiscalYear, ...userUpdates } = data as Partial<{
+    name: string | null;
+    jobTitle: string | null;
+    organization: string | null;
+    taxpayerNumber?: string | null;
+    registrationNumber?: string | null;
+    address?: string | null;
+    city?: string | null;
+    district?: string | null;
+    province?: string | null;
+    postalCode?: string | null;
+    country?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    invoiceFooter?: string | null;
+    resetSalesInvoiceSequenceEachFiscalYear?: boolean;
+    timezone: string | null;
+    avatar: string | null;
+    notificationPreferences: Record<string, any> | null;
+  }>;
+
+  const user = await userRepo.updateById(id, userUpdates);
+
+  const hasOrganizationUpdates = [
+    organization, taxpayerNumber, registrationNumber, address, city, district,
+    province, postalCode, country, phone, email, invoiceFooter,
+    resetSalesInvoiceSequenceEachFiscalYear,
+  ].some((value) => value !== undefined);
+
+  if (hasOrganizationUpdates) {
+    await orgRepo.updateById(user.organizationId, {
+      name: organization?.trim() || 'Organization',
+      taxpayerNumber, registrationNumber, address, city, district, province,
+      postalCode, country, phone, email, invoiceFooter,
+      resetSalesInvoiceSequenceEachFiscalYear,
+    });
+  }
+
+  const refreshed = await userRepo.findById(id);
+  if (!refreshed) {
+    throw new NotFoundError('USER_NOT_FOUND', 'User not found');
+  }
+  return sanitizeUser(refreshed);
 };
 
 // Changes the user's password after verifying current
@@ -372,11 +459,23 @@ export const updateUserRole = async (
   if (user.organizationId !== organizationId) {
     throw new UnauthorizedError('Not authorized to modify this user');
   }
+
+  if (user.role === Role.ADMIN && role !== Role.ADMIN) {
+    const organizationUsers = await orgRepo.getUsers(organizationId);
+    const adminCount = organizationUsers.filter((candidate) => candidate.role === Role.ADMIN).length;
+    if (adminCount <= 1) {
+      throw new BadRequestError('LAST_ADMIN_REQUIRED', 'The organization must retain at least one administrator');
+    }
+  }
+
   return userRepo.updateRole(userId, role);
 };
 
 // Removes a user from the organization
-export const removeUser = async (userId: number, organizationId: number) => {
+export const removeUser = async (userId: number, organizationId: number, requestingUserId: number) => {
+  if (userId === requestingUserId) {
+    throw new BadRequestError('CANNOT_REMOVE_SELF', 'You cannot remove your own account');
+  }
   const user = await userRepo.findById(userId);
   if (!user) {
     throw new NotFoundError('USER_NOT_FOUND', 'User not found');

@@ -8,18 +8,23 @@ import { MaterialCsvActions } from '../../components/inventory/MaterialCsvAction
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
 import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
+import { RawMaterialCategorySelect } from '../../components/inventory/RawMaterialCategorySelect'
+import { useCurrentUser } from '../../components/auth/CurrentUserContext'
 
 export default function MaterialsPage() {
   const [materials, setMaterials] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [categoryId, setCategoryId] = useState('')
   const navigate = useNavigate()
+  const { canEdit, canDelete } = useCurrentUser()
+  const [showDeleted, setShowDeleted] = useState(false)
 
   useEffect(() => {
     let alive = true
     rawMaterialApi
-      .list({ page: 1, pageSize: 500 })
+      .list({ deleted: showDeleted, page: 1, pageSize: 500 })
       .then((data: any) => {
         if (!alive) return
         const rows = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : []
@@ -35,26 +40,40 @@ export default function MaterialsPage() {
     return () => {
       alive = false
     }
-  }, [])
+  }, [showDeleted])
+
+  const deleteMaterial = async (id: string) => {
+    if (!window.confirm('Archive this material? Existing purchases and article bills will remain intact.')) return
+    setError(null)
+    try {
+      await rawMaterialApi.delete(id)
+      const data = await rawMaterialApi.list({ deleted: showDeleted, page: 1, pageSize: 500 })
+      const rows = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : []
+      setMaterials(rows)
+    } catch (err: any) {
+      setError(err?.message || 'Failed to archive material.')
+    }
+  }
 
   const filteredMaterials = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return materials
     return materials.filter((m) =>
-      [m.name, m.sku, m.defaultUnit, m.type, m.description]
-        .filter(Boolean)
-        .some((field) => String(field).toLowerCase().includes(q)),
+      (!categoryId || m.categoryId === categoryId) &&
+      (!q ||
+        [m.name, m.sku, m.defaultUnit, m.type, m.description]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(q))),
     )
-  }, [materials, search])
+  }, [categoryId, materials, search])
 
   const lowStockMaterials = useMemo(
-    () => materials.filter((m) => m.reorderLevel != null && Number(m.currentStock ?? 0) <= Number(m.reorderLevel)),
-    [materials],
+    () => filteredMaterials.filter((m) => m.reorderLevel != null && Number(m.currentStock ?? 0) <= Number(m.reorderLevel)),
+    [filteredMaterials],
   )
 
   const totalStock = useMemo(
-    () => materials.reduce((sum, m) => sum + Number(m.currentStock ?? 0), 0),
-    [materials],
+    () => filteredMaterials.reduce((sum, m) => sum + Number(m.currentStock ?? 0), 0),
+    [filteredMaterials],
   )
 
   if (loading) {
@@ -82,6 +101,7 @@ export default function MaterialsPage() {
       actions={[
         { label: 'Create Material', onClick: () => navigate('/inventory/materials/create') },
         { label: 'View Articles', variant: 'outline', to: '/inventory/finished-goods' },
+        ...(canEdit ? [{ label: 'Manage Categories', variant: 'secondary' as const, to: '/inventory/categories?kind=materials' }] : []),
       ]}
     >
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -91,17 +111,27 @@ export default function MaterialsPage() {
             description="Search raw materials used in purchases, production, and article material bills."
           >
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <label className="sr-only" htmlFor="material-search">
-                Search materials
-              </label>
-              <input
-                id="material-search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search materials"
-                aria-label="Search materials"
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 md:w-72"
-              />
+              <div className="grid w-full gap-3 md:grid-cols-2">
+                <label className="sr-only" htmlFor="material-search">
+                  Search materials
+                </label>
+                <input
+                  id="material-search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search materials"
+                  aria-label="Search materials"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <RawMaterialCategorySelect
+                  value={categoryId}
+                  onChange={setCategoryId}
+                  label="Filter by category"
+                  allowAllOption
+                  allLabel="All categories"
+                />
+                {canDelete ? <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} /> Show deleted materials</label> : null}
+              </div>
             </div>
 
             {filteredMaterials.length === 0 ? (
@@ -112,7 +142,8 @@ export default function MaterialsPage() {
                   <MaterialCard
                     key={m.id}
                     material={m}
-                    onEdit={(material) => navigate(`/inventory/materials/${material.id}?edit=1`)}
+                    onEdit={canEdit ? (material) => navigate(`/inventory/materials/${material.id}?edit=1`) : undefined}
+                    onDelete={canDelete && !m.deletedAt ? deleteMaterial : undefined}
                   />
                 ))}
               </div>
@@ -163,7 +194,7 @@ export default function MaterialsPage() {
           <InventorySectionCard title="CSV Tools" description="Import or export the raw material catalog.">
             <MaterialCsvActions
               title="material catalog"
-              filters={{ search }}
+              filters={{ search, categoryId }}
               onSuccess={() => window.location.reload()}
             />
           </InventorySectionCard>

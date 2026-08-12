@@ -17,3 +17,10 @@ export const create = async (req: Request, res: Response) => {
   try { await recordAudit({ action: 'category.create', userId: user, after: created }) } catch (e) {}
   res.status(201).json(created)
 }
+
+export const remove = async (req: Request, res: Response) => {
+  const user = (req as any).user?.id
+  const deleted = await svc.deleteCategory(req.params.id)
+  try { await recordAudit({ action: 'category.delete', userId: user, after: deleted }) } catch (e) {}
+  res.status(204).send()
+}

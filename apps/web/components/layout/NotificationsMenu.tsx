@@ -16,10 +16,20 @@ type InventoryAlertItem = {
   } | null
 }
 
+type LowStockFinishedGoodItem = {
+  id: string
+  name: string
+  currentStock?: number | null
+  reorderLevel?: number | null
+  sku?: string | null
+  productCode?: string | null
+}
+
 type Props = {
   notifications: AnomalyNotification[]
   overdueNotifications: any[]
   inventoryAlerts: InventoryAlertItem[]
+  lowStockFinishedGoods: LowStockFinishedGoodItem[]
   unreadCount: number
   onClose: () => void
   onMarkAllRead: () => void
@@ -31,6 +41,7 @@ export function NotificationsMenu({
   notifications,
   overdueNotifications,
   inventoryAlerts,
+  lowStockFinishedGoods,
   unreadCount,
   onClose,
   onMarkAllRead,
@@ -105,9 +116,11 @@ export function NotificationsMenu({
               </div>
               <div className="space-y-2">
                 {inventoryAlerts.map((alert) => (
-                  <div
+                  <Link
                     key={alert.id}
-                    className="rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-sm"
+                    to={alert.rawMaterialId ? `/inventory/materials/${alert.rawMaterialId}` : '/inventory/alerts'}
+                    onClick={onClose}
+                    className="block rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -133,7 +146,48 @@ export function NotificationsMenu({
                         </span>
                       )}
                     </div>
-                  </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {lowStockFinishedGoods.length > 0 && (
+            <div className="px-4 py-3 bg-slate-50/30">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Low Stock Articles
+                </p>
+                <Link
+                  to="/inventory/finished-goods"
+                  onClick={onClose}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                >
+                  Open page
+                </Link>
+              </div>
+              <div className="space-y-2">
+                {lowStockFinishedGoods.map((item) => (
+                  <Link
+                    key={item.id}
+                    to={`/inventory/finished-goods/${item.id}`}
+                    onClick={onClose}
+                    className="block rounded-xl border border-amber-100 bg-white px-3 py-2 shadow-sm transition hover:border-amber-200 hover:bg-amber-50/60"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 truncate">
+                          {item.name}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Stock {Number(item.currentStock ?? 0)} | Reorder {item.reorderLevel ?? 'N/A'}
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
+                        Open
+                      </span>
+                    </div>
+                  </Link>
                 ))}
               </div>
             </div>

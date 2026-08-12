@@ -6,6 +6,7 @@ export const createFinishedGoodSchema = z.object({
   name: z.string().trim().min(1, 'Product name is required'),
   description: z.string().trim().optional(),
   category: z.string().trim().optional(),
+  articleCategoryId: z.string().trim().optional().nullable(),
   unit: z.string().trim().min(1).default('pcs'),
   sellingPrice: z.coerce.number().nonnegative().default(0),
   costPrice: z.coerce.number().nonnegative().default(0),

@@ -2,15 +2,18 @@ import React from 'react'
 import {
   BarChart3,
   ClipboardCheck,
-  Command,
   FileSpreadsheet,
   FileText,
   FolderKanban,
   Home,
   Layers,
+  Mail,
+  Package,
   Settings,
   Users,
   AlertCircle,
+  Truck,
+  DollarSign,
 } from 'lucide-react'
 
 export type SidebarItem = {
@@ -28,22 +31,31 @@ export type SidebarSectionConfig = {
 
 export const routeLabelMap: Record<string, string> = {
   admin: 'Admin',
+  alerts: 'Alerts',
+  customers: 'Customers',
+  exports: 'Exports',
+  'finished-goods': 'Articles',
+  invitations: 'Invitations',
+  materials: 'Materials',
   projects: 'Home',
   indicators: 'Indicators',
+  payments: 'Payments',
+  expenses: 'Expenses',
+  production: 'Production Batches',
+  purchases: 'Purchase Invoices',
   settings: 'Settings',
   'sales-invoices': 'Sales Invoices',
   'sales-orders': 'Sales Orders',
-  customers: 'Customers',
   inventory: 'Inventory',
   suppliers: 'Suppliers',
-  purchases: 'Purchase Invoices',
   reports: 'Reports',
+  users: 'Team',
 }
 
 export const sidebarSections: SidebarSectionConfig[] = [
   {
-    key: 'public',
-    label: 'Public',
+    key: 'workspace',
+    label: 'Workspace',
     collapsible: true,
     items: [
       { icon: Home, label: 'Home', path: '/projects' },
@@ -51,59 +63,38 @@ export const sidebarSections: SidebarSectionConfig[] = [
     ],
   },
   {
-    key: 'accounting',
-    label: 'Accounting',
+    key: 'operations',
+    label: 'Operations',
     collapsible: true,
     items: [
-      { icon: FileText, label: 'Expenses', path: '/expenses' },
-      { icon: FileText, label: 'Payments', path: '/payments' },
-    ],
-  },
-  {
-    key: 'buying',
-    label: 'Buying',
-    collapsible: true,
-    items: [
+      { icon: FolderKanban, label: 'Raw Materials', path: '/inventory/materials' },
       { icon: ClipboardCheck, label: 'Purchase Invoices', path: '/inventory/purchases' },
-      { icon: Command, label: 'Suppliers', path: '/inventory/suppliers' },
+      { icon: Package, label: 'Articles', path: '/inventory/finished-goods' },
+      { icon: Layers, label: 'Production Batches', path: '/inventory/production' },
+      { icon: AlertCircle, label: 'Alerts', path: '/inventory/alerts' },
+      { icon: Truck, label: 'Suppliers', path: '/inventory/suppliers' },
+      { icon: FileText, label: 'Expenses', path: '/expenses' },
     ],
   },
   {
-    key: 'selling',
-    label: 'Selling',
+    key: 'sales',
+    label: 'Sales & Customers',
     collapsible: true,
     items: [
       { icon: FileText, label: 'Sales Invoices', path: '/sales-invoices' },
       { icon: Users, label: 'Customers', path: '/inventory/customers' },
+      { icon: DollarSign, label: 'Payments', path: '/payments' },
     ],
   },
   {
-    key: 'stock',
-    label: 'Stock',
-    collapsible: true,
+    key: 'system',
+    label: 'System',
+    collapsible: false,
     items: [
-      { icon: FolderKanban, label: 'Raw Materials', path: '/inventory/materials' },
-      { icon: Layers, label: 'Articles', path: '/inventory/finished-goods' },
-      { icon: Layers, label: 'Production Batches', path: '/inventory/production' },
-      { icon: AlertCircle, label: 'Alerts', path: '/inventory/alerts' },
-    ],
-  },
-  {
-    key: 'support',
-    label: 'Support',
-    collapsible: true,
-    items: [
-      { icon: Users, label: 'Invitations', path: '/admin/invitations' },
-    ],
-  },
-  {
-    key: 'settings',
-    label: 'Settings',
-    collapsible: true,
-    items: [
-      { icon: Settings, label: 'Settings', path: '/settings' },
-      { icon: FileSpreadsheet, label: 'Exports', path: '/exports' },
       { icon: Users, label: 'Team', path: '/admin/users' },
+      { icon: Mail, label: 'Invitations', path: '/admin/invitations' },
+      { icon: FileSpreadsheet, label: 'Exports', path: '/exports' },
+      { icon: Settings, label: 'Settings', path: '/settings' },
     ],
   },
 ]

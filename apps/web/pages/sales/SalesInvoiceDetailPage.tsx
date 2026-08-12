@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Ban, Download, ReceiptText, Send, WalletCards } from 'lucide-react'
+import { Ban, Download, Pencil, ReceiptText, Trash2, WalletCards } from 'lucide-react'
+import { api } from '../../services/api'
 import { salesInvoiceApi } from '../../services/salesInvoiceApi'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
@@ -12,6 +13,9 @@ import { InvoicePaperDocument } from '../../components/invoices/InvoicePaperDocu
 import { buildSalesInvoicePaperDocumentProps } from '../../components/invoices/invoicePaperDocumentHelpers'
 import { calculateInvoiceTotals } from '../../components/invoices/invoiceTotals'
 import { formatNepaliDate, formatNepaliDateTime } from '../../utils/nepaliDate'
+import type { CurrentUser } from '../../types'
+import { useCurrentUser } from '../../components/auth/CurrentUserContext'
+import { organizationBankAccountApi, OrganizationBankAccount } from '../../services/organizationBankAccountApi'
 
 type SalesInvoice = Awaited<ReturnType<typeof salesInvoiceApi.get>>
 
@@ -73,17 +77,31 @@ const toDraftItems = (invoice?: SalesInvoice | null): InvoiceDraftItem[] =>
 export default function SalesInvoiceDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user, canEdit } = useCurrentUser()
   const [invoice, setInvoice] = useState<SalesInvoice | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [paymentAmount, setPaymentAmount] = useState('')
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
+  const [paymentDate, setPaymentDate] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('Cash')
   const [paymentNote, setPaymentNote] = useState('')
   const [chequeNumber, setChequeNumber] = useState('')
   const [chequeDate, setChequeDate] = useState('')
   const [bankName, setBankName] = useState('')
+  const [bankAccountId, setBankAccountId] = useState('')
+  const [bankAccounts, setBankAccounts] = useState<OrganizationBankAccount[]>([])
   const [cancelReason, setCancelReason] = useState('')
+  const [organizationName, setOrganizationName] = useState('Merlin Lite')
+  const [organizationProfile, setOrganizationProfile] = useState<CurrentUser['organizationProfile']>(null)
+  const isDataEntry = user?.role === 'DATA_ENTRY'
+  const canEditInvoice = !isDataEntry && canEdit && invoice ? ['DRAFT', 'PENDING_APPROVAL'].includes(String(invoice.invoiceStatus || '')) : false
+  const invoiceStatus = String(invoice?.invoiceStatus || '')
+  const canIssueInvoice = invoiceStatus === 'DRAFT' || invoiceStatus === 'PENDING_APPROVAL'
+  const canRecordPayment = invoiceStatus === 'ISSUED'
+  const isCancelledInvoice = invoiceStatus === 'CANCELLED'
+  const canCancelInvoice = user?.role === 'ADMIN' && !isCancelledInvoice
 
   const loadInvoice = async () => {
     if (!id) return
@@ -93,6 +111,7 @@ export default function SalesInvoiceDetailPage() {
       const data = await salesInvoiceApi.get(id)
       setInvoice(data)
       setPaymentAmount(String(Math.max(Number(data.dueAmount ?? data.grandTotal ?? 0), 0)))
+      setPaymentDate('')
       setCancelReason('')
     } catch (err: any) {
       setError(err?.message || 'Failed to load invoice.')
@@ -104,6 +123,25 @@ export default function SalesInvoiceDetailPage() {
   useEffect(() => {
     void loadInvoice()
   }, [id])
+
+  useEffect(() => {
+    let alive = true
+    api.me()
+      .then((user) => {
+        if (alive) {
+          setOrganizationName(user.organization || 'Merlin Lite')
+          setOrganizationProfile(user.organizationProfile || null)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    organizationBankAccountApi.list().then(setBankAccounts).catch(() => setBankAccounts([]))
+  }, [])
 
   const summary = useMemo(() => {
     const items = invoice?.items || []
@@ -131,14 +169,16 @@ export default function SalesInvoiceDetailPage() {
       dueAmount,
       invoiceStatus: invoice?.invoiceStatus || undefined,
       paymentStatus: invoice?.paymentStatus || undefined,
-      printedCount: invoice?.printedCount ?? 0,
       lineCount: items.length,
     }
   }, [invoice])
 
   const draftItems = useMemo(() => toDraftItems(invoice), [invoice])
   const customerName = invoice?.customer?.customerName || invoice?.customerName || 'Walk-in customer'
-  const paperDocument = useMemo(() => buildSalesInvoicePaperDocumentProps(invoice, customerName), [invoice, customerName])
+  const paperDocument = useMemo(
+    () => buildSalesInvoicePaperDocumentProps(invoice, customerName, organizationName, organizationProfile),
+    [invoice, customerName, organizationName, organizationProfile],
+  )
 
   const mutateInvoice = async (label: string, action: () => Promise<SalesInvoice>) => {
     if (!invoice) return
@@ -167,7 +207,19 @@ export default function SalesInvoiceDetailPage() {
     }
   }
 
-  const handleSubmit = async () => mutateInvoice('submit', () => salesInvoiceApi.submit(invoice!.id))
+  const handleDownloadPdf = async () => {
+    if (!invoice) return
+    setBusy('pdf')
+    try {
+      const blob = await salesInvoiceApi.downloadPdf(invoice.id)
+      saveBlob(blob, `sales-invoice-${invoice.invoiceNumber || invoice.id}.pdf`)
+    } catch (err: any) {
+      setError(err?.message || 'Failed to download PDF.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const handleIssue = async () => mutateInvoice('issue', () => salesInvoiceApi.issue(invoice!.id))
 
   const handlePayment = async () => {
@@ -179,17 +231,45 @@ export default function SalesInvoiceDetailPage() {
       if (chequeDate) details.push(`Cheque date: ${formatNepaliDate(chequeDate)}`)
     }
     const note = [paymentNote.trim(), ...details].filter(Boolean).join(' | ')
-    await mutateInvoice('payment', () =>
-      salesInvoiceApi.payment(invoice!.id, {
+    const requiresBankAccount = /bank|cheque|mobile/i.test(method)
+    if (requiresBankAccount && !bankAccountId) {
+      setError('Select the organization bank account used for this payment.')
+      return
+    }
+    await mutateInvoice('payment', () => {
+      const payload = {
         amount: paymentAmount,
         paymentMethod: method,
+        paymentDate: paymentDate || undefined,
         note: note || undefined,
-      }),
-    )
+        bankAccountId: bankAccountId || undefined,
+      }
+      return editingPaymentId
+        ? salesInvoiceApi.updatePayment(invoice!.id, editingPaymentId, payload)
+        : salesInvoiceApi.payment(invoice!.id, payload)
+    })
+    setEditingPaymentId(null)
+    setPaymentAmount('')
     setPaymentNote('')
+    setPaymentDate('')
     setChequeNumber('')
     setChequeDate('')
     setBankName('')
+    setBankAccountId('')
+  }
+
+  const editPayment = (payment: NonNullable<SalesInvoice['payments']>[number]) => {
+    setEditingPaymentId(payment.id)
+    setPaymentAmount(String(payment.amount ?? ''))
+    setPaymentDate(payment.paymentDate ? String(payment.paymentDate).slice(0, 10) : '')
+    setPaymentMethod(payment.paymentMethod || payment.method || 'Cash')
+    setBankAccountId(payment.bankAccountId || payment.bankAccount?.id || '')
+    setPaymentNote(payment.note || payment.notes || '')
+  }
+
+  const deletePayment = async (paymentId: string) => {
+    if (!window.confirm('Delete this payment? The invoice balance and customer ledger will be recalculated.')) return
+    await mutateInvoice('delete-payment', () => salesInvoiceApi.deletePayment(invoice!.id, paymentId))
   }
 
   const handleCancel = async () => {
@@ -232,6 +312,8 @@ export default function SalesInvoiceDetailPage() {
       backTo={{ to: '/sales-invoices', label: 'Back to invoices' }}
       actions={[
         { label: 'Download CSV', variant: 'outline', onClick: handleDownloadCsv },
+        { label: 'Download PDF', variant: 'outline', onClick: handleDownloadPdf },
+        ...(canEditInvoice && id ? [{ label: 'Edit Invoice', to: `/sales-invoices/${id}/edit` }] : []),
         { label: 'New Invoice', variant: 'secondary', onClick: () => navigate('/sales-invoices/create') },
       ]}
     >
@@ -241,12 +323,11 @@ export default function SalesInvoiceDetailPage() {
         </div>
       ) : null}
 
-          <InventoryStatGrid
+        <InventoryStatGrid
         stats={[
           { label: 'Grand total', value: money(summary.grandTotal) },
           { label: 'Paid amount', value: money(summary.paidAmount), tone: 'success' },
           { label: 'Due amount', value: money(summary.dueAmount), tone: 'warning' },
-          { label: 'Printed', value: `${summary.printedCount ?? 0}x` },
         ]}
       />
 
@@ -297,13 +378,19 @@ export default function SalesInvoiceDetailPage() {
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              <Button type="button" variant="outline" onClick={handleSubmit} isLoading={busy === 'submit'}>
-                <Send className="mr-2 h-4 w-4" />
-                Submit
-              </Button>
-              <Button type="button" onClick={handleIssue} isLoading={busy === 'issue'}>
-                <ReceiptText className="mr-2 h-4 w-4" />
-                Issue
+              {canEditInvoice && id ? (
+                <Button type="button" variant="outline" onClick={() => navigate(`/sales-invoices/${id}/edit`)}>
+                  Edit
+                </Button>
+              ) : null}
+              {canIssueInvoice ? (
+                <Button type="button" onClick={handleIssue} isLoading={busy === 'issue'}>
+                  <ReceiptText className="mr-2 h-4 w-4" />
+                  Issue
+                </Button>
+              ) : null}
+              <Button type="button" variant="outline" onClick={handleDownloadPdf} isLoading={busy === 'pdf'}>
+                PDF
               </Button>
               <Button type="button" variant="outline" onClick={handleDownloadCsv} isLoading={busy === 'csv'}>
                 <Download className="mr-2 h-4 w-4" />
@@ -375,6 +462,12 @@ export default function SalesInvoiceDetailPage() {
                             Cheque #{payment.chequeNumber}
                           </span>
                         ) : null}
+                        {canRecordPayment && canEdit ? (
+                          <>
+                            {canEdit ? <Button type="button" variant="outline" size="sm" onClick={() => editPayment(payment)}><Pencil className="mr-1 h-3.5 w-3.5" />Edit</Button> : null}
+                            <Button type="button" variant="danger" size="sm" onClick={() => deletePayment(payment.id)}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete</Button>
+                          </>
+                        ) : null}
                       </div>
                     </div>
                     <div className="mt-2 grid grid-cols-1 gap-2 text-sm text-slate-600 md:grid-cols-2">
@@ -394,96 +487,124 @@ export default function SalesInvoiceDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <InventorySectionCard title="Post Payment" description="Record collection against this invoice.">
-            <div className="space-y-4">
-              <label className="block text-sm">
-                <span className="mb-1 block text-slate-600">Amount</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={paymentAmount}
-                  onChange={(event) => setPaymentAmount(event.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                />
-              </label>
-              <label className="block text-sm">
-                <span className="mb-1 block text-slate-600">Method</span>
-                <select
-                  value={paymentMethod}
-                  onChange={(event) => setPaymentMethod(event.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                >
-                  <option value="Cash">Cash</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                  <option value="Card">Card</option>
-                  <option value="Mobile Banking">Mobile Banking</option>
-                  <option value="Other">Other</option>
-                </select>
-              </label>
-              {paymentMethod.toLowerCase().includes('cheque') || paymentMethod.toLowerCase().includes('check') ? (
-                <div className="grid grid-cols-1 gap-3">
-                  <label className="block text-sm">
-                    <span className="mb-1 block text-slate-600">Cheque number</span>
-                    <input
-                      value={chequeNumber}
-                      onChange={(event) => setChequeNumber(event.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                      placeholder="Cheque number"
-                    />
-                  </label>
-                  <label className="block text-sm">
-                    <span className="mb-1 block text-slate-600">Cheque date</span>
-                    <input
-                      type="date"
-                      value={chequeDate}
-                      onChange={(event) => setChequeDate(event.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                    />
-                  </label>
-                  <label className="block text-sm">
-                    <span className="mb-1 block text-slate-600">Bank name</span>
-                    <input
-                      value={bankName}
-                      onChange={(event) => setBankName(event.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                      placeholder="Bank name"
-                    />
-                  </label>
-                </div>
-              ) : null}
-              <label className="block text-sm">
-                <span className="mb-1 block text-slate-600">Note</span>
-                <textarea
-                  value={paymentNote}
-                  onChange={(event) => setPaymentNote(event.target.value)}
-                  className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2"
-                  placeholder="Optional payment note"
-                />
-              </label>
-              <Button type="button" onClick={handlePayment} isLoading={busy === 'payment'}>
-                <WalletCards className="mr-2 h-4 w-4" />
-                Record Payment
-              </Button>
-            </div>
+          <InventorySectionCard title={editingPaymentId && canEdit ? 'Edit Payment' : 'Post Payment'} description="Record collection against this invoice.">
+            {canRecordPayment && (!editingPaymentId || canEdit) ? (
+              <div className="space-y-4">
+                <label className="block text-sm">
+                  <span className="mb-1 block text-slate-600">Amount</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={paymentAmount}
+                    onChange={(event) => setPaymentAmount(event.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                  />
+                </label>
+                {/bank|cheque|mobile/i.test(paymentMethod) ? <label className="block text-sm"><span className="mb-1 block text-slate-600">Organization bank account</span><select required value={bankAccountId} onChange={(event) => setBankAccountId(event.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2"><option value="">Select account</option>{bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.bankName} · {account.accountName} · {account.branchName}</option>)}</select></label> : null}
+                <label className="block text-sm">
+                  <span className="mb-1 block text-slate-600">Payment date (optional)</span>
+                  <input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(event) => setPaymentDate(event.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block text-slate-600">Method</span>
+                  <select
+                    value={paymentMethod}
+                    onChange={(event) => setPaymentMethod(event.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Card">Card</option>
+                    <option value="Mobile Banking">Mobile Banking</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
+                {paymentMethod.toLowerCase().includes('cheque') || paymentMethod.toLowerCase().includes('check') ? (
+                  <div className="grid grid-cols-1 gap-3">
+                    <label className="block text-sm">
+                      <span className="mb-1 block text-slate-600">Cheque number</span>
+                      <input
+                        value={chequeNumber}
+                        onChange={(event) => setChequeNumber(event.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                        placeholder="Cheque number"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="mb-1 block text-slate-600">Cheque date</span>
+                      <input
+                        type="date"
+                        value={chequeDate}
+                        onChange={(event) => setChequeDate(event.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="mb-1 block text-slate-600">Bank name</span>
+                      <input
+                        value={bankName}
+                        onChange={(event) => setBankName(event.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                        placeholder="Bank name"
+                      />
+                    </label>
+                  </div>
+                ) : null}
+                <label className="block text-sm">
+                  <span className="mb-1 block text-slate-600">Note</span>
+                  <textarea
+                    value={paymentNote}
+                    onChange={(event) => setPaymentNote(event.target.value)}
+                    className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2"
+                    placeholder="Optional payment note"
+                  />
+                </label>
+                <Button type="button" onClick={handlePayment} isLoading={busy === 'payment'}>
+                  <WalletCards className="mr-2 h-4 w-4" />
+                  {editingPaymentId && canEdit ? 'Save Payment Changes' : 'Record Payment'}
+                </Button>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                Payments can only be recorded after the invoice is issued.
+              </div>
+            )}
           </InventorySectionCard>
 
-          <InventorySectionCard title="Cancellation" description="Cancel only when the sales invoice should be voided.">
-            <div className="space-y-4">
-              <label className="block text-sm">
-                <span className="mb-1 block text-slate-600">Reason</span>
-                <textarea
-                  value={cancelReason}
-                  onChange={(event) => setCancelReason(event.target.value)}
-                  className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2"
-                  placeholder="Explain why the invoice is being cancelled"
-                />
-              </label>
-              <Button type="button" variant="danger" onClick={handleCancel} isLoading={busy === 'cancel'}>
-                <Ban className="mr-2 h-4 w-4" />
-                Cancel Invoice
-              </Button>
+              <InventorySectionCard title="Cancellation" description="Cancel only when the sales invoice should be voided.">
+                <div className="space-y-4">
+                  {canCancelInvoice ? (
+                    <>
+                      <label className="block text-sm">
+                        <span className="mb-1 block text-slate-600">Reason</span>
+                        <textarea
+                          value={cancelReason}
+                          onChange={(event) => setCancelReason(event.target.value)}
+                          className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2"
+                          placeholder="Explain why the invoice is being cancelled"
+                        />
+                      </label>
+                      <Button type="button" variant="danger" onClick={handleCancel} isLoading={busy === 'cancel'}>
+                        <Ban className="mr-2 h-4 w-4" />
+                        Cancel Invoice
+                      </Button>
+                    </>
+                  ) : isCancelledInvoice ? (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                      This invoice has already been cancelled.
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                      Cannot cancel this invoice.
+                    </div>
+                  )}
             </div>
           </InventorySectionCard>
 

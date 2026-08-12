@@ -27,6 +27,7 @@ import CustomersPage from './pages/inventory/CustomersPage'
 import CustomerDetailPage from './pages/inventory/CustomerDetailPage'
 import FinishedGoodsPage from './pages/inventory/FinishedGoodsPage'
 import FinishedGoodDetailPage from './pages/inventory/FinishedGoodDetailPage'
+import CategoryManagementPage from './pages/inventory/CategoryManagementPage'
 import OperationsDashboardPage from './pages/inventory/OperationsDashboardPage'
 import ProductionOrdersPage from './pages/inventory/ProductionOrdersPage'
 import ProductionOrderDetailPage from './pages/inventory/ProductionOrderDetailPage'
@@ -35,12 +36,13 @@ import SalesInvoiceCreatePage from './pages/sales/SalesInvoiceCreatePage'
 import SalesInvoiceDetailPage from './pages/sales/SalesInvoiceDetailPage'
 import SalesOrdersPage from './pages/sales/SalesOrdersPage'
 import SalesOrderDetailPage from './pages/sales/SalesOrderDetailPage'
+import PaymentsPage from './pages/finance/PaymentsPage'
 import ExpensesPage from './pages/finance/ExpensesPage'
 import ExpenseDetailPage from './pages/finance/ExpenseDetailPage'
-import PaymentsPage from './pages/finance/PaymentsPage'
 import ExportCenterPage from './pages/ExportCenterPage'
 
 import { PrivateRoute } from './components/PrivateRoute';
+import { AdminOnlyRoute } from './components/AdminOnlyRoute';
 
 const App: React.FC = () => {
   return (
@@ -71,24 +73,26 @@ const App: React.FC = () => {
             <Route path="/inventory/purchases/create" element={<PurchaseCreate />} />
             <Route path="/inventory/purchases/:id" element={<PurchaseDetailPage />} />
             <Route path="/inventory/alerts" element={<AlertsPage />} />
+            <Route path="/inventory/categories" element={<CategoryManagementPage />} />
             <Route path="/inventory/materials/:id" element={<MaterialDetail />} />
             <Route path="/inventory/boms/create" element={<Navigate to="/inventory/finished-goods/create" replace />} />
             <Route path="/inventory/finished-goods/create" element={<CreateArticlePage />} />
             <Route path="/sales-invoices" element={<SalesInvoiceListPage />} />
             <Route path="/sales-invoices/create" element={<SalesInvoiceCreatePage />} />
+            <Route path="/sales-invoices/:id/edit" element={<SalesInvoiceCreatePage />} />
             <Route path="/sales-invoices/:id" element={<SalesInvoiceDetailPage />} />
             <Route path="/sales-orders" element={<SalesOrdersPage />} />
             <Route path="/sales-orders/:id" element={<SalesOrderDetailPage />} />
+            <Route path="/payments" element={<PaymentsPage />} />
             <Route path="/expenses" element={<ExpensesPage />} />
             <Route path="/expenses/:id" element={<ExpenseDetailPage />} />
-            <Route path="/payments" element={<PaymentsPage />} />
             <Route path="/exports" element={<ExportCenterPage />} />
             <Route path="/reports" element={<OperationsDashboardPage />} />
             <Route path="/data-entry" element={<DataEntry />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
-            <Route path="/admin/users" element={<AdminUsers />} />
-            <Route path="/admin/invitations" element={<AdminInvitations />} />
+                <Route path="/admin/users" element={<AdminOnlyRoute><AdminUsers /></AdminOnlyRoute>} />
+                <Route path="/admin/invitations" element={<AdminOnlyRoute><AdminInvitations /></AdminOnlyRoute>} />
             <Route path="/indicators" element={<Navigate to="/projects" replace />} />
         </Route>
 

@@ -3,30 +3,31 @@ import { recordAudit } from '../utils/auditLog'
 import { AppError } from '../utils/errors'
 import { createSalesOrderSchema, updateSalesOrderSchema } from '../validators/salesOrderValidators'
 import * as svc from '../services/salesOrderService'
+import { asyncHandler } from '../utils/asyncHandler'
 
-export const list = async (req: Request, res: Response) => {
+export const list = asyncHandler(async (req: Request, res: Response) => {
   const data = await svc.listSalesOrders({
     search: req.query.search as string | undefined,
     status: req.query.status as string | undefined,
     customerId: req.query.customerId as string | undefined,
   })
   res.json(data)
-}
+})
 
-export const listProducts = async (req: Request, res: Response) => {
+export const listProducts = asyncHandler(async (req: Request, res: Response) => {
   const data = await svc.listProducts({
     search: req.query.search as string | undefined,
   })
   res.json(data)
-}
+})
 
-export const get = async (req: Request, res: Response) => {
+export const get = asyncHandler(async (req: Request, res: Response) => {
   const data = await svc.getSalesOrder(req.params.id)
   if (!data) return res.status(404).send('Not found')
   res.json(data)
-}
+})
 
-export const create = async (req: Request, res: Response) => {
+export const create = asyncHandler(async (req: Request, res: Response) => {
   const user = (req as any).user?.id as number | undefined
   const parsed = createSalesOrderSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -35,9 +36,9 @@ export const create = async (req: Request, res: Response) => {
   const created = await svc.createSalesOrder(parsed.data, user)
   try { await recordAudit({ action: 'sales_order.create', userId: user, after: { salesOrderId: created.id } }) } catch {}
   res.status(201).json(created)
-}
+})
 
-export const update = async (req: Request, res: Response) => {
+export const update = asyncHandler(async (req: Request, res: Response) => {
   const user = (req as any).user?.id as number | undefined
   const parsed = updateSalesOrderSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -46,32 +47,32 @@ export const update = async (req: Request, res: Response) => {
   const updated = await svc.updateSalesOrder(req.params.id, parsed.data, user)
   try { await recordAudit({ action: 'sales_order.update', userId: user, after: { salesOrderId: updated.id } }) } catch {}
   res.json(updated)
-}
+})
 
-export const confirm = async (req: Request, res: Response) => {
+export const confirm = asyncHandler(async (req: Request, res: Response) => {
   const user = (req as any).user?.id as number | undefined
   const updated = await svc.confirmSalesOrder(req.params.id, user)
   try { await recordAudit({ action: 'sales_order.confirm', userId: user, after: { salesOrderId: updated.id, status: updated.status } }) } catch {}
   res.json(updated)
-}
+})
 
-export const fulfill = async (req: Request, res: Response) => {
+export const fulfill = asyncHandler(async (req: Request, res: Response) => {
   const user = (req as any).user?.id as number | undefined
   const updated = await svc.fulfillSalesOrder(req.params.id, user)
   try { await recordAudit({ action: 'sales_order.fulfill', userId: user, after: { salesOrderId: updated.id, status: updated.status } }) } catch {}
   res.json(updated)
-}
+})
 
-export const cancel = async (req: Request, res: Response) => {
+export const cancel = asyncHandler(async (req: Request, res: Response) => {
   const user = (req as any).user?.id as number | undefined
   const updated = await svc.cancelSalesOrder(req.params.id, (req.body?.reason as string | undefined) || undefined, user)
   try { await recordAudit({ action: 'sales_order.cancel', userId: user, after: { salesOrderId: updated.id, status: updated.status } }) } catch {}
   res.json(updated)
-}
+})
 
-export const invoice = async (req: Request, res: Response) => {
+export const invoice = asyncHandler(async (req: Request, res: Response) => {
   const user = (req as any).user?.id as number | undefined
   const invoice = await svc.convertToInvoice(req.params.id, user)
   try { await recordAudit({ action: 'sales_order.invoice', userId: user, after: { salesOrderId: req.params.id, invoiceId: invoice.id } }) } catch {}
   res.status(201).json(invoice)
-}
+})

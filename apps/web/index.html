@@ -69,6 +69,40 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #94a3b8;
       }
+      .sidebar-scrollbar {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        scrollbar-gutter: stable;
+        transition: scrollbar-color 180ms ease-in;
+      }
+      .sidebar-scrollbar::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+      }
+      .sidebar-scrollbar:hover,
+      .sidebar-scrollbar:focus-within {
+        scrollbar-width: thin;
+        scrollbar-color: #cbd5e1 transparent;
+      }
+      .sidebar-scrollbar:hover::-webkit-scrollbar,
+      .sidebar-scrollbar:focus-within::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      .sidebar-scrollbar:hover::-webkit-scrollbar-track,
+      .sidebar-scrollbar:focus-within::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .sidebar-scrollbar:hover::-webkit-scrollbar-thumb,
+      .sidebar-scrollbar:focus-within::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+        transition: background-color 180ms ease-in, box-shadow 180ms ease-in;
+      }
+      .sidebar-scrollbar:hover::-webkit-scrollbar-thumb:hover,
+      .sidebar-scrollbar:focus-within::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
     </style>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased">

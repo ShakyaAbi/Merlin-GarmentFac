@@ -28,7 +28,7 @@ export interface OverdueNotificationItem {
 }
 
 // Fetches recent anomaly notifications
-export const getAnomalyNotifications = async (): Promise<{
+export const getAnomalyNotifications = async (organizationId: number): Promise<{
   notifications: AnomalyNotificationItem[];
   totalUnread: number;
 }> => {
@@ -40,6 +40,7 @@ export const getAnomalyNotifications = async (): Promise<{
       isAnomaly: true,
       deletedAt: null,
       reportedAt: { gte: since },
+      indicator: { project: { organizationId } },
     } as any,
     orderBy: { reportedAt: "desc" },
     take: MAX_NOTIFICATIONS,
@@ -73,6 +74,7 @@ export const getAnomalyNotifications = async (): Promise<{
       anomalyStatus: "DETECTED",
       deletedAt: null,
       reportedAt: { gte: since },
+      indicator: { project: { organizationId } },
     } as any,
   });
 
@@ -80,8 +82,9 @@ export const getAnomalyNotifications = async (): Promise<{
 };
 
 // Fetches overdue reporting notifications
-export const getOverdueNotifications = async (): Promise<OverdueNotificationItem[]> => {
+export const getOverdueNotifications = async (organizationId: number): Promise<OverdueNotificationItem[]> => {
   const indicators = await prisma.indicator.findMany({
+    where: { project: { organizationId } },
     include: {
       project: true,
       submissions: {
@@ -136,7 +139,7 @@ export const getOverdueNotifications = async (): Promise<OverdueNotificationItem
 };
 
 // Marks anomaly notifications as read
-export const markAllAnomaliesRead = async (userId: number): Promise<void> => {
+export const markAllAnomaliesRead = async (userId: number, organizationId: number): Promise<void> => {
   const since = new Date();
   since.setDate(since.getDate() - LOOKBACK_DAYS);
 
@@ -146,6 +149,7 @@ export const markAllAnomaliesRead = async (userId: number): Promise<void> => {
       anomalyStatus: "DETECTED",
       deletedAt: null,
       reportedAt: { gte: since },
+      indicator: { project: { organizationId } },
     } as any,
     data: {
       anomalyStatus: "ACKNOWLEDGED",

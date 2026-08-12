@@ -9,7 +9,8 @@ const mapCurrentUser = (user: any): CurrentUser => ({
   createdAt: user.createdAt ? new Date(user.createdAt).toISOString() : undefined,
   name: user.name ?? null,
   jobTitle: user.jobTitle ?? null,
-  organization: user.organization ?? null,
+  organization: user.organization?.name ?? user.organization ?? null,
+  organizationProfile: user.organizationProfile ?? null,
   avatar: user.avatar ?? null,
 });
 
@@ -44,6 +45,32 @@ export const authApi = {
   },
   me: async (): Promise<CurrentUser> => {
     const user = await request("/auth/me");
+    return mapCurrentUser(user);
+  },
+  updateMe: async (body: {
+    name?: string | null;
+    jobTitle?: string | null;
+    organization?: string | null;
+    taxpayerNumber?: string | null;
+    registrationNumber?: string | null;
+    address?: string | null;
+    city?: string | null;
+    district?: string | null;
+    province?: string | null;
+    postalCode?: string | null;
+    country?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    invoiceFooter?: string | null;
+    resetSalesInvoiceSequenceEachFiscalYear?: boolean;
+    timezone?: string | null;
+    avatar?: string | null;
+    notificationPreferences?: Record<string, boolean> | null;
+  }) => {
+    const user = await request("/auth/me", {
+      method: "PATCH",
+      body,
+    });
     return mapCurrentUser(user);
   },
   createInvitation: async (email: string, role: string) => {

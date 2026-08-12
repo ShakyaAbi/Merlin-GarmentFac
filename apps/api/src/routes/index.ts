@@ -17,6 +17,7 @@ import salesInvoiceRoutes from "./salesInvoiceRoutes";
 import salesOrderRoutes from "./salesOrderRoutes";
 import expenseRoutes from "./expenseRoutes";
 import operationsRoutes from "./operationsRoutes";
+import organizationBankAccountRoutes from "./organizationBankAccountRoutes";
 
 const router = Router();
 
@@ -38,5 +39,6 @@ router.use("/sales-invoices", salesInvoiceRoutes);
 router.use("/sales-orders", salesOrderRoutes);
 router.use("/expenses", expenseRoutes);
 router.use("/operations", operationsRoutes);
+router.use("/organization/bank-accounts", organizationBankAccountRoutes);
 
 export default router;

@@ -5,7 +5,7 @@ This folder contains a simple Docker Compose layout and helper scripts to deploy
 Quick checklist before first deploy
 
 - Copy `deploy/api.env.example` to `deploy/api.env` and fill secrets (especially `JWT_SECRET` and `DATABASE_URL`).
-- Copy `deploy/web.env.example` to `deploy/web.env` and set `VITE_API_BASE_URL` to your VPS (e.g. `http://YOUR_VPS_IP/api/v1`).
+- Copy `deploy/web.env.example` to `deploy/web.env`; the default `/api/v1` uses the deploy nginx same-origin proxy.
 - If you serve the app from a subpath like `/merlin/`, also set `VITE_BASE_URL=/merlin/`.
 - Copy `deploy/api.env.example` to `deploy/api.env` and set `APP_URL` to the public frontend URL (e.g. `http://YOUR_VPS_IP` or `https://example.com/merlin`).
 - If you use Google OAuth, set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_AUTH_REDIRECT_URI`.
@@ -39,7 +39,8 @@ GitHub Actions: A workflow template is included at `.github/workflows/deploy.yml
 
 Notes:
 - This setup prefers host-driven web builds (the workflow or deploy script builds `apps/web` on the VPS) so the `nginx` container serves the static `dist/` directory directly — updating `dist/` does not require restarting the nginx container.
-- The API runs inside a long-lived container managed by PM2; deploys reload the Node process inside the container (`pm2 reload`) so the container itself does not need to be recreated on every update.
+- The API runs from an immutable Docker image and is restarted by Compose after a successful build and migration.
+- The MySQL migration baseline is for a fresh MySQL database. Back up any existing data before changing database providers.
 
 Host nginx integration (safe path-based proxy)
 --------------------------------------------

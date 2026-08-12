@@ -5,6 +5,8 @@ import { api } from '../../services/api'
 import { Button } from '../../components/ui/Button'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
+import { ArticleCategoryCreateInline } from '../../components/inventory/ArticleCategoryCreateInline'
+import { ArticleCategorySelect } from '../../components/inventory/ArticleCategorySelect'
 
 type BomItem = { rawMaterialId: string; consumption: number; unit: string; rate: number; yield?: number | '' }
 type MaterialOption = { id: string; name: string; sku?: string | null; defaultUnit?: string | null; costPrice?: number | null; averageUnitCost?: number | null }
@@ -15,14 +17,13 @@ const money = (value: number) => `NPR ${value.toFixed(2)}`
 
 export default function CreateArticlePage() {
   const navigate = useNavigate()
-  const [showAdvanced, setShowAdvanced] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [articleNumber, setArticleNumber] = useState('')
   const [name, setName] = useState('')
   const [articleSku, setArticleSku] = useState('')
   const [articleCode, setArticleCode] = useState('')
-  const [category, setCategory] = useState('')
+  const [articleCategoryId, setArticleCategoryId] = useState('')
   const [unit, setUnit] = useState('pcs')
   const [description, setDescription] = useState('')
   const [notes, setNotes] = useState('')
@@ -74,8 +75,13 @@ export default function CreateArticlePage() {
   }, [materials])
 
   const canSave = useMemo(
-    () => Boolean(name.trim() && unit.trim() && items.some((item) => item.rawMaterialId && Number(item.consumption) > 0)),
-    [items, name, unit],
+    () => Boolean(
+      name.trim()
+      && unit.trim()
+      && Number(sellingPrice) > 0
+      && items.some((item) => item.rawMaterialId && Number(item.consumption) > 0),
+    ),
+    [items, name, sellingPrice, unit],
   )
 
   const totalLines = useMemo(() => items.filter((item) => item.rawMaterialId).length, [items])
@@ -99,7 +105,7 @@ export default function CreateArticlePage() {
 
   const save = async () => {
     if (!canSave) {
-      setError('Name, unit, and at least one raw material line are required.')
+      setError('Name, unit, selling price, and at least one raw material line are required.')
       return
     }
 
@@ -112,7 +118,7 @@ export default function CreateArticlePage() {
         productCode: articleCode.trim() || articleNumber || undefined,
         name: name.trim(),
         description: description.trim() || undefined,
-        category: category.trim() || undefined,
+        articleCategoryId: articleCategoryId || undefined,
         unit: unit.trim(),
         sellingPrice: Number(sellingPrice || 0),
         costPrice: payloadCostPrice,
@@ -120,7 +126,7 @@ export default function CreateArticlePage() {
         notes: notes.trim() || undefined,
         bomData: {
           name: name.trim(),
-          garmentStyle: category.trim() || name.trim(),
+          garmentStyle: name.trim(),
           items: items
             .filter((item) => item.rawMaterialId && Number(item.consumption) > 0)
             .map((item) => ({
@@ -197,25 +203,26 @@ export default function CreateArticlePage() {
                 <span>Unit</span>
                 <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={unit} onChange={(e) => setUnit(e.target.value)} />
               </label>
-              <label className="space-y-1 text-sm font-medium text-slate-700">
-                <span>Category</span>
-                <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={category} onChange={(e) => setCategory(e.target.value)} />
-              </label>
+              <div className="space-y-1 text-sm font-medium text-slate-700">
+                <span>Article category</span>
+                <ArticleCategorySelect value={articleCategoryId} onChange={setArticleCategoryId} />
+                <ArticleCategoryCreateInline onCreated={(created) => setArticleCategoryId(created.id)} />
+              </div>
             </div>
             <label className="mt-4 block space-y-1 text-sm font-medium text-slate-700">
               <span>Description</span>
               <textarea className="min-h-28 w-full rounded-xl border border-slate-300 px-3 py-2" value={description} onChange={(e) => setDescription(e.target.value)} />
             </label>
 
-            <details className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3" open={showAdvanced} onToggle={(e) => setShowAdvanced((e.target as HTMLDetailsElement).open)}>
-              <summary className="cursor-pointer list-none text-sm font-semibold text-slate-700">
-                Advanced details
-                <span className="ml-2 text-xs font-normal text-slate-500">SKU, code, pricing, and reorder settings</span>
-              </summary>
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-4">
+              <div className="text-sm font-semibold text-slate-700">
+                Pricing and article settings
+                <span className="ml-2 text-xs font-normal text-slate-500">Required pricing, SKU, code, and reorder settings</span>
+              </div>
               <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label className="space-y-1 text-sm font-medium text-slate-700">
-                  <span>Selling price</span>
-                  <input className="w-full rounded-xl border border-slate-300 px-3 py-2" type="number" value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} />
+                  <span>Selling price <span className="text-red-600">*</span></span>
+                  <input className="w-full rounded-xl border border-slate-300 px-3 py-2" type="number" min="0.01" step="0.01" required value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} />
                 </label>
                 <label className="space-y-1 text-sm font-medium text-slate-700">
                   <span>Material cost</span>
@@ -234,7 +241,7 @@ export default function CreateArticlePage() {
                   <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={articleCode} onChange={(e) => setArticleCode(e.target.value)} />
                 </label>
               </div>
-            </details>
+            </div>
           </InventorySectionCard>
 
           <InventorySectionCard
@@ -344,7 +351,7 @@ export default function CreateArticlePage() {
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
                   <span className="rounded-full bg-white px-2 py-1">#{articleNumber || '-'}</span>
                   <span className="rounded-full bg-white px-2 py-1">{unit || 'unit'}</span>
-                  <span className="rounded-full bg-white px-2 py-1">{category.trim() || 'No category'}</span>
+                  <span className="rounded-full bg-white px-2 py-1">{articleCategoryId ? 'Category selected' : 'No category'}</span>
                 </div>
               </div>
               <div className="flex justify-between"><span>Material rows</span><span className="font-semibold text-slate-900">{totalLines}</span></div>

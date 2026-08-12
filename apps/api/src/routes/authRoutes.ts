@@ -14,7 +14,7 @@ router.get('/google', googleAuthRedirect);
 router.get('/google/callback', googleAuthCallback);
 router.get('/invitations/validate', validateInvitation);
 router.get('/me', authenticate, me);
-router.patch('/me', authenticate, validate(updateMeSchema), updateMe);
+router.patch('/me', authenticate, requireRoles(Role.ADMIN), validate(updateMeSchema), updateMe);
 router.patch('/me/password', authenticate, validate(changePasswordSchema), changePassword);
 
 router.post('/invitations', authenticate, requireRoles(Role.ADMIN), validate(createInvitationSchema), createInvitation);

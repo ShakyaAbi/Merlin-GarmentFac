@@ -1,4 +1,4 @@
-import { getToken, request } from './apiClient'
+import { getAuthHeader, request } from './apiClient'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1'
 
@@ -12,6 +12,8 @@ export type SalesInvoicePayment = {
   createdAt?: string | null
   paidAt?: string | null
   paymentMethod?: string | null
+  bankAccountId?: string | null
+  bankAccount?: { id: string; bankName: string; accountName: string; accountNumber: string; branchName: string; branchCode?: string | null } | null
   method?: string | null
   note?: string | null
   notes?: string | null
@@ -141,14 +143,11 @@ export const salesInvoiceApi = {
     if (params?.search) q.set('search', params.search)
     if (params?.status && params.status !== 'ALL') q.set('invoiceStatus', params.status)
     if (params?.paymentStatus && params.paymentStatus !== 'ALL') q.set('paymentStatus', params.paymentStatus)
-    const token = getToken()
     let response: Response
     try {
       response = await fetch(`${API_BASE}/sales-invoices/export${q.toString() ? `?${q.toString()}` : ''}`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: getAuthHeader(),
       })
     } catch (error) {
       throw new Error(`Unable to reach the API server at ${API_BASE}. Make sure the backend is running.`)
@@ -162,12 +161,11 @@ export const salesInvoiceApi = {
     return response.blob()
   },
   downloadCsv: async (id: string) => {
-    const token = getToken()
     let response: Response
     try {
       response = await fetch(`${API_BASE}/sales-invoices/${id}/export`, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          ...getAuthHeader(),
         },
       })
     } catch (error) {
@@ -182,12 +180,11 @@ export const salesInvoiceApi = {
     return response.blob()
   },
   downloadPdf: async (id: string) => {
-    const token = getToken()
     let response: Response
     try {
-      response = await fetch(`${API_BASE}/sales-invoices/${id}/export`, {
+      response = await fetch(`${API_BASE}/sales-invoices/${id}/pdf`, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          ...getAuthHeader(),
         },
       })
     } catch (error) {
@@ -196,15 +193,19 @@ export const salesInvoiceApi = {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      throw new Error(error?.error?.message || 'Download failed')
+      throw new Error(error?.error?.message || 'PDF download failed')
     }
 
     return response.blob()
   },
   create: (body: any) => request('/sales-invoices', { method: 'POST', body }),
   update: (id: string, body: any) => request(`/sales-invoices/${id}`, { method: 'PATCH', body }),
-  submit: (id: string) => request(`/sales-invoices/${id}/submit`, { method: 'POST' }),
   issue: (id: string) => request(`/sales-invoices/${id}/issue`, { method: 'POST' }),
   payment: (id: string, body: any) => request(`/sales-invoices/${id}/payment`, { method: 'POST', body }),
+  listPayments: (id: string) => request<{ payments?: SalesInvoicePayment[] }>(`/sales-invoices/${id}/payments`),
+  updatePayment: (invoiceId: string, paymentId: string, body: any) =>
+    request(`/sales-invoices/${invoiceId}/payments/${paymentId}`, { method: 'PATCH', body }),
+  deletePayment: (invoiceId: string, paymentId: string) =>
+    request<void>(`/sales-invoices/${invoiceId}/payments/${paymentId}`, { method: 'DELETE' }),
   cancel: (id: string, body: any) => request(`/sales-invoices/${id}/cancel`, { method: 'POST', body }),
 }

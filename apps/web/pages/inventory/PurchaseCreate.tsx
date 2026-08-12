@@ -2,39 +2,53 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { request } from '../../services/apiClient'
 import { Button } from '../../components/ui/Button'
+import { SearchableSelect } from '../../components/ui/SearchableSelect'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
+import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
 import { InventoryDocumentShell } from '../../components/inventory/InventoryDocumentShell'
 import { calculateInvoiceTotals } from '../../components/invoices/invoiceTotals'
 
 type Item = { rawMaterialId: string; quantity: number; unit: string; unitPrice: string }
 
-type Supplier = { id: string; name: string }
-type Material = { id: string; name: string; sku?: string | null; defaultUnit?: string | null }
+type Supplier = { id: string; name: string; phone?: string | null; email?: string | null; address?: string | null }
+type Material = { id: string; name: string; sku?: string | null; defaultUnit?: string | null; costPrice?: number | null; averageUnitCost?: number | null }
 
-type TabKey = 'details' | 'items' | 'taxes' | 'more'
+const today = new Date().toISOString().slice(0, 10)
+
+const money = (value: number | string | null | undefined) =>
+  new Intl.NumberFormat('en-NP', { style: 'currency', currency: 'NPR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0))
+
+const getMaterialRate = (material?: Material | null) => Number(material?.costPrice ?? material?.averageUnitCost ?? 0)
 
 export default function PurchaseCreate() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<TabKey>('details')
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [materials, setMaterials] = useState<Material[]>([])
   const [supplierId, setSupplierId] = useState('')
-  const [requiredBy, setRequiredBy] = useState('')
-  const [company, setCompany] = useState('Merlin Lite')
-  const [applyTaxWithholding, setApplyTaxWithholding] = useState(false)
-  const [isSubcontracted, setIsSubcontracted] = useState(false)
-  const [taxCategory, setTaxCategory] = useState('')
-  const [shippingRule, setShippingRule] = useState('')
-  const [incoterm, setIncoterm] = useState('')
-  const [purchaseTaxTemplate, setPurchaseTaxTemplate] = useState('')
+  const [invoiceDate, setInvoiceDate] = useState(today)
+  const [dueDate, setDueDate] = useState('')
+  const [discountAmount, setDiscountAmount] = useState('0')
+  const [invoiceNumber, setInvoiceNumber] = useState('')
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState<Item[]>([{ rawMaterialId: '', quantity: 1, unit: 'unit', unitPrice: '0' }])
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const selectedMaterial = searchParams.get('material')
-  const [invoiceNumber, setInvoiceNumber] = useState('')
+  const materialOptions = useMemo(
+    () =>
+      materials.map((material) => {
+        const rate = getMaterialRate(material)
+        return {
+          value: material.id,
+          label: `${material.name}${material.sku ? ` - ${material.sku}` : ''}`,
+          description: `${material.defaultUnit || 'unit'} · ${money(rate)}`,
+          searchText: [material.name, material.sku, material.defaultUnit].filter(Boolean).join(' '),
+        }
+      }),
+    [materials],
+  )
 
   useEffect(() => {
     let alive = true
@@ -60,12 +74,19 @@ export default function PurchaseCreate() {
   useEffect(() => {
     if (!selectedMaterial) return
     setItems((current) => {
+      const selected = materials.find((material) => material.id === selectedMaterial)
+      const unitPrice = String(getMaterialRate(selected))
       if (current.length === 0) return [{ rawMaterialId: selectedMaterial, quantity: 1, unit: 'unit', unitPrice: '0' }]
       const next = [...current]
-      next[0] = { ...next[0], rawMaterialId: selectedMaterial }
+      next[0] = {
+        ...next[0],
+        rawMaterialId: selectedMaterial,
+        unit: selected?.defaultUnit || next[0].unit,
+        unitPrice,
+      }
       return next
     })
-  }, [selectedMaterial])
+  }, [materials, selectedMaterial])
 
   const addLine = () => setItems((current) => [...current, { rawMaterialId: '', quantity: 1, unit: 'unit', unitPrice: '0' }])
   const removeLine = (idx: number) => setItems((current) => current.filter((_, i) => i !== idx))
@@ -75,38 +96,49 @@ export default function PurchaseCreate() {
     setItems(copy)
   }
 
-  const total = useMemo(() => items.reduce((sum, it) => sum + Number(it.quantity) * Number(it.unitPrice || 0), 0), [items])
-  const totalQty = useMemo(() => items.reduce((sum, it) => sum + Number(it.quantity || 0), 0), [items])
-  const summary = useMemo(
-    () =>
-      calculateInvoiceTotals({
-        lines: items.map((item) => ({
-          id: item.rawMaterialId || `${item.quantity}-${item.unitPrice}`,
-          quantity: Number(item.quantity || 0),
-          rate: Number(item.unitPrice || 0),
-          amount: Number(item.quantity || 0) * Number(item.unitPrice || 0),
-        })),
-      }),
-    [items],
+  const totals = useMemo(
+    () => {
+      const subtotal = Number(
+        calculateInvoiceTotals({
+          lines: items.map((item) => ({
+            id: item.rawMaterialId || `${item.quantity}-${item.unitPrice}`,
+            quantity: Number(item.quantity ?? 0),
+            rate: Number(item.unitPrice ?? 0),
+          })),
+          vatRate: 0.13,
+        }).subtotal,
+      )
+      const discount = Math.max(Number(discountAmount || 0), 0)
+      const taxableAmount = Math.max(subtotal - discount, 0)
+      const taxAmount = Number((taxableAmount * 0.13).toFixed(2))
+      const grandTotal = Number((taxableAmount + taxAmount).toFixed(2))
+
+      return { subtotal, discountAmount: discount, taxableAmount, taxAmount, grandTotal }
+    },
+    [discountAmount, items],
   )
+  const totalQty = useMemo(() => items.reduce((sum, item) => sum + Number(item.quantity || 0), 0), [items])
+  const selectedSupplier = useMemo(() => suppliers.find((supplier) => supplier.id === supplierId) || null, [suppliers, supplierId])
   const anyInvalid =
     !supplierId ||
     !invoiceNumber.trim() ||
-    items.some((it) => !it.rawMaterialId || !it.quantity || Number(it.quantity) <= 0 || !it.unitPrice || Number(it.unitPrice) < 0)
+    !invoiceDate ||
+    Number(discountAmount || 0) < 0 ||
+    items.some((item) => !item.rawMaterialId || !item.quantity || Number(item.quantity) <= 0 || !item.unitPrice || Number(item.unitPrice) < 0)
 
   const validate = () => {
-    const e: Record<string, string> = {}
-    if (!supplierId) e.supplier = 'Supplier is required'
-    if (!invoiceNumber.trim()) e.invoiceNumber = 'Invoice number is required'
-    if (!company.trim()) e.company = 'Company is required'
-    if (items.length === 0) e.items = 'At least one item is required'
-    items.forEach((it, idx) => {
-      if (!it.rawMaterialId) e[`item.${idx}.material`] = 'Select material'
-      if (!it.quantity || Number(it.quantity) <= 0) e[`item.${idx}.quantity`] = 'Quantity must be > 0'
-      if (!it.unitPrice || Number(it.unitPrice) < 0) e[`item.${idx}.unitPrice`] = 'Unit price required'
+    const nextErrors: Record<string, string> = {}
+    if (!supplierId) nextErrors.supplier = 'Supplier is required'
+    if (!invoiceNumber.trim()) nextErrors.invoiceNumber = 'Invoice number is required'
+    if (!invoiceDate) nextErrors.invoiceDate = 'Invoice date is required'
+    if (items.length === 0) nextErrors.items = 'At least one item is required'
+    items.forEach((item, idx) => {
+      if (!item.rawMaterialId) nextErrors[`item.${idx}.material`] = 'Select material'
+      if (!item.quantity || Number(item.quantity) <= 0) nextErrors[`item.${idx}.quantity`] = 'Quantity must be greater than zero'
+      if (!item.unitPrice || Number(item.unitPrice) < 0) nextErrors[`item.${idx}.unitPrice`] = 'Unit price is required'
     })
-    setErrors(e)
-    return Object.keys(e).length === 0
+    setErrors(nextErrors)
+    return Object.keys(nextErrors).length === 0
   }
 
   const submit = async () => {
@@ -115,6 +147,10 @@ export default function PurchaseCreate() {
     const payload = {
       supplierId,
       invoiceNumber: invoiceNumber.trim(),
+      invoiceDate,
+      dueDate: dueDate || undefined,
+      discountAmount: Number(discountAmount || 0),
+      notes: notes.trim() || undefined,
       items: items.map(({ rawMaterialId, quantity, unit, unitPrice }) => ({ rawMaterialId, quantity, unit, unitPrice })),
     }
     try {
@@ -123,9 +159,96 @@ export default function PurchaseCreate() {
       navigate('/inventory/purchases')
     } catch (err: any) {
       alert(`Error: ${err?.message || 'failed'}`)
+    } finally {
+      setSubmitting(false)
     }
-    setSubmitting(false)
   }
+
+  const leftRail = (
+    <div className="space-y-4">
+      <InventorySectionCard title="Document Snapshot">
+        <div className="space-y-3 text-sm text-slate-600">
+          <div className="flex items-center justify-between">
+            <span>Status</span>
+            <span className="font-semibold text-orange-700">Not Saved</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Supplier</span>
+            <span className="font-semibold text-slate-900">{selectedSupplier?.name || '-'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Invoice No.</span>
+            <span className="font-semibold text-slate-900">{invoiceNumber || '-'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Invoice Date</span>
+            <span className="font-semibold text-slate-900">{invoiceDate || '-'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Due Date</span>
+            <span className="font-semibold text-slate-900">{dueDate || '-'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Discount</span>
+            <span className="font-semibold text-slate-900">{money(totals.discountAmount)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Lines</span>
+            <span className="font-semibold text-slate-900">{items.length}</span>
+          </div>
+        </div>
+      </InventorySectionCard>
+
+      <InventorySectionCard title="Tax Breakdown">
+        <div className="space-y-2 text-sm text-slate-600">
+          <div className="flex items-center justify-between">
+            <span>Subtotal</span>
+            <span className="font-semibold text-slate-900">{money(totals.subtotal)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>VAT 13%</span>
+            <span className="font-semibold text-slate-900">{money(totals.taxAmount)}</span>
+          </div>
+          <div className="flex items-center justify-between border-t border-slate-200 pt-2">
+            <span className="font-semibold text-slate-700">Grand total</span>
+            <span className="font-bold text-slate-950">{money(totals.grandTotal)}</span>
+          </div>
+        </div>
+      </InventorySectionCard>
+
+      <InventoryStatGrid
+        layoutClassName="grid grid-cols-1 gap-3"
+        density="compact"
+        stats={[
+          { label: 'Total quantity', value: totalQty },
+          { label: 'Subtotal', value: money(totals.subtotal) },
+          { label: 'VAT 13%', value: money(totals.taxAmount), tone: 'warning' },
+          { label: 'Grand total', value: money(totals.grandTotal), tone: 'success' },
+        ]}
+      />
+    </div>
+  )
+
+  const mobileSummary = (
+    <div className="grid grid-cols-2 gap-3 xl:hidden">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="text-xs uppercase tracking-wide text-slate-500">Status</div>
+        <div className="mt-1 font-semibold text-orange-700">Not Saved</div>
+      </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="text-xs uppercase tracking-wide text-slate-500">Lines</div>
+        <div className="mt-1 font-semibold text-slate-900">{items.length}</div>
+      </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="text-xs uppercase tracking-wide text-slate-500">Subtotal</div>
+        <div className="mt-1 font-semibold text-slate-900">{money(totals.subtotal)}</div>
+      </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="text-xs uppercase tracking-wide text-slate-500">Grand total</div>
+        <div className="mt-1 font-semibold text-emerald-700">{money(totals.grandTotal)}</div>
+      </div>
+    </div>
+  )
 
   return (
     <InventoryDocumentShell
@@ -135,40 +258,19 @@ export default function PurchaseCreate() {
         { label: 'Save', onClick: submit, disabled: submitting || anyInvalid || loading },
         { label: 'Cancel', variant: 'outline', to: '/inventory/purchases' },
       ]}
-      leftRail={
-        null
-      }
+      leftRail={<div className="hidden xl:block">{leftRail}</div>}
       footer={
         <InventorySectionCard title="Activity">
           <div className="space-y-2 text-sm text-slate-600">
-            <div>Purchase orders can be reviewed after save from the list view.</div>
             <div>Purchase invoices update raw-material stock and supplier ledger balances automatically.</div>
             <div>Use the material detail page to trace stock impact and price history.</div>
           </div>
         </InventorySectionCard>
       }
     >
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-        {[
-          { key: 'details', label: 'Details' },
-          { key: 'items', label: 'Items' },
-          { key: 'taxes', label: 'Taxes and Charges' },
-          { key: 'more', label: 'More Info' },
-        ].map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => setActiveTab(tab.key as TabKey)}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
-              activeTab === tab.key ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
       {errorBlock(errors)}
+
+      {mobileSummary}
 
       <InventorySectionCard
         title="Details"
@@ -195,13 +297,19 @@ export default function PurchaseCreate() {
               <input
                 type="date"
                 className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                value={new Date().toISOString().slice(0, 10)}
-                readOnly
+                value={invoiceDate}
+                onChange={(e) => setInvoiceDate(e.target.value)}
+                aria-invalid={Boolean(errors.invoiceDate)}
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">Company *</span>
-              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={company} onChange={(e) => setCompany(e.target.value)} />
+              <span className="mb-1 block text-slate-600">Due date (optional)</span>
+              <input
+                type="date"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
             </label>
             <label className="block text-sm">
               <span className="mb-1 block text-slate-600">Supplier *</span>
@@ -212,9 +320,9 @@ export default function PurchaseCreate() {
                 aria-invalid={Boolean(errors.supplier)}
               >
                 <option value="">Select supplier</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
+                {suppliers.map((supplier) => (
+                  <option key={supplier.id} value={supplier.id}>
+                    {supplier.name}
                   </option>
                 ))}
               </select>
@@ -230,175 +338,126 @@ export default function PurchaseCreate() {
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">Required By</span>
+              <span className="mb-1 block text-slate-600">Discount amount</span>
               <input
-                type="date"
+                type="number"
+                min="0"
+                step="0.01"
+                value={discountAmount}
+                onChange={(e) => setDiscountAmount(e.target.value)}
                 className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                value={requiredBy}
-                onChange={(e) => setRequiredBy(e.target.value)}
+                placeholder="0.00"
               />
             </label>
-            <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={applyTaxWithholding} onChange={(e) => setApplyTaxWithholding(e.target.checked)} />
-                <span className="text-sm font-medium text-slate-700">Apply Tax Withholding Amount</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={isSubcontracted} onChange={(e) => setIsSubcontracted(e.target.checked)} />
-                <span className="text-sm font-medium text-slate-700">Is Subcontracted</span>
-              </label>
+            <div className="md:col-span-2 xl:col-span-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+              VAT is calculated automatically at 13% from the subtotal after discount. Due date is optional. The summary on the left updates as you change quantities and rates.
             </div>
           </div>
         )}
       </InventorySectionCard>
 
-      {activeTab === 'items' && (
-        <InventorySectionCard
-          title="Items"
-          description="Raw material lines in a dense table layout."
-          action={<Button type="button" variant="outline" onClick={addLine}>Add Multiple</Button>}
-        >
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <caption className="sr-only">Purchase order items</caption>
-                <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                  <tr>
-                    <th className="w-12 px-4 py-3"><input type="checkbox" aria-label="Select all rows" /></th>
-                    <th className="px-4 py-3 font-semibold">No.</th>
-                    <th className="px-4 py-3 font-semibold">Item Code *</th>
-                    <th className="px-4 py-3 font-semibold">Required By *</th>
-                    <th className="px-4 py-3 font-semibold">Quantity *</th>
-                    <th className="px-4 py-3 font-semibold">UOM *</th>
-                    <th className="px-4 py-3 font-semibold">Rate (NPR)</th>
-                    <th className="px-4 py-3 font-semibold">Amount (NPR)</th>
-                    <th className="w-14 px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {items.map((it, idx) => {
-                    const selected = materials.find((m) => m.id === it.rawMaterialId)
-                    const amount = Number(it.quantity || 0) * Number(it.unitPrice || 0)
-                    return (
-                      <tr key={idx} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 align-top"><input type="checkbox" aria-label={`Select row ${idx + 1}`} /></td>
-                        <td className="px-4 py-3 align-top font-medium text-slate-900">{idx + 1}</td>
-                        <td className="px-4 py-3 align-top">
-                          <select
-                            value={it.rawMaterialId}
-                            onChange={(e) => {
-                              const next = materials.find((m) => m.id === e.target.value)
-                              updateLine(idx, { rawMaterialId: e.target.value, unit: next?.defaultUnit || it.unit })
-                            }}
-                            className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                          >
-                            <option value="">Select material</option>
-                            {materials.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.name}{m.sku ? ` • ${m.sku}` : ''}
-                              </option>
-                            ))}
-                          </select>
-                          <div className="mt-1 text-xs text-slate-500">
-                            {selected ? `${selected.name}${selected.sku ? ` • ${selected.sku}` : ''}` : 'Choose a material'}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <input
-                            type="date"
-                            className="w-full rounded-xl border border-slate-300 px-3 py-2"
-                            value={requiredBy}
-                            onChange={(e) => setRequiredBy(e.target.value)}
-                          />
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <input
-                            type="number"
-                            value={it.quantity}
-                            onChange={(e) => updateLine(idx, { quantity: Number(e.target.value) })}
-                            className="w-24 rounded-xl border border-slate-300 px-3 py-2 text-right"
-                          />
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <input className="w-24 rounded-xl border border-slate-300 px-3 py-2" value={it.unit} onChange={(e) => updateLine(idx, { unit: e.target.value })} />
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <input type="number" value={it.unitPrice} onChange={(e) => updateLine(idx, { unitPrice: e.target.value })} className="w-28 rounded-xl border border-slate-300 px-3 py-2 text-right" />
-                        </td>
-                        <td className="px-4 py-3 align-top font-medium text-slate-900">
-                          {amount.toLocaleString('en-NP', { style: 'currency', currency: 'NPR' })}
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <Button type="button" variant="ghost" size="sm" onClick={() => removeLine(idx)} disabled={items.length === 1}>
-                            Remove
-                          </Button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/60 px-4 py-3">
-              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
-                <span>Showing 1 - {items.length} of {items.length} entries</span>
-                <span>Selected: 0</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={addLine}>Add Row</Button>
-                <Button type="button" variant="outline" size="sm" onClick={submit} disabled={submitting || anyInvalid || loading}>
-                  {submitting ? 'Saving...' : 'Save Purchase'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </InventorySectionCard>
-      )}
-
-      {activeTab === 'taxes' && (
-        <InventorySectionCard title="Taxes and Charges">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">Tax Category</span>
-              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={taxCategory} onChange={(e) => setTaxCategory(e.target.value)} />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">Shipping Rule</span>
-              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={shippingRule} onChange={(e) => setShippingRule(e.target.value)} />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">Incoterm</span>
-              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={incoterm} onChange={(e) => setIncoterm(e.target.value)} />
-            </label>
-            <label className="block text-sm md:col-span-3">
-              <span className="mb-1 block text-slate-600">Purchase Taxes and Charges Template</span>
-              <input className="w-full rounded-xl border border-slate-300 px-3 py-2" value={purchaseTaxTemplate} onChange={(e) => setPurchaseTaxTemplate(e.target.value)} />
-            </label>
-          </div>
-        </InventorySectionCard>
-      )}
-
-      {activeTab === 'more' && (
-        <InventorySectionCard title="More Info">
-          <label className="block text-sm">
-            <span className="mb-1 block text-slate-600">Notes</span>
-            <textarea className="w-full rounded-xl border border-slate-300 px-3 py-2" rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Internal notes, supplier instructions, or receiving guidance..." />
-          </label>
-        </InventorySectionCard>
-      )}
-
-      <InventorySectionCard title="Summary">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total quantity</div>
-            <div className="mt-1 text-2xl font-bold text-slate-900">{totalQty}</div>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Grand total (NPR)</div>
-            <div className="mt-1 text-2xl font-bold text-slate-900">{summary.grandTotal.toLocaleString('en-NP', { style: 'currency', currency: 'NPR' })}</div>
-            <div className="mt-1 text-sm text-slate-500">VAT 13%: {summary.taxAmount.toLocaleString('en-NP', { style: 'currency', currency: 'NPR' })}</div>
+      <InventorySectionCard
+        title="Items"
+        description="Raw material lines in a dense table layout."
+        action={<Button type="button" variant="outline" onClick={addLine}>Add Row</Button>}
+      >
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[960px] text-left text-sm">
+              <caption className="sr-only">Purchase invoice items</caption>
+              <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">#</th>
+                  <th className="px-4 py-3 font-semibold">Material *</th>
+                  <th className="px-4 py-3 font-semibold">Qty *</th>
+                  <th className="px-4 py-3 font-semibold">Unit *</th>
+                  <th className="px-4 py-3 font-semibold">Rate (NPR)</th>
+                  <th className="px-4 py-3 font-semibold">Amount (NPR)</th>
+                  <th className="w-14 px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {items.map((item, idx) => {
+                  const amount = Number(item.quantity || 0) * Number(item.unitPrice || 0)
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 align-top font-medium text-slate-900">{idx + 1}</td>
+                      <td className="px-4 py-3 align-top">
+                        <SearchableSelect
+                          value={item.rawMaterialId}
+                          options={materialOptions}
+                          placeholder="Select material"
+                          searchPlaceholder="Search materials by name or SKU"
+                          emptyMessage="No materials found."
+                          onChange={(nextId) => {
+                            const next = materials.find((material) => material.id === nextId)
+                            updateLine(idx, {
+                              rawMaterialId: nextId,
+                              unit: next?.defaultUnit || 'unit',
+                              unitPrice: next ? String(getMaterialRate(next)) : '0',
+                            })
+                          }}
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={item.quantity}
+                          onChange={(e) => updateLine(idx, { quantity: Number(e.target.value) })}
+                          className="w-24 rounded-xl border border-slate-300 px-3 py-2 text-right"
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <input
+                          className="w-24 rounded-xl border border-slate-300 px-3 py-2"
+                          value={item.unit}
+                          onChange={(e) => updateLine(idx, { unit: e.target.value })}
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right font-medium text-slate-900">
+                          {money(Number(item.unitPrice || 0))}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          Pulled from material cost
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 align-top font-medium text-slate-900">{money(amount)}</td>
+                      <td className="px-4 py-3 align-top">
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removeLine(idx)} disabled={items.length === 1}>
+                          Remove
+                        </Button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl bg-slate-50 px-4 py-3 text-xs text-slate-600 sm:grid-cols-3 lg:grid-cols-6">
+          <span>Items: {items.length}</span>
+          <span>Total quantity: {totalQty}</span>
+          <span>Subtotal: {money(totals.subtotal)}</span>
+          <span>Discount: {money(totals.discountAmount)}</span>
+          <span>VAT 13%: {money(totals.taxAmount)}</span>
+          <span className="font-semibold text-slate-900">Grand total: {money(totals.grandTotal)}</span>
+        </div>
+      </InventorySectionCard>
+
+      <InventorySectionCard title="More Info">
+        <label className="block text-sm">
+          <span className="mb-1 block text-slate-600">Notes</span>
+          <textarea
+            className="w-full rounded-xl border border-slate-300 px-3 py-2"
+            rows={5}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Internal notes, supplier instructions, or receiving guidance..."
+          />
+        </label>
       </InventorySectionCard>
     </InventoryDocumentShell>
   )

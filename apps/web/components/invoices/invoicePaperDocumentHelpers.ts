@@ -41,12 +41,26 @@ const toLine = (line: NonNullable<InvoicePaperSource['items']>[number]): Invoice
 
 const buildMeta = (entries: Array<{ label: string; value: string }>) => entries.filter((row) => row.value)
 
-export function buildSalesInvoicePaperDocumentProps(invoice: any, customerName: string): InvoicePaperDocumentProps | null {
+export function buildSalesInvoicePaperDocumentProps(
+  invoice: any,
+  customerName: string,
+  organizationName = 'Merlin Lite',
+  organizationProfile?: {
+    address?: string | null
+    taxpayerNumber?: string | null
+    city?: string | null
+    district?: string | null
+    province?: string | null
+    country?: string | null
+    invoiceFooter?: string | null
+  } | null,
+): InvoicePaperDocumentProps | null {
   if (!invoice) return null
 
   return {
-    companyName: 'Merlin Lite',
-    companyAddress: 'Nepal',
+    companyName: organizationName,
+    companyAddress: [organizationProfile?.address, organizationProfile?.city, organizationProfile?.district, organizationProfile?.province, organizationProfile?.country].filter(Boolean).join(', ') || 'Nepal',
+    companyPanVat: organizationProfile?.taxpayerNumber || '',
     invoiceTitle: 'Sales Invoice',
     invoiceNumber: invoice.invoiceNumber || invoice.id,
     invoiceDate: invoice.invoiceDate || invoice.createdAt || undefined,
@@ -59,8 +73,10 @@ export function buildSalesInvoicePaperDocumentProps(invoice: any, customerName: 
       email: invoice.customer?.email || '',
     },
     meta: buildMeta([
-      { label: 'Invoice Date', value: formatNepaliDateTime(invoice.invoiceDate || invoice.createdAt) },
-      { label: 'Due Date', value: formatNepaliDateTime(invoice.dueDate) },
+      { label: 'Transaction Date', value: formatNepaliDateTime(invoice.invoiceDate || invoice.createdAt) },
+      { label: 'Invoice Issue Date', value: formatNepaliDateTime(invoice.createdAt || invoice.invoiceDate) },
+      { label: 'Mode of Payment', value: invoice.paymentMethod || invoice.paymentMode || '' },
+      ...(invoice.dueDate ? [{ label: 'Due Date', value: formatNepaliDateTime(invoice.dueDate) }] : []),
       { label: 'Fiscal Year', value: invoice.fiscalYear || '-' },
       { label: 'Payment Status', value: invoice.paymentStatus || 'UNKNOWN' },
     ]),
@@ -76,16 +92,31 @@ export function buildSalesInvoicePaperDocumentProps(invoice: any, customerName: 
       }),
     ),
     discountAmount: (invoice.items || []).reduce((sum: number, item: any) => sum + Number(item.discountAmount ?? 0), 0),
-    notes: invoice.remarks || invoice.notes || invoice.memo || undefined,
+    notes: [invoice.remarks || invoice.notes || invoice.memo, organizationProfile?.invoiceFooter].filter(Boolean).join('\n') || undefined,
   }
 }
 
-export function buildPurchaseInvoicePaperDocumentProps(purchase: any): InvoicePaperDocumentProps | null {
+export function buildPurchaseInvoicePaperDocumentProps(
+  purchase: any,
+  organizationName = 'Merlin Lite',
+  organizationProfile?: {
+    taxpayerNumber?: string | null
+    address?: string | null
+    city?: string | null
+    district?: string | null
+    province?: string | null
+    country?: string | null
+    invoiceFooter?: string | null
+  } | null,
+): InvoicePaperDocumentProps | null {
   if (!purchase) return null
 
   return {
-    companyName: 'Merlin Lite',
-    companyAddress: 'Nepal',
+    companyName: organizationName,
+    headerName: purchase.supplier?.name || purchase.supplierName || organizationName,
+    footerName: organizationName,
+    companyAddress: [organizationProfile?.address, organizationProfile?.city, organizationProfile?.district, organizationProfile?.province, organizationProfile?.country].filter(Boolean).join(', ') || 'Nepal',
+    companyPanVat: purchase.supplier?.panVatNumber || purchase.supplier?.taxpayerNumber || '',
     invoiceTitle: 'Purchase Invoice',
     invoiceNumber: purchase.invoiceNumber || purchase.id || '-',
     invoiceDate: purchase.invoiceDate || purchase.createdAt || undefined,
@@ -93,12 +124,17 @@ export function buildPurchaseInvoicePaperDocumentProps(purchase: any): InvoicePa
       label: 'Supplier',
       name: purchase.supplier?.name || purchase.supplierName || '-',
       address: purchase.supplier?.address || '',
-      panVatNumber: purchase.supplier?.panVatNumber || '',
+      panVatNumber: purchase.supplier?.panVatNumber || purchase.supplier?.taxpayerNumber || '',
       phone: purchase.supplier?.phone || '',
       email: purchase.supplier?.email || '',
     },
+    partyTaxLabel: 'Organization STPIN',
+    partyTaxNumber: organizationProfile?.taxpayerNumber || '',
     meta: buildMeta([
-      { label: 'Invoice Date', value: formatNepaliDateTime(purchase.invoiceDate) },
+      { label: 'Transaction Date', value: formatNepaliDateTime(purchase.invoiceDate || purchase.createdAt) },
+      { label: 'Invoice Issue Date', value: formatNepaliDateTime(purchase.createdAt || purchase.invoiceDate) },
+      { label: 'Mode of Payment', value: purchase.paymentMethod || purchase.paymentMode || '' },
+      ...(purchase.dueDate ? [{ label: 'Due Date', value: formatNepaliDateTime(purchase.dueDate) }] : []),
       { label: 'Status', value: purchase.status || '-' },
       { label: 'Currency', value: purchase.currency || 'NPR' },
     ]),

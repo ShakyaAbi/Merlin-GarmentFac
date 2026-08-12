@@ -8,6 +8,7 @@ const productSelect = {
   name: true,
   description: true,
   category: true,
+  articleCategoryId: true,
   unit: true,
   sellingPrice: true,
   costPrice: true,
@@ -16,6 +17,7 @@ const productSelect = {
   notes: true,
   imageUrl: true,
   bomData: true as any,
+  articleCategory: { select: { id: true, name: true, description: true, status: true } },
   createdBy: true,
   updatedBy: true,
   createdAt: true,
@@ -31,6 +33,14 @@ export async function updateFinishedGood(id: string, data: Prisma.FinishedGoodPr
   return prisma.finishedGoodProduct.update({ where: { id }, data, select: productSelect })
 }
 
+export async function softDeleteFinishedGood(id: string) {
+  return prisma.finishedGoodProduct.update({
+    where: { id },
+    data: { deletedAt: new Date(), active: false },
+    select: productSelect,
+  })
+}
+
 export async function getFinishedGood(id: string) {
   return prisma.finishedGoodProduct.findUnique({ where: { id }, select: productSelect })
 }
@@ -38,19 +48,20 @@ export async function getFinishedGood(id: string) {
 export async function listFinishedGoods(opts: {
   search?: string
   active?: boolean
+  deleted?: boolean
   page?: number
   pageSize?: number
 } = {}) {
   const page = opts.page || 1
   const pageSize = opts.pageSize || 20
   const skip = (page - 1) * pageSize
-  const where: Prisma.FinishedGoodProductWhereInput = { deletedAt: null }
+  const where: Prisma.FinishedGoodProductWhereInput = { deletedAt: opts.deleted ? { not: null } : null }
 
   if (opts.search) {
     where.OR = [
-      { name: { contains: opts.search, mode: 'insensitive' } },
-      { sku: { contains: opts.search, mode: 'insensitive' } },
-      { productCode: { contains: opts.search, mode: 'insensitive' } },
+      { name: { contains: opts.search } },
+      { sku: { contains: opts.search } },
+      { productCode: { contains: opts.search } },
     ]
   }
 

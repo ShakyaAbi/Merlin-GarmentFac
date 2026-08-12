@@ -1,0 +1,4 @@
+UPDATE `Expense` SET `status` = 'APPROVED' WHERE `status` = 'DRAFT';
+
+ALTER TABLE `Expense`
+  MODIFY `status` ENUM('APPROVED', 'PAID', 'VOID') NOT NULL DEFAULT 'APPROVED';

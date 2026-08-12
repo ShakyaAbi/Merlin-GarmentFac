@@ -11,7 +11,7 @@ const router = Router()
 router.get('/', authenticate, expense.list)
 router.get('/:id', authenticate, expense.get)
 router.post('/', authenticate, requireRoles(Role.ADMIN, Role.MANAGER, Role.DATA_ENTRY), validate({ body: createExpenseSchema }), expense.create)
-router.patch('/:id', authenticate, requireRoles(Role.ADMIN, Role.MANAGER, Role.DATA_ENTRY), validate({ body: updateExpenseSchema }), expense.update)
+router.patch('/:id', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), validate({ body: updateExpenseSchema }), expense.update)
 router.delete('/:id', authenticate, requireRoles(Role.ADMIN, Role.MANAGER), expense.remove)
 
 export default router

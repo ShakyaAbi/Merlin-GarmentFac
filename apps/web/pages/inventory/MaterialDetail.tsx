@@ -2,17 +2,21 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api } from '../../services/api'
+import { rawMaterialApi } from '../../services/rawMaterialApi'
 import { Modal } from '../../components/ui/Modal'
 import { MaterialCsvActions } from '../../components/inventory/MaterialCsvActions'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
 import { InventoryStatGrid } from '../../components/inventory/InventoryStatGrid'
+import { RawMaterialCategoryField } from '../../components/inventory/RawMaterialCategoryField'
 import { formatNepaliDate, formatNepaliDateTime } from '../../utils/nepaliDate'
+import { useCurrentUser } from '../../components/auth/CurrentUserContext'
 
 export default function MaterialDetail() {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
   const navigate = useNavigate()
+  const { canEdit } = useCurrentUser()
   const [material, setMaterial] = useState<any>(null)
   const [transactions, setTransactions] = useState<any[]>([])
   const [purchases, setPurchases] = useState<any[]>([])
@@ -25,6 +29,7 @@ export default function MaterialDetail() {
   const [pageSize, setPageSize] = useState(10)
   const [currentPage, setCurrentPage] = useState(1)
   const [error, setError] = useState<string | null>(null)
+  const canRenderStockChart = typeof window !== 'undefined' && typeof ResizeObserver !== 'undefined' && typeof requestAnimationFrame !== 'undefined'
 
   useEffect(() => {
     if (!id) return
@@ -67,10 +72,10 @@ export default function MaterialDetail() {
   }, [id])
 
   useEffect(() => {
-    if (new URLSearchParams(location.search).get('edit') === '1') {
+    if (canEdit && new URLSearchParams(location.search).get('edit') === '1') {
       setShowEdit(true)
     }
-  }, [location.search])
+  }, [canEdit, location.search])
 
   const stockSeries = useMemo(() => {
     const sorted = [...transactions]
@@ -82,9 +87,10 @@ export default function MaterialDetail() {
       }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
-    let running = Number(material?.currentStock ?? 0)
+    const totalChange = sorted.reduce((sum, tx) => sum + tx.change, 0)
+    let running = Number(material?.currentStock ?? 0) - totalChange
     return sorted.map((tx) => {
-      running -= tx.change
+      running += tx.change
       return {
         ...tx,
         stock: Math.max(running, 0),
@@ -126,7 +132,7 @@ export default function MaterialDetail() {
 
   const handleSaveEdit = async (payload: any) => {
     try {
-      const updated = await api.put(`/inventory/materials/${material.id}`, payload)
+      const updated = await rawMaterialApi.update(material.id, payload)
       setMaterial(updated)
       setShowEdit(false)
     } catch (err: any) {
@@ -136,7 +142,7 @@ export default function MaterialDetail() {
 
   const handleAdjust = async (payload: any) => {
     try {
-      const tx = await api.post(`/inventory/materials/${material.id}/adjust-stock`, payload)
+      const tx = await rawMaterialApi.adjustStock(material.id, payload)
       setTransactions([tx, ...transactions])
       const refreshed = await api.get(`/inventory/materials/${material.id}`)
       setMaterial(refreshed)
@@ -176,8 +182,10 @@ export default function MaterialDetail() {
             to: `/inventory/purchases/create?material=${material.id}`,
             variant: 'primary',
           },
-          { label: 'Adjust Stock', variant: 'outline', onClick: () => setShowAdjust(true) },
-          { label: 'Edit Material', variant: 'outline', onClick: () => setShowEdit(true) },
+          ...(canEdit ? [
+            { label: 'Adjust Stock', variant: 'outline' as const, onClick: () => setShowAdjust(true) },
+            { label: 'Edit Material', variant: 'outline' as const, onClick: () => setShowEdit(true) },
+          ] : []),
         ]}
       >
         <InventoryStatGrid
@@ -189,7 +197,11 @@ export default function MaterialDetail() {
         />
 
         <InventorySectionCard title="Stock Trend" description="Movement history shown as a running stock line, similar to an indicator trend.">
-          {stockSeries.length === 0 ? (
+          {!canRenderStockChart ? (
+            <div className="py-10 text-center text-sm text-slate-500">
+              Stock trend chart is unavailable in this browser.
+            </div>
+          ) : stockSeries.length === 0 ? (
             <div className="py-10 text-center text-sm text-slate-500">No stock history yet.</div>
           ) : (
             <div className="h-72">
@@ -325,20 +337,20 @@ export default function MaterialDetail() {
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-2">
-                                <button
+                                {canEdit ? <button
                                   type="button"
                                   className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700"
                                   onClick={() => setShowAdjust(true)}
                                 >
                                   Adjust
-                                </button>
-                                <button
+                                </button> : null}
+                                {canEdit ? <button
                                   type="button"
                                   className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700"
                                   onClick={() => setShowEdit(true)}
                                 >
                                   Edit
-                                </button>
+                                </button> : null}
                               </div>
                             </td>
                           </tr>
@@ -448,11 +460,11 @@ export default function MaterialDetail() {
             </InventorySectionCard>
 
             <InventorySectionCard title="CSV Tools" description="Import or export this material record.">
-              <MaterialCsvActions
+              {canEdit ? <MaterialCsvActions
                 title="material record"
                 filters={{ ids: [material.id] }}
                 onSuccess={() => window.location.reload()}
-              />
+              /> : <div className="text-sm text-slate-500">Material import is restricted to managers and administrators.</div>}
             </InventorySectionCard>
           </div>
         </div>
@@ -517,7 +529,9 @@ function EditMaterialForm({ material, onCancel, onSave }: any) {
     defaultUnit: material.defaultUnit || '',
     reorderLevel: material.reorderLevel || 0,
     costPrice: material.costPrice || '',
+    categoryId: material.categoryId || '',
   })
+  const canSave = Boolean(form.name.trim() && form.sku.trim() && form.defaultUnit.trim())
 
   return (
     <div className="space-y-4">
@@ -526,9 +540,18 @@ function EditMaterialForm({ material, onCancel, onSave }: any) {
         <input className="w-full rounded-xl border px-3 py-2" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
       </label>
       <label className="block text-sm">
-        <span className="mb-1 block text-slate-600">SKU</span>
-        <input className="w-full rounded-xl border px-3 py-2" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
+        <span className="mb-1 block text-slate-600">EXIM CODE</span>
+        <input
+          className="w-full rounded-xl border px-3 py-2"
+          value={form.sku}
+          onChange={(e) => setForm({ ...form, sku: e.target.value })}
+          placeholder="Required exim code"
+        />
       </label>
+      <RawMaterialCategoryField
+        value={form.categoryId}
+        onChange={(categoryId) => setForm({ ...form, categoryId })}
+      />
       <div className="flex gap-2">
         <label className="block flex-1 text-sm">
           <span className="mb-1 block text-slate-600">Default Unit</span>
@@ -560,7 +583,15 @@ function EditMaterialForm({ material, onCancel, onSave }: any) {
         <button type="button" onClick={onCancel} className="rounded-xl border px-3 py-2">
           Cancel
         </button>
-        <button type="button" onClick={() => onSave(form)} className="rounded-xl bg-blue-600 px-4 py-2 text-white">
+        <button
+          type="button"
+          onClick={() => {
+            if (!canSave) return
+            onSave({ ...form, categoryId: form.categoryId || undefined })
+          }}
+          disabled={!canSave}
+          className="rounded-xl bg-blue-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+        >
           Save
         </button>
       </div>

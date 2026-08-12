@@ -14,7 +14,7 @@ export const createCategorySchema = z.object({
 
 export const createMaterialSchema = z.object({
   name: z.string().trim().min(1),
-  sku: z.string().trim().optional(),
+  sku: z.string().trim().min(1, 'Exim code is required'),
   defaultUnit: z.string().trim().min(1),
   description: z.string().trim().optional(),
   reorderLevel: z.coerce.number().optional(),
@@ -29,6 +29,7 @@ export const createMaterialSchema = z.object({
 export const updateMaterialSchema = createMaterialSchema.partial().extend({
   name: z.string().trim().min(1).optional(),
   defaultUnit: z.string().trim().min(1).optional(),
+  sku: z.string().trim().min(1, 'Exim code is required').optional(),
 })
 
 export const adjustStockSchema = z.object({
@@ -48,7 +49,26 @@ export const createPurchaseSchema = z.object({
   supplierId: z.string().trim().min(1),
   invoiceNumber: z.string().trim().min(1),
   invoiceDate: z.string().optional(),
+  dueDate: z.string().optional(),
   currency: z.string().optional(),
+  discountAmount: z.coerce.number().nonnegative().optional(),
   items: z.array(purchaseItemSchema).min(1),
   notes: z.string().optional(),
+})
+
+export const purchasePaymentSchema = z.object({
+  amount: z.coerce.number().positive(),
+  paymentMethod: z.string().trim().min(1),
+  paymentDate: z.string().trim().optional(),
+  note: z.string().trim().optional(),
+  bankAccountId: z.string().trim().optional(),
+})
+
+export const updatePurchasePaymentSchema = purchasePaymentSchema.partial().extend({
+  amount: z.coerce.number().positive().optional(),
+  paymentMethod: z.string().trim().min(1).optional(),
+})
+
+export const cancelPurchaseSchema = z.object({
+  reason: z.string().trim().min(1, 'Cancellation reason is required'),
 })

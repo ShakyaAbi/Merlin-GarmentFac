@@ -26,10 +26,4 @@ npm --prefix apps/web run build
 echo "Starting/updating containers..."
 docker-compose -f "$COMPOSE_FILE" up -d --build --remove-orphans
 
-echo "Running Prisma migrations inside api container (if any)..."
-docker-compose -f "$COMPOSE_FILE" exec -T api sh -c "npx prisma migrate deploy || true"
-
-echo "Reloading API process via PM2 (graceful reload)..."
-docker-compose -f "$COMPOSE_FILE" exec -T api sh -c "npx pm2 reload ecosystem.config.js --env production || npx pm2 start ecosystem.config.js --env production"
-
 echo "Deploy complete."
