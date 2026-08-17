@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { finishedGoodApi } from '../../services/finishedGoodApi'
+import { api } from '../../services/api'
 import { InventoryPageShell } from '../../components/inventory/InventoryPageShell'
 import { InventorySectionCard } from '../../components/inventory/InventorySectionCard'
 import { Button } from '../../components/ui/Button'

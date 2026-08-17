@@ -73,6 +73,10 @@ export async function previewNextArticleNumber() {
 }
 
 export async function updateFinishedGood(id: string, data: any, userId?: number) {
+  const existing = await repo.getFinishedGood(id)
+  if (existing?.deletedAt) {
+    throw new AppError(409, 'ARCHIVED_ARTICLE', 'Cannot edit an archived article')
+  }
   const normalized = await normalizeBomCosts(data)
   const category = data.articleCategoryId ? await articleCategories.getCategory(data.articleCategoryId) : null
   return repo.updateFinishedGood(id, {

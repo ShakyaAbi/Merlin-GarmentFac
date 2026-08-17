@@ -65,6 +65,7 @@ export default function FinishedGoodDetailPage() {
   }, [location.search])
 
   const currentStock = Number(article?.currentStock ?? 0)
+  const canEditArticle = canEdit && !article?.deletedAt
   const reorderLevel = article?.reorderLevel ?? null
   const hasTarget = reorderLevel != null && Number.isFinite(Number(reorderLevel)) && Number(reorderLevel) > 0
   const isLowStock = hasTarget && currentStock <= Number(reorderLevel)
@@ -123,7 +124,7 @@ export default function FinishedGoodDetailPage() {
         description="Article stock, transaction history, manual adjustments, and low-stock tracking."
         backTo={{ to: '/inventory/finished-goods', label: 'Back to Articles' }}
         actions={[
-          ...(canEdit ? [
+          ...(canEditArticle ? [
             { label: 'Adjust Stock', onClick: () => setShowAdjust(true) },
             { label: 'Edit Article', variant: 'outline' as const, onClick: () => setShowEdit(true) },
           ] : []),
@@ -234,7 +235,7 @@ export default function FinishedGoodDetailPage() {
               </div>
 
               <div className="mt-5 grid grid-cols-1 gap-2">
-                {canEdit ? (
+                {canEditArticle ? (
                   <>
                     <button
                       type="button"
@@ -431,7 +432,7 @@ export default function FinishedGoodDetailPage() {
         </InventorySectionCard>
       </InventoryPageShell>
 
-      <Modal isOpen={showEdit} onClose={() => setShowEdit(false)} title={`Edit ${article.name}`} size="xl">
+      <Modal isOpen={showEdit && canEditArticle} onClose={() => setShowEdit(false)} title={`Edit ${article.name}`} size="xl">
         <EditArticleForm article={article} onCancel={() => setShowEdit(false)} onSave={handleSaveEdit} />
       </Modal>
 
